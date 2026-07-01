@@ -97,6 +97,15 @@ export async function appendMessage(projectId: string, role: string, content: st
   return msg;
 }
 
+// Replace the full chat history for a project (simplest consistent sync from the client).
+export async function replaceMessages(projectId: string, items: { role: string; content: string }[]) {
+  await db.delete(messages).where(eq(messages.projectId, projectId));
+  if (items.length === 0) return;
+  await db.insert(messages).values(
+    items.map((m, i) => ({ projectId, role: m.role, content: m.content, seq: i }))
+  );
+}
+
 export async function getMessages(projectId: string) {
   return db.select().from(messages)
     .where(eq(messages.projectId, projectId))

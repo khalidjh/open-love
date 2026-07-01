@@ -82,6 +82,8 @@ function AISandboxPage() {
     const modelParam = searchParams.get('model');
     return appConfig.ai.availableModels.includes(modelParam || '') ? modelParam! : appConfig.ai.defaultModel;
   });
+  // Persisted project (DB) this session is editing. Restored from ?project= if present.
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => searchParams.get('project'));
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
@@ -936,8 +938,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           }
           
           // Fetch updated file structure
-          await fetchSandboxFiles();
-          
+          const updatedFiles = await fetchSandboxFiles();
+
+          // Persist the applied code + chat to the DB (survives sandbox death / reload)
+          await persistSnapshot(updatedFiles);
+
           // Skip automatic package check - it's not needed here and can cause false "no sandbox" messages
           // Packages are already installed during the apply-ai-code-stream process
           
@@ -1072,9 +1077,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
-  const fetchSandboxFiles = async () => {
-    if (!sandboxData) return;
-    
+  const fetchSandboxFiles = async (): Promise<Record<string, string> | null> => {
+    if (!sandboxData) return null;
+
     try {
       const response = await fetch('/api/get-sandbox-files', {
         method: 'GET',
@@ -1082,17 +1087,70 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           'Content-Type': 'application/json',
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setSandboxFiles(data.files || {});
           setFileStructure(data.structure || '');
           console.log('[fetchSandboxFiles] Updated file list:', Object.keys(data.files || {}).length, 'files');
+          return data.files || {};
         }
       }
     } catch (error) {
       console.error('[fetchSandboxFiles] Error fetching files:', error);
+    }
+    return null;
+  };
+
+  // Ensure a persisted project exists for this session; create one on first save.
+  const ensureProjectId = async (): Promise<string | null> => {
+    if (currentProjectId) return currentProjectId;
+    try {
+      const firstUserMsg = chatMessages.find(m => m.type === 'user')?.content;
+      const name = (firstUserMsg || 'Untitled app').slice(0, 60);
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, model: aiModel }),
+      });
+      const data = await res.json();
+      if (data.success && data.project?.id) {
+        const id = data.project.id;
+        setCurrentProjectId(id);
+        // reflect the project in the URL without a navigation
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('project', id);
+        router.replace(`/generation?${params.toString()}`);
+        return id;
+      }
+    } catch (error) {
+      console.error('[ensureProjectId] Failed to create project:', error);
+    }
+    return null;
+  };
+
+  // Persist the current app state (code snapshot + chat) to the DB.
+  const persistSnapshot = async (files: Record<string, string> | null) => {
+    if (!files || Object.keys(files).length === 0) return;
+    const projectId = await ensureProjectId();
+    if (!projectId) return;
+    try {
+      await fetch(`/api/projects/${projectId}/snapshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files,
+          messages: chatMessages
+            .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'system')
+            .map(m => ({ role: m.type, content: m.content })),
+          sandboxId: sandboxData?.sandboxId,
+          sandboxProvider: (sandboxData as any)?.provider,
+        }),
+      });
+      console.log('[persistSnapshot] Saved project', projectId, Object.keys(files).length, 'files');
+    } catch (error) {
+      console.error('[persistSnapshot] Failed to save snapshot:', error);
     }
   };
   
