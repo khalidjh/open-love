@@ -4,12 +4,13 @@ import { FileManifest, FileInfo, RouteInfo } from '@/types/file-manifest';
 // SandboxState type used implicitly through global.activeSandbox
 
 declare global {
-  var activeSandbox: any;
+  var activeSandboxProvider: any;
 }
 
 export async function GET() {
   try {
-    if (!global.activeSandbox) {
+    const provider = global.activeSandboxProvider;
+    if (!provider) {
       return NextResponse.json({
         success: false,
         error: 'No active sandbox'
@@ -17,83 +18,40 @@ export async function GET() {
     }
 
     console.log('[get-sandbox-files] Fetching and analyzing file structure...');
-    
-    // Get list of all relevant files
-    const findResult = await global.activeSandbox.runCommand({
-      cmd: 'find',
-      args: [
-        '.',
-        '-name', 'node_modules', '-prune', '-o',
-        '-name', '.git', '-prune', '-o',
-        '-name', 'dist', '-prune', '-o',
-        '-name', 'build', '-prune', '-o',
-        '-type', 'f',
-        '(',
-        '-name', '*.jsx',
-        '-o', '-name', '*.js',
-        '-o', '-name', '*.tsx',
-        '-o', '-name', '*.ts',
-        '-o', '-name', '*.css',
-        '-o', '-name', '*.json',
-        ')',
-        '-print'
-      ]
-    });
-    
-    if (findResult.exitCode !== 0) {
-      throw new Error('Failed to list files');
-    }
-    
-    const fileList = (await findResult.stdout()).split('\n').filter((f: string) => f.trim());
-    console.log('[get-sandbox-files] Found', fileList.length, 'files');
-    
-    // Read content of each file (limit to reasonable sizes)
+
+    // List relevant files via the provider abstraction (works for E2B + Vercel)
+    const allFiles: string[] = await provider.listFiles();
+    const codeFiles = allFiles
+      .map((f) => f.replace(/^\.?\//, ''))
+      .filter((f) => /\.(jsx?|tsx?|css|json)$/.test(f));
+    console.log('[get-sandbox-files] Found', codeFiles.length, 'code files');
+
+    // Read content of each file (skip large ones)
     const filesContent: Record<string, string> = {};
-    
-    for (const filePath of fileList) {
+    for (const relativePath of codeFiles) {
       try {
-        // Check file size first
-        const statResult = await global.activeSandbox.runCommand({
-          cmd: 'stat',
-          args: ['-f', '%z', filePath]
-        });
-        
-        if (statResult.exitCode === 0) {
-          const fileSize = parseInt(await statResult.stdout());
-          
-          // Only read files smaller than 10KB
-          if (fileSize < 10000) {
-            const catResult = await global.activeSandbox.runCommand({
-              cmd: 'cat',
-              args: [filePath]
-            });
-            
-            if (catResult.exitCode === 0) {
-              const content = await catResult.stdout();
-              // Remove leading './' from path
-              const relativePath = filePath.replace(/^\.\//, '');
-              filesContent[relativePath] = content;
-            }
-          }
+        const content = await provider.readFile(relativePath);
+        if (typeof content === 'string' && content.length < 10000) {
+          filesContent[relativePath] = content;
         }
-      } catch (parseError) {
-        console.debug('Error parsing component info:', parseError);
+      } catch {
         // Skip files that can't be read
         continue;
       }
     }
-    
-    // Get directory structure
-    const treeResult = await global.activeSandbox.runCommand({
-      cmd: 'find',
-      args: ['.', '-type', 'd', '-not', '-path', '*/node_modules*', '-not', '-path', '*/.git*']
-    });
-    
-    let structure = '';
-    if (treeResult.exitCode === 0) {
-      const dirs = (await treeResult.stdout()).split('\n').filter((d: string) => d.trim());
-      structure = dirs.slice(0, 50).join('\n'); // Limit to 50 lines
+
+    // Derive directory structure from the file paths
+    const dirSet = new Set<string>();
+    for (const p of Object.keys(filesContent)) {
+      const parts = p.split('/');
+      parts.pop();
+      let cur = '';
+      for (const seg of parts) {
+        cur = cur ? `${cur}/${seg}` : seg;
+        dirSet.add(cur);
+      }
     }
+    const structure = Array.from(dirSet).sort().slice(0, 50).join('\n');
     
     // Build enhanced file manifest
     const fileManifest: FileManifest = {
