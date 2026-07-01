@@ -96,7 +96,7 @@ declare global {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false } = await request.json();
+    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false, database } = await request.json();
     
     console.log('[generate-ai-code-stream] Received request:');
     console.log('[generate-ai-code-stream] - prompt:', prompt);
@@ -948,6 +948,26 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
 - Only use <file> blocks when you must CREATE a brand-new file.
 - Prefer ONE edit block for a simple change; multiple edits only if absolutely needed for separate files.
 - Keep updates minimal and precise; do not rewrite entire files.
+`;
+        }
+
+        // A per-project Supabase database is available for this app
+        if (database?.schema) {
+          systemPrompt += `
+
+SUPABASE DATABASE AVAILABLE:
+This project has its own Supabase database. When the user asks for data, persistence, auth, or backend features, use it — do NOT use localStorage or mock data.
+- Client: import { createClient } from '@supabase/supabase-js' (already installed)
+- Create the client ONCE and target the project schema:
+    export const supabase = createClient(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_ANON_KEY,
+      { db: { schema: import.meta.env.VITE_SUPABASE_SCHEMA } }
+    )
+- These env vars are already set in the sandbox (.env). Never hardcode the URL/key.
+- Query with supabase.from('table_name')... (the schema is applied automatically).
+- Tables live in the project schema "${database.schema}". If a table does not exist yet,
+  tell the user which table/columns are needed so it can be created; do not assume tables exist.
 `;
         }
 

@@ -4,6 +4,25 @@ import { getProject, getProjectDatabase, upsertProjectDatabase, deleteProjectDat
 import { provisionProjectSchema, deprovisionProjectSchema } from '@/lib/db/provision-schema';
 import { encrypt, decrypt } from '@/lib/crypto';
 
+declare global {
+  var activeSandboxProvider: any;
+}
+
+// Best-effort: drop the Supabase creds into the live sandbox and install the
+// client so the generated app can `import.meta.env.VITE_SUPABASE_*` immediately.
+async function injectIntoSandbox(url: string, anonKey: string, schema: string) {
+  const provider = global.activeSandboxProvider;
+  if (!provider) return;
+  try {
+    const env = `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${anonKey}\nVITE_SUPABASE_SCHEMA=${schema}\n`;
+    await provider.writeFile('.env', env);
+    await provider.runShell('npm install @supabase/supabase-js');
+    await provider.restartViteServer();
+  } catch (e) {
+    console.error('[database] sandbox injection failed', e);
+  }
+}
+
 // The generated app connects to the shared self-hosted Supabase; only the
 // schema differs per project. URL + anon key are public by design.
 function sharedConfig() {
@@ -59,6 +78,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       status: 'ready',
       encryptedCredentials: encrypt(JSON.stringify({ url, anonKey, schema })),
     });
+
+    await injectIntoSandbox(url, anonKey, schema);
 
     return NextResponse.json({ success: true, database: { status: 'ready', schema, url, anonKey } });
   } catch (error) {

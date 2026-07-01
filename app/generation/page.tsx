@@ -84,6 +84,9 @@ function AISandboxPage() {
   });
   // Persisted project (DB) this session is editing. Restored from ?project= if present.
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => searchParams.get('project'));
+  // Per-project Supabase database (Phase 2), null when the project is frontend-only.
+  const [dbInfo, setDbInfo] = useState<{ schema: string; url: string; anonKey: string } | null>(null);
+  const [addingDb, setAddingDb] = useState(false);
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
@@ -1163,6 +1166,51 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
+  // Provision an opt-in Supabase database (its own schema) for the current project.
+  const addDatabase = async () => {
+    const projectId = await ensureProjectId();
+    if (!projectId) {
+      addChatMessage('Save the project first (generate something) before adding a database.', 'system');
+      return;
+    }
+    setAddingDb(true);
+    addChatMessage('Provisioning a Supabase database for this app…', 'system');
+    try {
+      const res = await fetch(`/api/projects/${projectId}/database`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.database?.status === 'ready') {
+        setDbInfo({ schema: data.database.schema, url: data.database.url, anonKey: data.database.anonKey });
+        addChatMessage(
+          `✅ Database ready (schema \`${data.database.schema}\`). Your app now has \`import.meta.env.VITE_SUPABASE_URL\`, \`VITE_SUPABASE_ANON_KEY\`, and \`VITE_SUPABASE_SCHEMA\`. Ask me to build data-backed features and I'll wire up @supabase/supabase-js.`,
+          'system'
+        );
+      } else {
+        throw new Error(data.error || 'Provisioning failed');
+      }
+    } catch (e: any) {
+      addChatMessage(`Failed to add database: ${e.message}`, 'error');
+    } finally {
+      setAddingDb(false);
+    }
+  };
+
+  // Load a project's database status (if any) into state; returns it too.
+  const loadDbInfo = async (projectId: string): Promise<{ schema: string; url: string; anonKey: string } | null> => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/database`);
+      const data = await res.json();
+      if (data.success && data.database?.status === 'ready') {
+        const info = { schema: data.database.schema, url: data.database.url, anonKey: data.database.anonKey };
+        setDbInfo(info);
+        return info;
+      }
+    } catch {
+      // ignore
+    }
+    setDbInfo(null);
+    return null;
+  };
+
   // Restore a saved project: rehydrate chat, create a fresh sandbox, and write
   // the last saved files back into it so the preview shows the real app.
   const restoreProject = async (projectId: string): Promise<boolean> => {
@@ -1204,6 +1252,13 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       }
 
       await fetchSandboxFiles();
+
+      // If this project has a database, re-inject its creds into the fresh sandbox
+      const db = await loadDbInfo(projectId);
+      if (db) {
+        await fetch(`/api/projects/${projectId}/database`, { method: 'POST' });
+      }
+
       // Nudge the preview to reload now that files are in place
       if (iframeRef.current) {
         // eslint-disable-next-line no-self-assign
@@ -1934,7 +1989,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           prompt: message,
           model: aiModel,
           context: fullContext,
-          isEdit: conversationContext.appliedCode.length > 0
+          isEdit: conversationContext.appliedCode.length > 0,
+          database: dbInfo || undefined
         })
       });
       
@@ -3482,6 +3538,24 @@ Focus on the key sections and content, making it clean and modern.`;
           >
             My apps
           </a>
+          {/* Opt-in per-project database */}
+          {dbInfo ? (
+            <span
+              className="px-3 py-1.5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg"
+              title={`Supabase schema ${dbInfo.schema}`}
+            >
+              ● Database
+            </span>
+          ) : (
+            <button
+              onClick={addDatabase}
+              disabled={addingDb}
+              className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              title="Add a Supabase database to this app"
+            >
+              {addingDb ? 'Adding DB…' : '+ Database'}
+            </button>
+          )}
           {/* Model Selector - Left side */}
           <select
             value={aiModel}
