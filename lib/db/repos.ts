@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from './index';
 import {
-  orgs, orgMembers, profiles, projects, projectVersions, messages,
+  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases,
   type NewProject,
 } from './schema';
 
@@ -110,4 +110,36 @@ export async function getMessages(projectId: string) {
   return db.select().from(messages)
     .where(eq(messages.projectId, projectId))
     .orderBy(messages.seq);
+}
+
+// -----------------------------------------------------------------------------
+// Per-project databases (Phase 2)
+// -----------------------------------------------------------------------------
+
+export async function getProjectDatabase(projectId: string) {
+  return db.query.tenantDatabases.findFirst({
+    where: eq(tenantDatabases.projectId, projectId),
+  });
+}
+
+export async function upsertProjectDatabase(
+  projectId: string,
+  data: { provider?: string; externalRef?: string; encryptedCredentials?: string; status?: string }
+) {
+  const existing = await getProjectDatabase(projectId);
+  if (existing) {
+    const [row] = await db.update(tenantDatabases)
+      .set(data)
+      .where(eq(tenantDatabases.id, existing.id))
+      .returning();
+    return row;
+  }
+  const [row] = await db.insert(tenantDatabases)
+    .values({ projectId, provider: data.provider ?? 'supabase', ...data })
+    .returning();
+  return row;
+}
+
+export async function deleteProjectDatabase(projectId: string) {
+  await db.delete(tenantDatabases).where(eq(tenantDatabases.projectId, projectId));
 }
