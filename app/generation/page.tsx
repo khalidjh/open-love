@@ -85,8 +85,9 @@ function AISandboxPage() {
   // Persisted project (DB) this session is editing. Restored from ?project= if present.
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => searchParams.get('project'));
   // Per-project Supabase database (Phase 2), null when the project is frontend-only.
+  // Provisioned automatically when a request needs to store data — never surfaced as a user action.
   const [dbInfo, setDbInfo] = useState<{ schema: string; url: string; anonKey: string } | null>(null);
-  const [addingDb, setAddingDb] = useState(false);
+  const currentProjectIdRef = useRef<string | null>(searchParams.get('project'));
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
@@ -1116,8 +1117,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
   };
 
   // Ensure a persisted project exists for this session; create one on first save.
+  // Uses a ref so it stays correct across awaits within a single generation.
   const ensureProjectId = async (): Promise<string | null> => {
-    if (currentProjectId) return currentProjectId;
+    if (currentProjectIdRef.current) return currentProjectIdRef.current;
     try {
       const firstUserMsg = chatMessages.find(m => m.type === 'user')?.content;
       const name = (firstUserMsg || 'Untitled app').slice(0, 60);
@@ -1129,6 +1131,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       const data = await res.json();
       if (data.success && data.project?.id) {
         const id = data.project.id;
+        currentProjectIdRef.current = id;
         setCurrentProjectId(id);
         // reflect the project in the URL without a navigation
         const params = new URLSearchParams(searchParams.toString());
@@ -1166,38 +1169,39 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
-  // Provision an opt-in Supabase database (its own schema) for the current project.
-  const addDatabase = async () => {
+  type DbInfo = { schema: string; url: string; anonKey: string };
+
+  // Silently ensure this project has data storage. Called automatically when a
+  // request needs to save data — the user never asks for a "database".
+  const ensureDatabase = async (): Promise<DbInfo | null> => {
+    if (dbInfo) return dbInfo;
     const projectId = await ensureProjectId();
-    if (!projectId) {
-      addChatMessage('Save the project first (generate something) before adding a database.', 'system');
-      return;
-    }
-    setAddingDb(true);
-    addChatMessage('Provisioning a Supabase database for this app…', 'system');
+    if (!projectId) return null;
+    addChatMessage('Setting up storage so your app can save data…', 'system');
     try {
       const res = await fetch(`/api/projects/${projectId}/database`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.database?.status === 'ready') {
-        setDbInfo({ schema: data.database.schema, url: data.database.url, anonKey: data.database.anonKey });
-        addChatMessage(
-          `✅ Database ready (schema \`${data.database.schema}\`). Your app now has \`import.meta.env.VITE_SUPABASE_URL\`, \`VITE_SUPABASE_ANON_KEY\`, and \`VITE_SUPABASE_SCHEMA\`. Ask me to build data-backed features and I'll wire up @supabase/supabase-js.`,
-          'system'
-        );
-      } else {
-        throw new Error(data.error || 'Provisioning failed');
+        const info: DbInfo = { schema: data.database.schema, url: data.database.url, anonKey: data.database.anonKey };
+        setDbInfo(info);
+        return info;
       }
+      throw new Error(data.error || 'setup failed');
     } catch (e: any) {
-      addChatMessage(`Failed to add database: ${e.message}`, 'error');
-    } finally {
-      setAddingDb(false);
+      console.error('[ensureDatabase] failed:', e);
+      return null;
     }
   };
 
-  // Extract a <tables> spec from a generated response and create those tables
-  // in the project's schema (before the app is applied, so queries work on load).
-  const createTablesFromResponse = async (generated: string) => {
-    if (!currentProjectId || !dbInfo) return;
+  // Does a generated response need saved data? (AI declared tables, or used the client)
+  const responseNeedsDatabase = (generated: string): boolean =>
+    /<tables>[\s\S]*?<\/tables>/i.test(generated) ||
+    /@supabase\/supabase-js|VITE_SUPABASE_/.test(generated);
+
+  // Create any tables the response declared, inside the project's storage.
+  const createTablesFromResponse = async (generated: string, db: DbInfo | null) => {
+    const projectId = currentProjectIdRef.current;
+    if (!projectId || !db) return;
     const match = generated.match(/<tables>([\s\S]*?)<\/tables>/i);
     if (!match) return;
     let tables: any;
@@ -1209,19 +1213,17 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
     if (!Array.isArray(tables) || tables.length === 0) return;
     try {
-      const res = await fetch(`/api/projects/${currentProjectId}/database/tables`, {
+      const res = await fetch(`/api/projects/${projectId}/database/tables`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tables }),
       });
       const data = await res.json();
-      if (data.success && data.created?.length) {
-        addChatMessage(`🗄️ Created ${data.created.length} table(s): ${data.created.join(', ')}`, 'system');
-      } else if (!data.success) {
-        addChatMessage(`Table creation failed: ${data.error}`, 'error');
+      if (!data.success) {
+        console.error('[tables] creation failed:', data.error);
       }
     } catch (e: any) {
-      addChatMessage(`Table creation error: ${e.message}`, 'error');
+      console.error('[tables] creation error:', e.message);
     }
   };
 
@@ -2023,8 +2025,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           prompt: message,
           model: aiModel,
           context: fullContext,
-          isEdit: conversationContext.appliedCode.length > 0,
-          database: dbInfo || undefined
+          isEdit: conversationContext.appliedCode.length > 0
         })
       });
       
@@ -2343,9 +2344,14 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
-          // If the response declared database tables, create them before applying
-          // the code so the app can query them on first load.
-          await createTablesFromResponse(generatedCode);
+          // Automatically decide if this app needs to save data. If so, set up
+          // storage (once) and create any tables the response declared — all
+          // before applying the code, so the app works on first load.
+          let db = dbInfo;
+          if (responseNeedsDatabase(generatedCode)) {
+            if (!db) db = await ensureDatabase();
+            await createTablesFromResponse(generatedCode, db);
+          }
 
           // Use isEdit flag that was determined at the start
           // Pass the sandbox data from the promise if it's different from the state
@@ -3576,24 +3582,6 @@ Focus on the key sections and content, making it clean and modern.`;
           >
             My apps
           </a>
-          {/* Opt-in per-project database */}
-          {dbInfo ? (
-            <span
-              className="px-3 py-1.5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg"
-              title={`Supabase schema ${dbInfo.schema}`}
-            >
-              ● Database
-            </span>
-          ) : (
-            <button
-              onClick={addDatabase}
-              disabled={addingDb}
-              className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
-              title="Add a Supabase database to this app"
-            >
-              {addingDb ? 'Adding DB…' : '+ Database'}
-            </button>
-          )}
           {/* Model Selector - Left side */}
           <select
             value={aiModel}

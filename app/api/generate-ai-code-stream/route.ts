@@ -96,7 +96,7 @@ declare global {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false, database } = await request.json();
+    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false } = await request.json();
     
     console.log('[generate-ai-code-stream] Received request:');
     console.log('[generate-ai-code-stream] - prompt:', prompt);
@@ -951,31 +951,32 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
 `;
         }
 
-        // A per-project Supabase database is available for this app
-        if (database?.schema) {
-          systemPrompt += `
+        // Decide automatically whether this app needs to store data.
+        systemPrompt += `
 
-SUPABASE DATABASE AVAILABLE:
-This project has its own Supabase database. When the user asks for data, persistence, auth, or backend features, use it — do NOT use localStorage or mock data.
-- Client: import { createClient } from '@supabase/supabase-js' (already installed)
-- Create the client ONCE and target the project schema:
+DECIDE IF THIS APP NEEDS TO STORE DATA:
+You must decide — the user is non-technical and will NOT ask for a "database".
+- If the app needs to SAVE, PERSIST, or SHARE data across reloads/sessions/users
+  (todos, notes, posts, comments, bookings, contact submissions, user accounts,
+  saved settings, any list the user adds to and expects to still be there later),
+  use the built-in database (Supabase) — do NOT use localStorage or mock/in-memory data.
+- If the app is purely visual/stateless (landing page, portfolio, calculator, a game
+  with no saved scores, a static dashboard), do NOT use a database at all.
+
+WHEN YOU USE THE DATABASE:
+- Client: import { createClient } from '@supabase/supabase-js' (auto-installed).
+- Create the client ONCE from env vars (auto-provided; never hardcode):
     export const supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
       import.meta.env.VITE_SUPABASE_ANON_KEY,
       { db: { schema: import.meta.env.VITE_SUPABASE_SCHEMA } }
     )
-- These env vars are already set in the sandbox (.env). Never hardcode the URL/key.
-- Query with supabase.from('table_name')... (the schema is applied automatically).
-- Tables live in the project schema "${database.schema}".
-
-CREATING TABLES:
-If the app needs tables that don't exist yet, emit a <tables> block (in ADDITION to your
-code files) describing them as JSON. The platform creates them before your app runs.
-- Every table AUTOMATICALLY gets an "id" (uuid primary key) and "created_at" (timestamptz).
-  Do NOT list those; only list your own columns.
-- Allowed column types: text, integer, bigint, boolean, numeric, uuid, jsonb, timestamptz, date.
-- Use lowercase snake_case names.
-Example:
+- Read/write via supabase.from('table_name')... (schema applied automatically).
+- Declare any tables you need with a <tables> block (in ADDITION to code files);
+  the platform creates them before the app runs:
+  - Every table AUTOMATICALLY gets "id" (uuid pk) and "created_at" (timestamptz) — do NOT list them.
+  - Allowed column types: text, integer, bigint, boolean, numeric, uuid, jsonb, timestamptz, date.
+  - lowercase snake_case names.
 <tables>
 [
   { "name": "todos", "columns": [
@@ -984,9 +985,7 @@ Example:
   ]}
 ]
 </tables>
-Then write React code that reads/writes those tables via supabase.from('todos').
 `;
-        }
 
         // Build full prompt with context
         let fullPrompt = prompt;
