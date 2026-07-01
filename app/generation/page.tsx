@@ -245,8 +245,13 @@ function AISandboxPage() {
         
         // Also set autoStart flag for the effect
         sessionStorage.setItem('autoStart', 'true');
+      } else if (searchParams.get('project') || searchParams.get('sandbox')) {
+        // Opening a saved project or existing sandbox directly — skip the home screen
+        setHasInitialSubmission(true);
+        setShowHomeScreen(false);
+        setHomeScreenFading(false);
       }
-      
+
       // Clear old conversation
       try {
         await fetch('/api/conversation-state', {
@@ -264,15 +269,19 @@ function AISandboxPage() {
       
       if (!isMounted) return;
 
-      // Check if sandbox ID is in URL
+      // Check if a saved project or sandbox ID is in the URL
+      const projectParam = searchParams.get('project');
       const sandboxIdParam = searchParams.get('sandbox');
-      
+
       setLoading(true);
       try {
-        if (sandboxIdParam) {
+        if (projectParam) {
+          console.log('[home] Restoring saved project:', projectParam);
+          sandboxCreated = true;
+          await restoreProject(projectParam);
+        } else if (sandboxIdParam) {
           console.log('[home] Attempting to restore sandbox:', sandboxIdParam);
-          // For now, just create a new sandbox - you could enhance this to actually restore
-          // the specific sandbox if your backend supports it
+          // Sandbox reconnection isn't supported yet — create a fresh one
           sandboxCreated = true;
           await createSandbox(true);
         } else {
@@ -1151,6 +1160,62 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       console.log('[persistSnapshot] Saved project', projectId, Object.keys(files).length, 'files');
     } catch (error) {
       console.error('[persistSnapshot] Failed to save snapshot:', error);
+    }
+  };
+
+  // Restore a saved project: rehydrate chat, create a fresh sandbox, and write
+  // the last saved files back into it so the preview shows the real app.
+  const restoreProject = async (projectId: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/projects/${projectId}`);
+      const data = await res.json();
+      if (!data.success) {
+        addChatMessage('Could not load this project.', 'error');
+        return false;
+      }
+
+      // Rehydrate chat history
+      if (Array.isArray(data.messages) && data.messages.length > 0) {
+        setChatMessages(data.messages.map((m: any) => ({
+          content: m.content,
+          type: (['user', 'ai', 'system'].includes(m.role) ? m.role : 'system') as ChatMessage['type'],
+          timestamp: new Date(m.createdAt || Date.now()),
+        })));
+      }
+
+      // Always need a fresh sandbox
+      await createSandbox(true);
+
+      const fileCount = Object.keys(data.files || {}).length;
+      if (fileCount === 0) {
+        // Nothing saved yet — just leave the fresh scaffold
+        return true;
+      }
+
+      addChatMessage(`Restoring "${data.project?.name || 'your app'}" from your last saved version…`, 'system');
+
+      // Write the saved files into the new sandbox + reinstall deps + restart Vite
+      const restoreRes = await fetch(`/api/projects/${projectId}/restore`, { method: 'POST' });
+      const restoreData = await restoreRes.json();
+      if (!restoreData.success) {
+        addChatMessage(`Restore failed: ${restoreData.error}`, 'error');
+        return false;
+      }
+
+      await fetchSandboxFiles();
+      // Nudge the preview to reload now that files are in place
+      if (iframeRef.current) {
+        // eslint-disable-next-line no-self-assign
+        iframeRef.current.src = iframeRef.current.src;
+      }
+      addChatMessage(`Restored ${restoreData.restored} files — your app is ready.`, 'system');
+      return true;
+    } catch (e: any) {
+      addChatMessage(`Restore error: ${e.message}`, 'error');
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
   
