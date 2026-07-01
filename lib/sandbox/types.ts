@@ -52,6 +52,19 @@ export abstract class SandboxProvider {
   abstract terminate(): Promise<void>;
   abstract isAlive(): boolean;
   
+  // Working directory of the generated app inside the sandbox
+  abstract getWorkingDirectory(): string;
+
+  // Run a raw shell command (proper bash, not naive space-splitting like runCommand)
+  async runShell(_command: string): Promise<CommandResult> {
+    throw new Error('runShell not implemented for this provider');
+  }
+
+  // Read a binary file from the sandbox and return it base64-encoded
+  async readBinaryFileBase64(_path: string): Promise<string> {
+    throw new Error('readBinaryFileBase64 not implemented for this provider');
+  }
+
   // Optional methods that providers can override
   async setupViteApp(): Promise<void> {
     // Default implementation for setting up a Vite React app

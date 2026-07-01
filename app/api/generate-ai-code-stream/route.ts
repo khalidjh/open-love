@@ -44,6 +44,12 @@ const openai = createOpenAI({
   baseURL: isUsingAIGateway ? aiGatewayBaseURL : process.env.OPENAI_BASE_URL,
 });
 
+// Z.AI (GLM models) — OpenAI-compatible API
+const zai = createOpenAI({
+  apiKey: process.env.ZAI_API_KEY,
+  baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
+});
+
 // Helper function to analyze user preferences from conversation history
 function analyzeUserPreferences(messages: ConversationMessage[]): {
   commonPatterns: string[];
@@ -1216,18 +1222,22 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
         const isAnthropic = model.startsWith('anthropic/');
         const isGoogle = model.startsWith('google/');
         const isOpenAI = model.startsWith('openai/');
+        const isZai = model.startsWith('zai/');
         const isKimiGroq = model === 'moonshotai/kimi-k2-instruct-0905';
-        const modelProvider = isAnthropic ? anthropic : 
-                              (isOpenAI ? openai : 
-                              (isGoogle ? googleGenerativeAI : 
-                              (isKimiGroq ? groq : groq)));
-        
+        const modelProvider = isAnthropic ? anthropic :
+                              (isOpenAI ? openai :
+                              (isGoogle ? googleGenerativeAI :
+                              (isZai ? zai :
+                              (isKimiGroq ? groq : groq))));
+
         // Fix model name transformation for different providers
         let actualModel: string;
         if (isAnthropic) {
           actualModel = model.replace('anthropic/', '');
         } else if (isOpenAI) {
           actualModel = model.replace('openai/', '');
+        } else if (isZai) {
+          actualModel = model.replace('zai/', '');
         } else if (isKimiGroq) {
           // Kimi on Groq - use full model string
           actualModel = 'moonshotai/kimi-k2-instruct-0905';
@@ -1238,13 +1248,15 @@ MORPH FAST APPLY MODE (EDIT-ONLY):
           actualModel = model;
         }
 
-        console.log(`[generate-ai-code-stream] Using provider: ${isAnthropic ? 'Anthropic' : isGoogle ? 'Google' : isOpenAI ? 'OpenAI' : 'Groq'}, model: ${actualModel}`);
+        console.log(`[generate-ai-code-stream] Using provider: ${isAnthropic ? 'Anthropic' : isGoogle ? 'Google' : isOpenAI ? 'OpenAI' : isZai ? 'Z.AI' : 'Groq'}, model: ${actualModel}`);
         console.log(`[generate-ai-code-stream] AI Gateway enabled: ${isUsingAIGateway}`);
         console.log(`[generate-ai-code-stream] Model string: ${model}`);
 
         // Make streaming API call with appropriate provider
+        // Z.AI only supports the OpenAI Chat Completions API, not the newer Responses API,
+        // so force .chat() for it (AI SDK v5 defaults the OpenAI provider to /responses).
         const streamOptions: any = {
-          model: modelProvider(actualModel),
+          model: isZai ? (zai as any).chat(actualModel) : modelProvider(actualModel),
           messages: [
             { 
               role: 'system', 
@@ -1365,7 +1377,7 @@ It's better to have 3 complete files than 10 incomplete files.`
               // Final error, send to user
               await sendProgress({ 
                 type: 'error', 
-                message: `Failed to initialize ${isGoogle ? 'Gemini' : isAnthropic ? 'Claude' : isOpenAI ? 'GPT-5' : isKimiGroq ? 'Kimi (Groq)' : 'Groq'} streaming: ${streamError.message}` 
+                message: `Failed to initialize ${isGoogle ? 'Gemini' : isAnthropic ? 'Claude' : isOpenAI ? 'GPT-5' : isZai ? 'GLM (Z.AI)' : isKimiGroq ? 'Kimi (Groq)' : 'Groq'} streaming: ${streamError.message}`
               });
               
               // If this is a Google model error, provide helpful info

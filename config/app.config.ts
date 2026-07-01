@@ -51,18 +51,20 @@ export const appConfig = {
   // AI Model Configuration
   ai: {
     // Default AI model
-    defaultModel: 'google/gemini-3-pro-preview',
-    
+    defaultModel: 'zai/glm-4.6',
+
     // Available models
     availableModels: [
+      'zai/glm-4.6',
       'openai/gpt-5',
       'moonshotai/kimi-k2-instruct-0905',
       'anthropic/claude-sonnet-4-20250514',
       'google/gemini-3-pro-preview'
     ],
-    
+
     // Model display names
     modelDisplayNames: {
+      'zai/glm-4.6': 'GLM-4.6 (Z.AI)',
       'openai/gpt-5': 'GPT-5',
       'moonshotai/kimi-k2-instruct-0905': 'Kimi K2 (Groq)',
       'anthropic/claude-sonnet-4-20250514': 'Sonnet 4',

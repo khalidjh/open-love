@@ -528,7 +528,13 @@ function AISandboxPage() {
   };
 
   const sandboxCreationRef = useRef<boolean>(false);
-  
+  // Always mirrors the latest sandboxData so async flows (e.g. sendChatMessage) can
+  // read it without being bitten by stale closures / the create-in-progress race.
+  const sandboxDataRef = useRef<SandboxData | null>(null);
+  useEffect(() => {
+    sandboxDataRef.current = sandboxData;
+  }, [sandboxData]);
+
   const createSandbox = async (fromHomeScreen = false) => {
     // Prevent duplicate sandbox creation
     if (sandboxCreationRef.current) {
@@ -1467,8 +1473,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                       </div>
                     ))}
                     
-                    {/* Show remaining raw stream if there's content after the last file */}
-                    {!generationProgress.currentFile && generationProgress.streamedCode.length > 0 && (
+                    {/* Show remaining raw stream if there's content after the last file (only while actively streaming) */}
+                    {generationProgress.isStreaming && !generationProgress.currentFile && generationProgress.streamedCode.length > 0 && (
                       <div className="bg-black border border-gray-200 rounded-lg overflow-hidden">
                         <div className="px-4 py-2 bg-[#36322F] text-white flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -1497,6 +1503,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                               
                               // Remove explanation tags and content
                               remainingContent = remainingContent.replace(/<explanation>[\s\S]*?<\/explanation>/g, '').trim();
+
+                              // Remove Morph fast-apply <edit> blocks (applied separately, not rendered as files)
+                              remainingContent = remainingContent.replace(/<edit[\s\S]*?<\/edit>/g, '').trim();
 
                               // If only whitespace or nothing left, show loading message
                               // Use "Loading sandbox..." instead of "Waiting for next file..." for better UX
@@ -2095,7 +2104,25 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             return;
           }
         }
-        
+
+        // Fallback: our own createSandbox() may have returned null because another
+        // creation (e.g. the auto-create on page load) was already in progress. In that
+        // case the real sandbox lives in the ref/state — use it so we still apply the code.
+        if (!activeSandboxData) {
+          // Give an in-flight creation a moment to settle, then read the latest value.
+          for (let i = 0; i < 30 && !sandboxDataRef.current; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          activeSandboxData = sandboxDataRef.current;
+          if (activeSandboxData) {
+            setChatMessages(prev => prev.filter(msg => msg.content !== 'Waiting for sandbox to be ready...'));
+          }
+        }
+
+        if (!activeSandboxData) {
+          addChatMessage('Sandbox was not ready in time, so the generated code was not applied. Please send your request again.', 'system');
+        }
+
         if (activeSandboxData && generatedCode) {
           // For new sandbox creations (especially Vercel), add a delay to ensure Vite is ready
           if (sandboxCreating) {
@@ -2192,6 +2219,46 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     } catch (error: any) {
       log(`Failed to create zip: ${error.message}`, 'error');
       addChatMessage(`Failed to create ZIP: ${error.message}`, 'system');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deployToNetlify = async () => {
+    if (!sandboxData) {
+      addChatMessage('Please wait for the sandbox to be created before deploying.', 'system');
+      return;
+    }
+
+    setLoading(true);
+    log('Deploying to Netlify...');
+    addChatMessage('Building and deploying your app to Netlify... This can take a minute.', 'system');
+
+    try {
+      const response = await fetch('/api/deploy-netlify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        log(`Deployed to Netlify: ${data.url}`);
+        addChatMessage(
+          `✅ ${data.message}!\n\nLive URL: ${data.url}` +
+          (data.state !== 'ready' ? '\n\nNetlify is still finishing processing — the URL will be live shortly.' : ''),
+          'system'
+        );
+        if (data.url) {
+          window.open(data.url, '_blank');
+        }
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      log(`Failed to deploy to Netlify: ${error.message}`, 'error');
+      addChatMessage(`Failed to deploy to Netlify: ${error.message}`, 'system');
     } finally {
       setLoading(false);
     }
@@ -3324,7 +3391,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
-          <button 
+          <button
             onClick={downloadZip}
             disabled={!sandboxData}
             className="p-8 rounded-lg transition-colors bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3334,7 +3401,17 @@ Focus on the key sections and content, making it clean and modern.`;
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
             </svg>
           </button>
-       
+          <button
+            onClick={deployToNetlify}
+            disabled={!sandboxData || loading}
+            className="p-8 rounded-lg transition-colors bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Deploy your app to Netlify"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+            </svg>
+          </button>
+
         </div>
       </div>
 

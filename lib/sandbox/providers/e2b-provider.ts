@@ -41,9 +41,10 @@ export class E2BProvider extends SandboxProvider {
       this.existingFiles.clear();
 
       // Create base sandbox
-      this.sandbox = await Sandbox.create({ 
+      this.sandbox = await Sandbox.create({
         apiKey: this.config.e2b?.apiKey || process.env.E2B_API_KEY,
-        timeoutMs: this.config.e2b?.timeoutMs || appConfig.e2b.timeoutMs
+        timeoutMs: this.config.e2b?.timeoutMs || appConfig.e2b.timeoutMs,
+        requestTimeoutMs: 120_000 // allow up to 2 min for the sandbox to spin up
       });
       
       const sandboxId = (this.sandbox as any).sandboxId || Date.now().toString();
@@ -103,6 +104,52 @@ export class E2BProvider extends SandboxProvider {
       exitCode: result.error ? 1 : 0,
       success: !result.error
     };
+  }
+
+  getWorkingDirectory(): string {
+    return appConfig.e2b.workingDirectory; // /home/user/app
+  }
+
+  async runShell(command: string): Promise<CommandResult> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    // Run via the code interpreter (runs as root, like the rest of this provider)
+    // with a real shell so `&&`, `cd`, redirects, etc. all work. Using
+    // commands.run here fails because it executes as the `user` account, which
+    // cannot write into the root-owned app directory (EACCES during builds).
+    const cwd = this.getWorkingDirectory();
+    const result = await this.sandbox.runCode(`
+import subprocess, sys
+r = subprocess.run(${JSON.stringify(command)}, shell=True, cwd=${JSON.stringify(cwd)},
+                   capture_output=True, text=True)
+sys.stdout.write(r.stdout)
+sys.stderr.write(r.stderr)
+sys.stdout.write("\\n__RC__=%d__" % r.returncode)
+`);
+
+    let stdout = (result.logs?.stdout || []).join('');
+    const stderr = (result.logs?.stderr || []).join('');
+    const rcMatch = stdout.match(/__RC__=(\d+)__\s*$/);
+    const exitCode = rcMatch ? parseInt(rcMatch[1], 10) : (result.error ? 1 : 0);
+    stdout = stdout.replace(/\n?__RC__=\d+__\s*$/, '');
+
+    return {
+      stdout,
+      stderr: stderr || (result.error ? String(result.error) : ''),
+      exitCode,
+      success: exitCode === 0
+    };
+  }
+
+  async readBinaryFileBase64(path: string): Promise<string> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    const data = await (this.sandbox as any).files.read(path, { format: 'bytes' });
+    return Buffer.from(data).toString('base64');
   }
 
   async writeFile(path: string, content: string): Promise<void> {

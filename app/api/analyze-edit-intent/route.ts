@@ -31,6 +31,12 @@ const googleGenerativeAI = createGoogleGenerativeAI({
   baseURL: isUsingAIGateway ? aiGatewayBaseURL : undefined,
 });
 
+// Z.AI (GLM models) — OpenAI-compatible API
+const zai = createOpenAI({
+  apiKey: process.env.ZAI_API_KEY,
+  baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
+});
+
 // Schema for the AI's search plan - not file selection!
 const searchPlanSchema = z.object({
   editType: z.enum([
@@ -107,6 +113,9 @@ export async function POST(request: NextRequest) {
     let aiModel;
     if (model.startsWith('anthropic/')) {
       aiModel = anthropic(model.replace('anthropic/', ''));
+    } else if (model.startsWith('zai/')) {
+      // Z.AI only supports Chat Completions, not the Responses API
+      aiModel = (zai as any).chat(model.replace('zai/', ''));
     } else if (model.startsWith('openai/')) {
       if (model.includes('gpt-oss')) {
         aiModel = groq(model);

@@ -61,6 +61,63 @@ export class VercelProvider extends SandboxProvider {
     }
   }
 
+  getWorkingDirectory(): string {
+    return '/vercel/sandbox';
+  }
+
+  async runShell(command: string): Promise<CommandResult> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    // Use bash -c so pipes, &&, and quoting work as a normal shell would
+    const result = await this.sandbox.runCommand({
+      cmd: 'bash',
+      args: ['-c', command],
+      cwd: this.getWorkingDirectory()
+    });
+
+    let stdout = '';
+    let stderr = '';
+    try {
+      stdout = typeof result.stdout === 'function' ? await result.stdout() : (result.stdout || '');
+    } catch { stdout = ''; }
+    try {
+      stderr = typeof result.stderr === 'function' ? await result.stderr() : (result.stderr || '');
+    } catch { stderr = ''; }
+
+    return {
+      stdout,
+      stderr,
+      exitCode: result.exitCode || 0,
+      success: result.exitCode === 0
+    };
+  }
+
+  async readBinaryFileBase64(path: string): Promise<string> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    // base64-encode the file inside the sandbox and read it back as text
+    const result = await this.sandbox.runCommand({
+      cmd: 'base64',
+      args: ['-w', '0', path]
+    });
+
+    let stdout = '';
+    try {
+      stdout = typeof result.stdout === 'function' ? await result.stdout() : (result.stdout || '');
+    } catch { stdout = ''; }
+
+    if (result.exitCode !== 0) {
+      const err = typeof result.stderr === 'function' ? await result.stderr() : (result.stderr || '');
+      throw new Error(`Failed to read binary file: ${err}`);
+    }
+
+    return stdout.trim();
+  }
+
   async runCommand(command: string): Promise<CommandResult> {
     if (!this.sandbox) {
       throw new Error('No active sandbox');
