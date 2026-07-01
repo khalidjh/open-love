@@ -966,8 +966,25 @@ This project has its own Supabase database. When the user asks for data, persist
     )
 - These env vars are already set in the sandbox (.env). Never hardcode the URL/key.
 - Query with supabase.from('table_name')... (the schema is applied automatically).
-- Tables live in the project schema "${database.schema}". If a table does not exist yet,
-  tell the user which table/columns are needed so it can be created; do not assume tables exist.
+- Tables live in the project schema "${database.schema}".
+
+CREATING TABLES:
+If the app needs tables that don't exist yet, emit a <tables> block (in ADDITION to your
+code files) describing them as JSON. The platform creates them before your app runs.
+- Every table AUTOMATICALLY gets an "id" (uuid primary key) and "created_at" (timestamptz).
+  Do NOT list those; only list your own columns.
+- Allowed column types: text, integer, bigint, boolean, numeric, uuid, jsonb, timestamptz, date.
+- Use lowercase snake_case names.
+Example:
+<tables>
+[
+  { "name": "todos", "columns": [
+    { "name": "title", "type": "text", "nullable": false },
+    { "name": "done", "type": "boolean", "default": false }
+  ]}
+]
+</tables>
+Then write React code that reads/writes those tables via supabase.from('todos').
 `;
         }
 

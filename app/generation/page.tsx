@@ -1194,6 +1194,37 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
+  // Extract a <tables> spec from a generated response and create those tables
+  // in the project's schema (before the app is applied, so queries work on load).
+  const createTablesFromResponse = async (generated: string) => {
+    if (!currentProjectId || !dbInfo) return;
+    const match = generated.match(/<tables>([\s\S]*?)<\/tables>/i);
+    if (!match) return;
+    let tables: any;
+    try {
+      tables = JSON.parse(match[1].trim());
+    } catch (e) {
+      console.error('[tables] could not parse <tables> block', e);
+      return;
+    }
+    if (!Array.isArray(tables) || tables.length === 0) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProjectId}/database/tables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tables }),
+      });
+      const data = await res.json();
+      if (data.success && data.created?.length) {
+        addChatMessage(`🗄️ Created ${data.created.length} table(s): ${data.created.join(', ')}`, 'system');
+      } else if (!data.success) {
+        addChatMessage(`Table creation failed: ${data.error}`, 'error');
+      }
+    } catch (e: any) {
+      addChatMessage(`Table creation error: ${e.message}`, 'error');
+    }
+  };
+
   // Load a project's database status (if any) into state; returns it too.
   const loadDbInfo = async (projectId: string): Promise<{ schema: string; url: string; anonKey: string } | null> => {
     try {
@@ -1684,6 +1715,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
                               // Remove Morph fast-apply <edit> blocks (applied separately, not rendered as files)
                               remainingContent = remainingContent.replace(/<edit[\s\S]*?<\/edit>/g, '').trim();
+
+                              // Remove <tables> DB spec blocks (handled separately, not rendered as code)
+                              remainingContent = remainingContent.replace(/<tables>[\s\S]*?<\/tables>/g, '').trim();
 
                               // If only whitespace or nothing left, show loading message
                               // Use "Loading sandbox..." instead of "Waiting for next file..." for better UX
@@ -2309,6 +2343,10 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
+          // If the response declared database tables, create them before applying
+          // the code so the app can query them on first load.
+          await createTablesFromResponse(generatedCode);
+
           // Use isEdit flag that was determined at the start
           // Pass the sandbox data from the promise if it's different from the state
           await applyGeneratedCode(generatedCode, isEdit, activeSandboxData !== sandboxData ? activeSandboxData : undefined);
