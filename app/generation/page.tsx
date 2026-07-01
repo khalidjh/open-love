@@ -3409,6 +3409,14 @@ Focus on the key sections and content, making it clean and modern.`;
       <div className="bg-white py-[15px] py-[8px] border-b border-border-faint flex items-center justify-between shadow-sm">
         <HeaderBrandKit />
         <div className="flex items-center gap-2">
+          {/* Link to the projects dashboard */}
+          <a
+            href="/projects"
+            className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+            title="View all your apps"
+          >
+            My apps
+          </a>
           {/* Model Selector - Left side */}
           <select
             value={aiModel}
