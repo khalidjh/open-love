@@ -1,0 +1,119 @@
+'use client';
+
+import Image from 'next/image';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+const PRODUCT_NAME = 'Etlaq';
+
+interface AuthFormProps {
+  initialMode?: 'signin' | 'signup';
+  /** Called after a successful sign-in. If omitted, navigates to home. */
+  onSuccess?: () => void;
+}
+
+export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthFormProps) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+    try {
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        });
+        if (error) throw error;
+        setMessage('Check your email to confirm your account, then sign in.');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        onSuccess?.();
+        router.push('/dashboard');
+        router.refresh();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Brand + heading */}
+      <div className="flex flex-col items-start">
+        <Image
+          src="/etlaq-logo.svg"
+          alt=""
+          width={34}
+          height={32}
+          className="h-[32px] w-auto"
+          priority
+        />
+        <p className="mt-20 text-[16px] text-[#8b8798]">Start building.</p>
+        <h1 className="mt-4 text-[24px] font-semibold tracking-tight text-[#191622]">
+          {mode === 'signin' ? 'Log in to your account' : 'Create your account'}
+        </h1>
+      </div>
+
+      <form onSubmit={submit} className="mt-24 space-y-12 text-left">
+        <input
+          type="email"
+          required
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+        />
+        <input
+          type="password"
+          required
+          minLength={6}
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+        />
+
+        {error && <p className="text-[14px] text-red-600">{error}</p>}
+        {message && <p className="text-[14px] text-green-600">{message}</p>}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-12 bg-[#6147D4] py-12 text-center text-[15px] font-semibold text-white shadow-[0_1px_2px_rgba(97,71,212,0.35)] transition-all hover:bg-[#5238c0] hover:shadow-[0_4px_14px_rgba(97,71,212,0.3)] disabled:opacity-50"
+        >
+          {loading ? 'Please wait…' : mode === 'signin' ? 'Continue' : 'Create account'}
+        </button>
+      </form>
+
+      <p className="mt-20 text-[14px] text-[#6b6577]">
+        {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === 'signin' ? 'signup' : 'signin');
+            setError(null);
+            setMessage(null);
+          }}
+          className="font-medium text-[#6147D4] hover:underline"
+        >
+          {mode === 'signin' ? 'Sign up' : 'Log in'}
+        </button>
+      </p>
+    </div>
+  );
+}

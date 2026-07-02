@@ -60,6 +60,22 @@ interface ScrapeData {
   error?: string;
 }
 
+// Turn the user's first prompt into a concise, human-friendly project name.
+function deriveProjectName(prompt?: string | null): string {
+  if (!prompt) return 'Untitled app';
+  let name = prompt.split('\n')[0].trim();
+  // Drop leading filler like "build a", "create me an", "make", "please build"...
+  name = name.replace(
+    /^(please\s+)?(can you\s+)?(build|create|make|design|generate|develop)( me)?( a| an| the)?\s+/i,
+    ''
+  );
+  name = name.replace(/[.!?]+$/, '').trim();
+  if (!name) return 'Untitled app';
+  // Cap length on a word boundary.
+  if (name.length > 50) name = name.slice(0, 50).replace(/\s+\S*$/, '') + '…';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 function AISandboxPage() {
   const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,6 +104,8 @@ function AISandboxPage() {
   // Provisioned automatically when a request needs to store data — never surfaced as a user action.
   const [dbInfo, setDbInfo] = useState<{ schema: string; url: string; anonKey: string } | null>(null);
   const currentProjectIdRef = useRef<string | null>(searchParams.get('project'));
+  // First user prompt of the session — used to name the project (closure-proof).
+  const firstPromptRef = useRef<string | null>(null);
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
@@ -97,6 +115,8 @@ function AISandboxPage() {
   const [homeScreenFading, setHomeScreenFading] = useState(false);
   const [homeUrlInput, setHomeUrlInput] = useState('');
   const [homeContextInput, setHomeContextInput] = useState('');
+  // Free-text "build from description" prompt handed off from the home page
+  const [autoBuildPrompt, setAutoBuildPrompt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
   const [showStyleSelector, setShowStyleSelector] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -185,7 +205,9 @@ function AISandboxPage() {
       const storedStyle = templateParam || sessionStorage.getItem('selectedStyle');
       const storedModel = sessionStorage.getItem('selectedModel');
       const storedInstructions = sessionStorage.getItem('additionalInstructions');
-      
+      // Free-text build prompt handed off from the redesigned home page
+      const storedBuildPrompt = sessionStorage.getItem('initialBuildPrompt');
+
       if (storedUrl) {
         // Mark that we have an initial submission since we're loading with a URL
         setHasInitialSubmission(true);
@@ -249,6 +271,21 @@ function AISandboxPage() {
         
         // Also set autoStart flag for the effect
         sessionStorage.setItem('autoStart', 'true');
+      } else if (storedBuildPrompt) {
+        // Free-text "describe what to build" flow from the home page
+        setHasInitialSubmission(true);
+        sessionStorage.removeItem('initialBuildPrompt');
+        sessionStorage.removeItem('selectedModel');
+        sessionStorage.removeItem('autoStart');
+
+        if (storedModel) setAiModel(storedModel);
+
+        // Skip the home screen and go straight to the builder chat
+        setShowHomeScreen(false);
+        setHomeScreenFading(false);
+
+        // Trigger the build once the sandbox is ready (see effect below)
+        setAutoBuildPrompt(storedBuildPrompt);
       } else if (searchParams.get('project') || searchParams.get('sandbox')) {
         // Opening a saved project or existing sandbox directly — skip the home screen
         setHasInitialSubmission(true);
@@ -346,6 +383,17 @@ function AISandboxPage() {
       captureUrlScreenshot(screenshotUrl);
     }
   }, [showHomeScreen, homeUrlInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-build from a free-text prompt (home page "describe what to build" flow).
+  // Waits for the sandbox to exist so we reuse it instead of creating a second one.
+  useEffect(() => {
+    if (autoBuildPrompt && sandboxData && !showHomeScreen) {
+      const promptToBuild = autoBuildPrompt;
+      setAutoBuildPrompt(null);
+      console.log('[generation] Auto-building from prompt:', promptToBuild);
+      sendChatMessage(promptToBuild);
+    }
+  }, [autoBuildPrompt, sandboxData, showHomeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-start generation if flagged
   useEffect(() => {
@@ -1121,8 +1169,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
   const ensureProjectId = async (): Promise<string | null> => {
     if (currentProjectIdRef.current) return currentProjectIdRef.current;
     try {
-      const firstUserMsg = chatMessages.find(m => m.type === 'user')?.content;
-      const name = (firstUserMsg || 'Untitled app').slice(0, 60);
+      const firstUserMsg =
+        firstPromptRef.current || chatMessages.find(m => m.type === 'user')?.content;
+      const name = deriveProjectName(firstUserMsg);
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1939,8 +1988,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     return null;
   };
 
-  const sendChatMessage = async () => {
-    const message = aiChatInput.trim();
+  const sendChatMessage = async (overrideMessage?: string) => {
+    const message = (overrideMessage ?? aiChatInput).trim();
     if (!message) return;
     
     if (!aiEnabled) {
@@ -1950,7 +1999,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     
     addChatMessage(message, 'user');
     setAiChatInput('');
-    
+    // Remember the first prompt so the project gets a meaningful name.
+    if (!firstPromptRef.current) firstPromptRef.current = message;
+
     // Check for special commands
     const lowerMessage = message.toLowerCase().trim();
     if (lowerMessage === 'check packages' || lowerMessage === 'install packages' || lowerMessage === 'npm install') {
@@ -3582,28 +3633,8 @@ Focus on the key sections and content, making it clean and modern.`;
           >
             My apps
           </a>
-          {/* Model Selector - Left side */}
-          <select
-            value={aiModel}
-            onChange={(e) => {
-              const newModel = e.target.value;
-              setAiModel(newModel);
-              const params = new URLSearchParams(searchParams);
-              params.set('model', newModel);
-              if (sandboxData?.sandboxId) {
-                params.set('sandbox', sandboxData.sandboxId);
-              }
-              router.push(`/generation?${params.toString()}`);
-            }}
-            className="px-3 py-1.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-gray-300 transition-colors"
-          >
-            {appConfig.ai.availableModels.map(model => (
-              <option key={model} value={model}>
-                {appConfig.ai.modelDisplayNames?.[model] || model}
-              </option>
-            ))}
-          </select>
-          <button 
+          {/* Model selector intentionally hidden — the app uses the default model. */}
+          <button
             onClick={() => createSandbox()}
             className="p-8 rounded-lg transition-colors bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100"
             title="Create new sandbox"

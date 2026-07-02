@@ -96,7 +96,8 @@ a {
 }
 
 a:hover {
-  color: var(--heat-100);
+  /* Etlaq brand purple (was --heat-100 orange from the upstream template) */
+  color: var(--brand-accent, #6147d4);
 }
 
 /* Code blocks */
