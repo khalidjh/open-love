@@ -4,6 +4,25 @@
 **one real unknown**: PostgREST trusting Zitadel's RS256 tokens **and** the existing HS256
 `anon`/`service_role` keys at the same time. Do this before writing integration code.
 
+## ✅ VALIDATED LOCALLY (2026-07)
+Proven end-to-end with a local Postgres + PostgREST v12 and a **combined JWKS** = one RS256
+key (simulating Zitadel) + one `oct` key (the Supabase HS256 secret). Results:
+- **Authenticated RS256 token** (`role:"authenticated"`, `sub`=userA) → returned **only userA's rows**; RLS `user_id = request.jwt.claims->>'sub'` isolates correctly.
+- **anon HS256 token** → still read the public table → **both key types verify at once** in the combined JWKS.
+- anon → `notes` = blocked by grants; **tampered token → 401**; **no token → 401**.
+
+**Working PostgREST config that was proven:**
+```
+PGRST_DB_SCHEMAS=<project schema>
+PGRST_DB_ANON_ROLE=anon
+PGRST_JWT_AUD=authenticated
+PGRST_JWT_SECRET={"keys":[ <Zitadel RSA public JWK: kid,alg:RS256,use:sig>,
+                           {"kty":"oct","k":"<base64url(HS256 secret)>","alg":"HS256","kid":"supabase-hs256","use":"sig"} ]}
+```
+Combined-JWKS builder + tests: `scratchpad/authpoc/` (gen.mjs, init.sql, docker-compose.yml).
+→ Gate cleared. Prod rollout = apply the same JWKS to the real PostgREST + host Zitadel.
+Steps 1–7 below remain the real-Zitadel procedure.
+
 > Runs against **your** self-hosted Supabase host (you edit PostgREST env + restart) and a
 > local Zitadel. Not runnable from the app repo. Use `! <cmd>` to run steps in-session.
 

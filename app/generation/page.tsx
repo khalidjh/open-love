@@ -3833,11 +3833,11 @@ Focus on the key sections and content, making it clean and modern.`;
   return (
     <HeaderProvider>
       <div className="font-sans bg-[#fbfafd] text-[#191622] h-screen flex flex-col">
-      <div className="h-52 shrink-0 flex items-stretch bg-white">
+      <div className="h-52 shrink-0 flex items-stretch bg-[#fbfafd]">
         {/* Left zone — logo + project name, aligned over the chat panel */}
         <div
           className={`flex min-w-0 items-center gap-8 px-16 ${
-            chatFullscreen ? 'flex-1' : 'w-[440px] shrink-0 border-r border-[#ece8f4]'
+            chatFullscreen ? 'flex-1' : 'w-[440px] shrink-0'
           }`}
         >
           <a href="/dashboard" className="shrink-0" title="Back to dashboard">
@@ -4020,7 +4020,7 @@ Focus on the key sections and content, making it clean and modern.`;
           className={
             chatFullscreen
               ? 'flex-1 flex flex-col items-center bg-[#fbfafd]'
-              : 'w-[440px] shrink-0 flex flex-col border-r border-[#ece8f4] bg-[#fbfafd]'
+              : 'w-[440px] shrink-0 flex flex-col bg-[#fbfafd]'
           }
         >
          <div className={`flex min-h-0 w-full flex-1 flex-col ${chatFullscreen ? 'max-w-[880px]' : ''}`}>
@@ -4200,7 +4200,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         <div className="mt-10 flex flex-wrap gap-8">
                           <button
                             onClick={() => { setChatFullscreen(false); setActiveTab('preview'); }}
-                            className="flex items-center gap-6 rounded-10 bg-[#6147D4] px-14 py-8 text-[13px] font-semibold text-white transition-colors hover:bg-[#5238c0]"
+                            className="flex items-center gap-6 rounded-10 bg-[#f0ecfb] px-14 py-8 text-[13px] font-medium text-[#6147D4] transition-colors hover:bg-[#e7e0f8]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                               <circle cx="10" cy="10" r="7.5" strokeWidth="1.4" />
@@ -4211,7 +4211,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           </button>
                           <button
                             onClick={() => { setChatFullscreen(false); setActiveTab('generation'); }}
-                            className="flex items-center gap-6 rounded-10 border border-[#d8d0ec] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
+                            className="flex items-center gap-6 rounded-10 border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                               <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -4495,7 +4495,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 <button
                   key={s}
                   onClick={() => sendChatMessage(s)}
-                  className="rounded-full border border-[#d8d0ec] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
+                  className="rounded-full border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                 >
                   {s}
                 </button>
@@ -4617,8 +4617,8 @@ Focus on the key sections and content, making it clean and modern.`;
 
         {/* Right Panel - Preview or Generation (hidden while in fullscreen chat) */}
         {!chatFullscreen && (
-          <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfafd]">
-            <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfafd] p-8">
+            <div className="flex-1 relative overflow-hidden rounded-12 border border-[#ece8f4] bg-white">
               {renderMainContent()}
             </div>
           </div>

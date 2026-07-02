@@ -8,6 +8,13 @@
       "when": 1782905570770,
       "tag": "0000_wandering_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783012974789,
+      "tag": "0001_puzzling_cloak",
+      "breakpoints": true
     }
   ]
 }

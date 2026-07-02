@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from './index';
 import {
-  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases,
+  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth,
   type NewProject,
 } from './schema';
 
@@ -142,4 +142,44 @@ export async function upsertProjectDatabase(
 
 export async function deleteProjectDatabase(projectId: string) {
   await db.delete(tenantDatabases).where(eq(tenantDatabases.projectId, projectId));
+}
+
+// -----------------------------------------------------------------------------
+// Per-project auth (Zitadel org) — isolated user pool per project
+// -----------------------------------------------------------------------------
+
+export async function getProjectAuth(projectId: string) {
+  return db.query.tenantAuth.findFirst({
+    where: eq(tenantAuth.projectId, projectId),
+  });
+}
+
+export async function upsertProjectAuth(
+  projectId: string,
+  data: {
+    provider?: string;
+    orgId?: string;
+    clientId?: string;
+    issuer?: string;
+    allowedOrigins?: string[];
+    encryptedCredentials?: string;
+    status?: string;
+  }
+) {
+  const existing = await getProjectAuth(projectId);
+  if (existing) {
+    const [row] = await db.update(tenantAuth)
+      .set(data)
+      .where(eq(tenantAuth.id, existing.id))
+      .returning();
+    return row;
+  }
+  const [row] = await db.insert(tenantAuth)
+    .values({ projectId, provider: data.provider ?? 'zitadel', ...data })
+    .returning();
+  return row;
+}
+
+export async function deleteProjectAuth(projectId: string) {
+  await db.delete(tenantAuth).where(eq(tenantAuth.projectId, projectId));
 }

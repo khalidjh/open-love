@@ -90,6 +90,25 @@ export const tenantDatabases = pgTable('tenant_databases', {
   projectIdx: index('tenant_databases_project_idx').on(t.projectId),
 }));
 
+// Phase-1 multi-tenant auth: one isolated Zitadel organization per project, so
+// each generated app has its own user pool. Tokens are validated by PostgREST via
+// a combined JWKS (Zitadel RS256 + the existing Supabase HS256 anon key).
+export const tenantAuth = pgTable('tenant_auth', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('zitadel'),
+  orgId: text('org_id'),                 // Zitadel organization id (the isolated tenant)
+  clientId: text('client_id'),           // public OIDC client id (safe to ship in the app)
+  issuer: text('issuer'),                // Zitadel issuer URL
+  allowedOrigins: jsonb('allowed_origins').$type<string[]>().default([]),
+  // encrypted at rest (see lib/crypto); never store plaintext admin creds
+  encryptedCredentials: text('encrypted_credentials'),
+  status: text('status').notNull().default('pending'), // pending | provisioning | ready | error
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  projectIdx: index('tenant_auth_project_idx').on(t.projectId),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
