@@ -125,6 +125,11 @@ function AISandboxPage() {
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [codeSearch, setCodeSearch] = useState('');
   const [buildDetailsOpen, setBuildDetailsOpen] = useState(false);
+  // True while the workspace is spinning up before the first build actually starts.
+  const [preparingBuild, setPreparingBuild] = useState(false);
+  // True when the sandbox has gone to sleep/expired (so we can offer a friendly restart).
+  const [sandboxExpired, setSandboxExpired] = useState(false);
+  const [restartingSandbox, setRestartingSandbox] = useState(false);
   // Chat attachments (files fed to the AI as context; images are preview-only for now).
   const [attachments, setAttachments] = useState<Array<{ id: string; name: string; kind: 'image' | 'file'; text?: string; dataUrl?: string }>>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -312,6 +317,13 @@ function AISandboxPage() {
         setShowHomeScreen(false);
         setHomeScreenFading(false);
 
+        // Immediately show the user's request + a "setting up" indicator so the
+        // screen isn't blank while the sandbox provisions.
+        setChatMessages([{ content: storedBuildPrompt, type: 'user', timestamp: new Date() }]);
+        setProjectName(deriveProjectName(storedBuildPrompt));
+        firstPromptRef.current = storedBuildPrompt;
+        setPreparingBuild(true);
+
         // Trigger the build once the sandbox is ready (see effect below)
         setAutoBuildPrompt(storedBuildPrompt);
       } else if (searchParams.get('project') || searchParams.get('sandbox')) {
@@ -484,7 +496,8 @@ function AISandboxPage() {
       autoBuildContextRef.current = null;
       setAutoBuildPrompt(null);
       console.log('[generation] Auto-building from prompt:', promptToBuild);
-      sendChatMessage(promptToBuild, extraContext || undefined);
+      // skipEcho: the user message was already shown before the sandbox was ready.
+      sendChatMessage(promptToBuild, extraContext || undefined, true);
     }
   }, [autoBuildPrompt, sandboxData, showHomeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -650,14 +663,21 @@ function AISandboxPage() {
       const response = await fetch('/api/sandbox-status');
       const data = await response.json();
       
+      const hadSandbox = !!sandboxDataRef.current;
       if (data.active && data.healthy && data.sandboxData) {
         console.log('[checkSandboxStatus] Setting sandboxData from API:', data.sandboxData);
         setSandboxData(data.sandboxData);
+        setSandboxExpired(false);
         updateStatus('Sandbox active', true);
       } else if (data.active && !data.healthy) {
         // Sandbox exists but not responding
         updateStatus('Sandbox not responding', false);
+        if (hadSandbox) setSandboxExpired(true);
         // Keep existing sandboxData if we have it - don't clear it
+      } else if (hadSandbox) {
+        // We had a live app but the sandbox is gone (expired) — offer a friendly restart.
+        setSandboxExpired(true);
+        updateStatus('Preview paused', false);
       } else {
         // Only clear sandboxData if we don't already have it or if we're explicitly checking from a fresh state
         // This prevents clearing sandboxData during normal operation when it should persist
@@ -690,6 +710,17 @@ function AISandboxPage() {
   useEffect(() => {
     sandboxDataRef.current = sandboxData;
   }, [sandboxData]);
+
+  // Poll sandbox health so we can show a friendly "went to sleep" prompt instead
+  // of letting the provider's raw 404 show through the preview iframe.
+  useEffect(() => {
+    if (!sandboxData?.url) return;
+    const id = setInterval(() => {
+      checkSandboxStatus();
+    }, 25000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sandboxData?.url]);
 
   const createSandbox = async (fromHomeScreen = false) => {
     // Prevent duplicate sandbox creation
@@ -1064,26 +1095,10 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             }]
           }));
           
-          // Update the chat message to show success
-          // Only show file list if not in edit mode
+          // The AI's plain-language summary is the completion message, so we no
+          // longer add a technical "Applied N files successfully!" line for new builds.
           if (isEdit) {
             addChatMessage(`Edit applied successfully!`, 'system');
-          } else {
-            // Check if this is part of a generation flow (has recent AI recreation message)
-            const recentMessages = chatMessages.slice(-5);
-            const isPartOfGeneration = recentMessages.some(m => 
-              m.content.includes('AI recreation generated') || 
-              m.content.includes('Code generated')
-            );
-            
-            // Don't show files if part of generation flow to avoid duplication
-            if (isPartOfGeneration) {
-              addChatMessage(`Applied ${results.filesCreated.length} files successfully!`, 'system');
-            } else {
-              addChatMessage(`Applied ${results.filesCreated.length} files successfully!`, 'system', {
-                appliedFiles: results.filesCreated
-              });
-            }
           }
           
           // If there are failed packages, add a message about checking for errors
@@ -1510,6 +1525,31 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (e === 'html') return 'html';
     if (['js', 'jsx', 'ts', 'tsx'].includes(e || '')) return 'javascript';
     return 'text';
+  };
+
+  // Recreate a fresh sandbox and restore the app after the preview goes to sleep.
+  const restartSandbox = async () => {
+    if (restartingSandbox) return;
+    setRestartingSandbox(true);
+    try {
+      const pid = currentProjectIdRef.current;
+      if (pid) {
+        await restoreProject(pid);
+      } else {
+        await createSandbox(true);
+        if (conversationContext.lastGeneratedCode) {
+          await reapplyLastGeneration();
+        }
+      }
+      setSandboxExpired(false);
+      if (iframeRef.current && sandboxDataRef.current?.url) {
+        iframeRef.current.src = `${sandboxDataRef.current.url}?t=${Date.now()}`;
+      }
+    } catch {
+      // Leave the friendly restart prompt in place so the user can retry.
+    } finally {
+      setRestartingSandbox(false);
+    }
   };
 
   // Read picked files: images -> data URL (preview only), text/code -> content (fed to AI).
@@ -2005,7 +2045,38 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               allow="clipboard-write"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
-            
+
+            {/* Friendly "preview went to sleep" overlay — replaces the raw provider 404 */}
+            {sandboxExpired && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#fbfafd] p-24">
+                <div className="max-w-[360px] text-center">
+                  <div className="mx-auto mb-16 flex h-48 w-48 items-center justify-center rounded-full bg-[#f0ecfb] text-[#6147D4]">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-[18px] font-semibold text-[#191622]">Your preview went to sleep</h3>
+                  <p className="mt-8 text-[14px] leading-relaxed text-[#6b6577]">
+                    Previews pause after a while of inactivity. Restart it to see your app again — your work is saved.
+                  </p>
+                  <button
+                    onClick={restartSandbox}
+                    disabled={restartingSandbox}
+                    className="mt-20 inline-flex items-center gap-8 rounded-12 bg-[#6147D4] px-20 py-10 text-[14px] font-semibold text-white transition-colors hover:bg-[#5238c0] disabled:opacity-60"
+                  >
+                    {restartingSandbox ? (
+                      <>
+                        <div className="h-14 w-14 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Restarting…
+                      </>
+                    ) : (
+                      'Restart preview'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Package installation overlay - shows when installing packages or applying code */}
             {codeApplicationState.stage && codeApplicationState.stage !== 'complete' && (
               <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-center z-10">
@@ -2120,9 +2191,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     return null;
   };
 
-  const sendChatMessage = async (overrideMessage?: string, extraContext?: string) => {
+  const sendChatMessage = async (overrideMessage?: string, extraContext?: string, skipEcho?: boolean) => {
     const message = (overrideMessage ?? aiChatInput).trim();
     if (!message) return;
+    // The workspace is (or is about to be) building — drop the "setting up" placeholder.
+    setPreparingBuild(false);
     // What the AI actually receives (message shown in chat + any attached file context).
     const apiPrompt = extraContext ? `${message}\n\n${extraContext}` : message;
     
@@ -2131,7 +2204,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       return;
     }
     
-    addChatMessage(message, 'user');
+    // Skip echoing the user message when it was already shown (auto-build pre-render).
+    if (!skipEcho) addChatMessage(message, 'user');
     setAiChatInput('');
     // Remember the first prompt so the project gets a meaningful name.
     if (!firstPromptRef.current) {
@@ -3759,7 +3833,7 @@ Focus on the key sections and content, making it clean and modern.`;
   return (
     <HeaderProvider>
       <div className="font-sans bg-[#fbfafd] text-[#191622] h-screen flex flex-col">
-      <div className="h-52 shrink-0 flex items-stretch border-b border-[#ece8f4] bg-white">
+      <div className="h-52 shrink-0 flex items-stretch bg-white">
         {/* Left zone — logo + project name, aligned over the chat panel */}
         <div
           className={`flex min-w-0 items-center gap-8 px-16 ${
@@ -3816,7 +3890,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 onClick={() => setActiveTab('preview')}
                 className={`flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
                   activeTab === 'preview'
-                    ? 'bg-[#6147D4] text-white'
+                    ? 'bg-[#f0ecfb] text-[#6147D4]'
                     : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
                 }`}
               >
@@ -3831,7 +3905,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 onClick={() => setActiveTab('generation')}
                 className={`flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
                   activeTab === 'generation'
-                    ? 'bg-[#6147D4] text-white'
+                    ? 'bg-[#f0ecfb] text-[#6147D4]'
                     : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
                 }`}
               >
@@ -4061,7 +4135,7 @@ Focus on the key sections and content, making it clean and modern.`;
           )}
 
           <div
-            className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 scrollbar-hide"
+            className="flex-1 overflow-y-auto px-20 py-24 flex flex-col gap-24 scrollbar-hide"
             ref={chatMessagesRef}>
             {chatMessages.map((msg, idx) => {
               // Skip stray code fragments that leak from the generation stream
@@ -4080,16 +4154,14 @@ Focus on the key sections and content, making it clean and modern.`;
               // const completedFiles = msg.metadata?.appliedFiles || [];
               
               return (
-                <div key={idx} className="block">
-                  <div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className="block">
-                      <div className={`block rounded-14 px-14 py-10 ${
-                        msg.type === 'user' ? 'bg-[#f0ecfb] text-[#2a2635] ml-auto max-w-[85%]' :
-                        msg.type === 'ai' ? 'bg-white border border-[#ece8f4] text-[#191622] mr-auto max-w-[92%]' :
-                        msg.type === 'system' ? 'bg-[#f6f4fb] text-[#5b5668] text-sm border border-[#eee9f5]' :
-                        msg.type === 'command' ? 'bg-[#f6f4fb] text-[#2a2635] font-mono text-sm border border-[#eee9f5]' :
-                        msg.type === 'error' ? 'bg-[#fdf0ee] text-[#b23b2e] text-sm border border-[#f4d6d0]' :
-                        'bg-[#f6f4fb] text-[#5b5668] text-sm'
+                <div key={idx} className={`flex flex-col gap-8 ${msg.type === 'user' ? 'items-end' : 'items-start'}`}>
+                      <div className={`${
+                        msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
+                        msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#e7e3f0] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
+                        msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#8b8798]' :
+                        msg.type === 'command' ? 'max-w-[94%] rounded-12 bg-[#f6f4fb] px-14 py-10 font-mono text-[13px] text-[#2a2635] border border-[#eee9f5]' :
+                        msg.type === 'error' ? 'max-w-[94%] rounded-14 bg-[#fdf0ee] px-14 py-12 text-[14px] text-[#b23b2e] border border-[#f4d6d0]' :
+                        'max-w-[94%] text-[14px] text-[#8b8798]'
                       }`}>
                     {msg.type === 'command' ? (
                       <div className="flex items-start gap-2">
@@ -4119,7 +4191,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         </div>
                       </div>
                     ) : (
-                      <span className="text-sm">{msg.content}</span>
+                      <span className="whitespace-pre-wrap">{msg.content}</span>
                     )}
                       </div>
 
@@ -4139,7 +4211,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           </button>
                           <button
                             onClick={() => { setChatFullscreen(false); setActiveTab('generation'); }}
-                            className="flex items-center gap-6 rounded-10 border border-[#e7e3f0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#c3b8ee] hover:text-[#191622]"
+                            className="flex items-center gap-6 rounded-10 border border-[#d8d0ec] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                               <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -4344,9 +4416,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       )}
 
                       {/* File-chip lists removed — too technical for end users */}
-                    </div>
-                    </div>
-                  </div>
+                </div>
               );
             })}
             
@@ -4355,6 +4425,15 @@ Focus on the key sections and content, making it clean and modern.`;
               <CodeApplicationProgress state={codeApplicationState} />
             )}
             
+            {/* Setting up the workspace (sandbox provisioning) before the build starts */}
+            {preparingBuild && !generationProgress.isGenerating && (
+              <div className="flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+                <span className="etlaq-shimmer text-[14px] font-medium">
+                  Setting up your workspace…
+                </span>
+              </div>
+            )}
+
             {/* Build progress — compact, friendly, expandable */}
             {generationProgress.isGenerating && (
               <div className="overflow-hidden rounded-14 border border-[#ece8f4] bg-white">
@@ -4362,13 +4441,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   onClick={() => setBuildDetailsOpen((v) => !v)}
                   className="flex w-full items-center gap-10 px-14 py-12 text-left"
                 >
-                  <img
-                    src="/etlaq-logo.svg"
-                    alt=""
-                    className="h-20 w-auto shrink-0 animate-spin"
-                    style={{ animationDuration: '1.8s' }}
-                  />
-                  <span className="flex-1 text-[14px] font-medium text-[#191622]">
+                  <span className="etlaq-shimmer flex-1 text-[14px] font-medium">
                     {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
                   </span>
                   {(generationProgress.files.length > 0 || generationProgress.streamedCode) && (
@@ -4422,7 +4495,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 <button
                   key={s}
                   onClick={() => sendChatMessage(s)}
-                  className="rounded-full border border-[#e7e3f0] bg-white px-12 py-6 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#c3b8ee] hover:text-[#191622]"
+                  className="rounded-full border border-[#d8d0ec] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                 >
                   {s}
                 </button>
@@ -4430,7 +4503,7 @@ Focus on the key sections and content, making it clean and modern.`;
             </div>
           )}
 
-          <div className="p-16 border-t border-[#ece8f4]">
+          <div className="p-16">
             <div className="rounded-20 border border-[#e7e3f0] bg-white p-10 transition-colors focus-within:border-[#c3b8ee]">
               {/* Attachment previews */}
               {attachments.length > 0 && (

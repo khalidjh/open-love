@@ -1,1 +1,28 @@
 @import "../styles/main.css";
+
+/* AI "thinking" shimmer — a light sweeps across the text left → right */
+@keyframes etlaq-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+.etlaq-shimmer {
+  background: linear-gradient(
+    90deg,
+    #a29db0 0%,
+    #a29db0 38%,
+    #6147d4 50%,
+    #a29db0 62%,
+    #a29db0 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: etlaq-shimmer 1.9s linear infinite;
+}
