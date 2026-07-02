@@ -40,7 +40,7 @@ export default function AuthModal({ open, initialMode = 'signin', onClose }: Aut
       />
 
       {/* Card */}
-      <div className="relative z-10 w-full max-w-[440px] rounded-24 border border-[#eae6f3] bg-white p-40 shadow-[0_24px_80px_-12px_rgba(25,22,34,0.4)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-[440px] rounded-24 border border-[#eae6f3] bg-white p-40 animate-in fade-in zoom-in-95 duration-200">
         <button
           type="button"
           onClick={onClose}

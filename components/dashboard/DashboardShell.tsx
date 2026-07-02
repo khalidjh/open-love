@@ -113,20 +113,14 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
         {/* Nav */}
         <nav className="flex flex-col gap-2 px-12">
           <NavItem href="/dashboard" active collapsed={collapsed} icon={<HomeIcon />} label="Dashboard" />
-          <NavItem href="/generation" collapsed={collapsed} icon={<PlusIcon />} label="New app" />
         </nav>
 
-        {/* Projects section */}
+        {/* Recents */}
         {!collapsed && (
           <div className="mt-24 flex-1 overflow-y-auto px-12">
-            <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#a29db0]">
-              Projects
-            </p>
-            <NavItem href="/dashboard" collapsed={false} icon={<GridIcon />} label="All projects" />
-
             {recents.length > 0 && (
               <>
-                <p className="mt-20 px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#a29db0]">
+                <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#a29db0]">
                   Recents
                 </p>
                 <div className="flex flex-col">
@@ -165,7 +159,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           </button>
 
           {accountOpen && (
-            <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 shadow-[0_12px_40px_-8px_rgba(25,22,34,0.18)]">
+            <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6">
               <div className="px-12 py-8">
                 <p className="text-[12px] text-[#8b8798]">Signed in as</p>
                 <p className="truncate text-[14px] font-medium">{email}</p>
@@ -229,7 +223,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                   <Link
                     key={p.id}
                     href={`/generation?project=${p.id}`}
-                    className="group flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_8px_24px_-8px_rgba(97,71,212,0.2)]"
+                    className="group flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee]"
                   >
                     <div className="flex items-start justify-between gap-8">
                       <h3 className="truncate text-[15px] font-medium text-[#191622]">
@@ -310,25 +304,6 @@ function HomeIcon() {
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function GridIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="3" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-      <rect x="11" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-      <rect x="3" y="11" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-      <rect x="11" y="11" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

@@ -27,7 +27,7 @@ export default function LoginPage() {
 
       {/* Centered card */}
       <div className="relative z-10 flex min-h-screen items-center justify-center p-24">
-        <div className="w-full max-w-[420px] rounded-24 border border-[#eae6f3] bg-white p-40 shadow-[0_2px_4px_rgba(25,22,34,0.03),0_24px_60px_-12px_rgba(97,71,212,0.18)]">
+        <div className="w-full max-w-[420px] rounded-24 border border-[#eae6f3] bg-white p-40">
           <AuthForm />
         </div>
       </div>

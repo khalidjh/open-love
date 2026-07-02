@@ -82,7 +82,7 @@ export default function MarketingHome() {
                 setAuthMode("signup");
                 setAuthOpen(true);
               }}
-              className="rounded-12 bg-[#6147D4] px-20 py-10 text-[15px] font-semibold text-white shadow-[0_1px_2px_rgba(97,71,212,0.35)] transition-all hover:bg-[#5238c0] hover:shadow-[0_4px_14px_rgba(97,71,212,0.3)] active:scale-[0.98]"
+              className="rounded-12 bg-[#6147D4] px-20 py-10 text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98]"
             >
               Get started
             </button>

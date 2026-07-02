@@ -7,16 +7,28 @@ import { toast } from "sonner";
 
 const PRODUCT_NAME = "Etlaq";
 
+interface Attachment {
+  id: string;
+  name: string;
+  kind: "image" | "file";
+  text?: string;
+  dataUrl?: string;
+}
+
 /**
- * The free-text "describe what to build" box. Stores the prompt in
- * sessionStorage and routes to /generation, which auto-starts the build.
- * The model is fixed to the app default (not surfaced to the user).
+ * The free-text "describe what to build" box. Stores the prompt (+ any attached
+ * file contents) in sessionStorage and routes to /generation, which auto-starts.
+ * Images are preview-only for now (the model can't read them yet).
  * Shared between the marketing home and the logged-in dashboard.
  */
 export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const [prompt, setPrompt] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -25,21 +37,107 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [prompt]);
 
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setAttachMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [attachMenuOpen]);
+
+  const handleAttachFiles = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).forEach((file, i) => {
+      const isImage = file.type.startsWith("image/");
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: `${file.name}-${prev.length}-${i}`,
+            name: file.name,
+            kind: isImage ? "image" : "file",
+            text: isImage ? undefined : result,
+            dataUrl: isImage ? result : undefined,
+          },
+        ]);
+      };
+      if (isImage) reader.readAsDataURL(file);
+      else reader.readAsText(file);
+    });
+  };
+
   const handleSubmit = () => {
     const value = prompt.trim();
-    if (!value) {
+    const fileAtts = attachments.filter((a) => a.kind === "file");
+    if (!value && attachments.length === 0) {
       toast.error("Describe what you want to build");
       textareaRef.current?.focus();
       return;
     }
-    sessionStorage.setItem("initialBuildPrompt", value);
+    const finalPrompt = value || "Build using the attached file(s).";
+    sessionStorage.setItem("initialBuildPrompt", finalPrompt);
     sessionStorage.setItem("selectedModel", appConfig.ai.defaultModel);
     sessionStorage.setItem("autoStart", "true");
+    if (fileAtts.length) {
+      sessionStorage.setItem(
+        "initialBuildAttachments",
+        JSON.stringify(fileAtts.map((a) => ({ name: a.name, text: a.text })))
+      );
+    } else {
+      sessionStorage.removeItem("initialBuildAttachments");
+    }
     router.push("/generation");
   };
 
+  const hasImages = attachments.some((a) => a.kind === "image");
+
   return (
-    <div className="rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_2px_6px_rgba(25,22,34,0.04),0_24px_60px_-12px_rgba(97,71,212,0.28)] backdrop-blur-xl transition-colors focus-within:border-[#c3b8ee]">
+    <div className="rounded-28 border border-white/70 bg-white/90 p-24 text-left backdrop-blur-xl transition-colors focus-within:border-[#c3b8ee]">
+      {/* Attachment previews */}
+      {attachments.length > 0 && (
+        <div className="mb-12 flex flex-wrap gap-8">
+          {attachments.map((a) => (
+            <div
+              key={a.id}
+              className="relative flex items-center gap-8 rounded-10 border border-[#e7e3f0] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
+            >
+              {a.kind === "image" && a.dataUrl ? (
+                <img src={a.dataUrl} alt="" className="h-28 w-28 rounded-6 object-cover" />
+              ) : (
+                <span className="flex h-28 w-28 items-center justify-center rounded-6 bg-[#f0ecfb] text-[#6147D4]">
+                  <FileIcon />
+                </span>
+              )}
+              <span className="max-w-[160px] truncate">{a.name}</span>
+              {a.kind === "image" && (
+                <span className="rounded-4 bg-[#eee9f5] px-4 text-[10px] font-medium text-[#8b8798]">
+                  soon
+                </span>
+              )}
+              <button
+                onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                className="absolute right-6 top-1/2 -translate-y-1/2 text-[#a29db0] hover:text-[#191622]"
+                aria-label="Remove attachment"
+              >
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                  <path d="M5 5l10 10M15 5L5 15" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {hasImages && (
+        <p className="mb-8 px-4 text-[12px] text-[#a29db0]">
+          Images are attached for reference — reading images is coming soon.
+        </p>
+      )}
+
       <textarea
         ref={textareaRef}
         value={prompt}
@@ -55,13 +153,55 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         className="max-h-[220px] min-h-[96px] w-full resize-none bg-transparent px-4 py-4 text-[16px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none"
       />
 
-      <div className="mt-12 flex items-center justify-end">
+      <div className="mt-12 flex items-center justify-between">
+        {/* Attach ("+") */}
+        <div className="relative" ref={attachMenuRef}>
+          <input
+            ref={attachInputRef}
+            type="file"
+            multiple
+            accept="image/*,.txt,.md,.json,.js,.jsx,.ts,.tsx,.css,.html,.csv"
+            className="hidden"
+            onChange={(e) => {
+              handleAttachFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setAttachMenuOpen((v) => !v)}
+            aria-label="Add attachment"
+            className="flex h-40 w-40 items-center justify-center rounded-full text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <path d="M10 4v12M4 10h12" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </button>
+          {attachMenuOpen && (
+            <div className="absolute top-full left-0 z-40 mt-8 w-[230px] overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 animate-in fade-in slide-in-from-top-1 duration-150">
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachMenuOpen(false);
+                  attachInputRef.current?.click();
+                }}
+                className="flex w-full items-center gap-10 rounded-8 px-10 py-8 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#8b8798]">
+                  <path d="M13 7l-5 5a2 2 0 002.8 2.8l5.7-5.7a3.5 3.5 0 00-5-5l-6 6a5 5 0 007 7l4.5-4.5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Attach file or image
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!prompt.trim()}
+          disabled={!prompt.trim() && attachments.length === 0}
           aria-label="Build"
-          className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white shadow-[0_2px_10px_rgba(97,71,212,0.4)] transition-all hover:bg-[#5238c0] hover:scale-105 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:shadow-none disabled:hover:scale-100"
+          className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
         >
           <ArrowUp />
         </button>
@@ -80,6 +220,19 @@ function ArrowUp() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+      <path
+        d="M5 3h6l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M11 3v4h4" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
