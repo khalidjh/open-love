@@ -119,6 +119,9 @@ function AISandboxPage() {
   const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
   // Builder chrome (Lovable-style): fullscreen chat vs split view, and the project title.
   const [chatFullscreen, setChatFullscreen] = useState(true);
+  // Mobile single-panel chrome: which panel is showing, and the header menu.
+  const [mobileView, setMobileView] = useState<'chat' | 'panel'>('chat');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [projectName, setProjectName] = useState('New project');
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement>(null);
@@ -169,6 +172,10 @@ function AISandboxPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const codeDisplayRef = useRef<HTMLDivElement>(null);
+  // Covers the iframe with a branded loader so the provider's transient
+  // "Sandbox Not Found" 404 never shows through while the app is starting up.
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [codeApplicationState, setCodeApplicationState] = useState<CodeApplicationState>({
     stage: null
@@ -720,6 +727,15 @@ function AISandboxPage() {
     }, 25000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sandboxData?.url]);
+
+  // Whenever the sandbox URL (re)appears, cover the iframe with a loader until it
+  // finishes loading — with a hard fallback in case onLoad never fires.
+  useEffect(() => {
+    if (!sandboxData?.url) return;
+    setPreviewLoading(true);
+    const fallback = setTimeout(() => setPreviewLoading(false), 15000);
+    return () => clearTimeout(fallback);
   }, [sandboxData?.url]);
 
   const createSandbox = async (fromHomeScreen = false) => {
@@ -2036,6 +2052,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             <iframe
               ref={iframeRef}
               src={sandboxData.url}
+              onLoad={() => {
+                // Debounced: a fresh sandbox often loads the provider's 404 first, then
+                // reloads into the real app. Wait for load activity to settle before revealing.
+                if (previewLoadTimerRef.current) clearTimeout(previewLoadTimerRef.current);
+                previewLoadTimerRef.current = setTimeout(() => setPreviewLoading(false), 1200);
+              }}
               className={
                 previewDevice === 'mobile'
                   ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#e7e3f0] bg-white'
@@ -2045,6 +2067,17 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               allow="clipboard-write"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
+
+            {/* Branded loader — hides the provider's transient "Sandbox Not Found" 404 */}
+            {previewLoading && !sandboxExpired && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#fbfafd] p-24">
+                <div className="text-center">
+                  <div className="mx-auto mb-16 h-40 w-40 animate-spin rounded-full border-[3px] border-[#e2ddf0] border-t-[#6147D4]" />
+                  <h3 className="text-[16px] font-semibold text-[#191622]">Starting your preview…</h3>
+                  <p className="mt-6 text-[13px] text-[#8b8798]">This takes a few seconds.</p>
+                </div>
+              </div>
+            )}
 
             {/* Friendly "preview went to sleep" overlay — replaces the raw provider 404 */}
             {sandboxExpired && (
@@ -3833,7 +3866,112 @@ Focus on the key sections and content, making it clean and modern.`;
   return (
     <HeaderProvider>
       <div className="font-sans bg-[#fbfafd] text-[#191622] h-screen flex flex-col">
-      <div className="h-52 shrink-0 flex items-stretch bg-[#fbfafd]">
+      {/* Mobile header — hamburger + centered project title + preview toggle.
+          Hidden in preview mode so the preview is truly full-screen. */}
+      <div className={`relative ${mobileView === 'chat' ? 'flex' : 'hidden'} md:hidden shrink-0 items-center justify-between px-16 pb-10 pt-[max(20px,env(safe-area-inset-top))] bg-[#fbfafd]`}>
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          aria-label="Menu"
+          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+            <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="mx-8 flex min-w-0 items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-14 py-8 text-[#191622]"
+        >
+          <span className="truncate text-[14px] font-medium">{projectName}</span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#a29db0] transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`}>
+            <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setMobileView((v) => (v === 'chat' ? 'panel' : 'chat'))}
+          aria-label={mobileView === 'chat' ? 'Show preview' : 'Show chat'}
+          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+        >
+          {mobileView === 'chat' ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
+            <div className="absolute left-16 right-16 top-full z-50 mt-4 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
+              <a
+                href="/dashboard"
+                className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              >
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                  <path d="M11 5L6 10l5 5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Go to Dashboard
+              </a>
+              {sandboxData && (
+                <button
+                  onClick={() => {
+                    if (iframeRef.current && sandboxData?.url) iframeRef.current.src = `${sandboxData.url}?t=${Date.now()}`;
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reload preview
+                </button>
+              )}
+              {sandboxData && (
+                <a
+                  href={sandboxData.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open in new tab
+                </a>
+              )}
+              <button
+                onClick={() => { downloadZip(); setMobileMenuOpen(false); }}
+                disabled={!sandboxData}
+                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                Download as ZIP
+              </button>
+              <div className="my-6 h-px bg-[#eee9f5]" />
+              <button
+                onClick={() => { deployToNetlify(); setMobileMenuOpen(false); }}
+                disabled={!sandboxData || loading}
+                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+                Publish
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="h-52 shrink-0 hidden md:flex items-stretch bg-[#fbfafd]">
         {/* Left zone — logo + project name, aligned over the chat panel */}
         <div
           className={`flex min-w-0 items-center gap-8 px-16 ${
@@ -4017,11 +4155,13 @@ Focus on the key sections and content, making it clean and modern.`;
       <div className="flex-1 flex overflow-hidden">
         {/* Center Panel - AI Chat */}
         <div
-          className={
+          className={`flex-col bg-[#fbfafd] md:flex ${
+            mobileView === 'chat' ? 'flex' : 'hidden'
+          } ${
             chatFullscreen
-              ? 'flex-1 flex flex-col items-center bg-[#fbfafd]'
-              : 'w-[440px] shrink-0 flex flex-col bg-[#fbfafd]'
-          }
+              ? 'w-full flex-1 md:items-center'
+              : 'w-full md:w-[440px] shrink-0'
+          }`}
         >
          <div className={`flex min-h-0 w-full flex-1 flex-col ${chatFullscreen ? 'max-w-[880px]' : ''}`}>
           {/* Sidebar Input Component */}
@@ -4199,7 +4339,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       {msg.type === 'ai' && idx === chatMessages.length - 1 && sandboxData?.url && !generationProgress.isGenerating && (
                         <div className="mt-10 flex flex-wrap gap-8">
                           <button
-                            onClick={() => { setChatFullscreen(false); setActiveTab('preview'); }}
+                            onClick={() => { setChatFullscreen(false); setActiveTab('preview'); setMobileView('panel'); }}
                             className="flex items-center gap-6 rounded-10 bg-[#f0ecfb] px-14 py-8 text-[13px] font-medium text-[#6147D4] transition-colors hover:bg-[#e7e0f8]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
@@ -4210,7 +4350,7 @@ Focus on the key sections and content, making it clean and modern.`;
                             Preview
                           </button>
                           <button
-                            onClick={() => { setChatFullscreen(false); setActiveTab('generation'); }}
+                            onClick={() => { setChatFullscreen(false); setActiveTab('generation'); setMobileView('panel'); }}
                             className="flex items-center gap-6 rounded-10 border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
@@ -4490,12 +4630,12 @@ Focus on the key sections and content, making it clean and modern.`;
 
           {/* Follow-up suggestion chips (after a build completes) */}
           {sandboxData && !generationProgress.isGenerating && conversationContext.appliedCode.length > 0 && (
-            <div className="flex flex-wrap gap-8 px-16 pb-4">
+            <div className="flex flex-nowrap gap-8 overflow-x-auto px-16 pb-4 scrollbar-hide md:flex-wrap">
               {['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'].map((s) => (
                 <button
                   key={s}
                   onClick={() => sendChatMessage(s)}
-                  className="rounded-full border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
+                  className="shrink-0 whitespace-nowrap rounded-full border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
                 >
                   {s}
                 </button>
@@ -4615,14 +4755,68 @@ Focus on the key sections and content, making it clean and modern.`;
          </div>
         </div>
 
-        {/* Right Panel - Preview or Generation (hidden while in fullscreen chat) */}
-        {!chatFullscreen && (
-          <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfafd] p-8">
-            <div className="flex-1 relative overflow-hidden rounded-12 border border-[#ece8f4] bg-white">
-              {renderMainContent()}
+        {/* Right Panel - Preview or Generation.
+            Desktop: shown when not fullscreen chat. Mobile: shown when mobileView === 'panel'. */}
+        <div
+          className={`flex-1 flex-col overflow-hidden bg-[#fbfafd] p-0 md:p-8 ${
+            mobileView === 'panel' ? 'flex' : 'hidden'
+          } ${chatFullscreen ? 'md:hidden' : 'md:flex'}`}
+        >
+          <div className="flex-1 relative overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#ece8f4]">
+            {renderMainContent()}
+          </div>
+
+          {/* Mobile-only bottom bar: back to chat + utilities */}
+          <div className="flex items-center justify-between gap-8 px-16 py-10 md:hidden">
+            <button
+              onClick={() => setMobileView('chat')}
+              className="flex items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-16 py-9 text-[14px] font-medium text-[#191622] transition-colors hover:bg-[#f3f0fa]"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+                <path d="M12 5l-5 5 5 5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Chat
+            </button>
+            <div className="flex items-center gap-8">
+              <button
+                onClick={() => setActiveTab((t) => (t === 'preview' ? 'generation' : 'preview'))}
+                aria-label={activeTab === 'preview' ? 'View code' : 'View preview'}
+                className={`flex h-40 w-40 items-center justify-center rounded-full border shadow-[0_2px_8px_rgba(23,20,31,0.08)] transition-colors ${
+                  activeTab === 'generation'
+                    ? 'border-[#c3b8ee] bg-[#f0ecfb] text-[#6147D4]'
+                    : 'border-[#e2ddf0] bg-white text-[#2a2635] hover:bg-[#f3f0fa]'
+                }`}
+              >
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+                  <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  if (iframeRef.current && sandboxData?.url) iframeRef.current.src = `${sandboxData.url}?t=${Date.now()}`;
+                }}
+                disabled={!sandboxData}
+                aria-label="Reload preview"
+                className="flex h-40 w-40 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <a
+                href={sandboxData?.url || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open in new tab"
+                className={`flex h-40 w-40 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] outline-none transition-colors hover:bg-[#f3f0fa] focus:outline-none focus-visible:outline-none ${!sandboxData ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
 

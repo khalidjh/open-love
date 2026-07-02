@@ -60,11 +60,11 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           alt=""
           width={34}
           height={32}
-          className="h-[32px] w-auto"
+          className="h-[40px] w-auto md:h-[32px]"
           priority
         />
-        <p className="mt-20 text-[16px] text-[#8b8798]">Start building.</p>
-        <h1 className="mt-4 text-[24px] font-semibold tracking-tight text-[#191622]">
+        <p className="mt-24 text-[16px] text-[#8b8798] md:mt-20">Start building.</p>
+        <h1 className="mt-4 text-[30px] font-semibold tracking-tight text-[#191622] md:text-[24px]">
           {mode === 'signin' ? 'Log in to your account' : 'Create your account'}
         </h1>
       </div>

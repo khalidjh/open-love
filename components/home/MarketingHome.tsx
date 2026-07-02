@@ -11,6 +11,7 @@ const PRODUCT_NAME = "Etlaq";
 export default function MarketingHome() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#fbfafd] text-[#191622]">
@@ -50,7 +51,7 @@ export default function MarketingHome() {
 
       {/* Header */}
       <header className="relative z-20">
-        <nav className="flex w-full items-center justify-between py-20 px-24 md:px-48 lg:px-80 xl:px-120 2xl:px-160">
+        <nav className="flex w-full items-center justify-between py-16 md:py-20 px-24 md:px-48 lg:px-80 xl:px-120 2xl:px-160">
           <Link href="/" className="flex items-center gap-10">
             <Image
               src="/etlaq-logo.svg"
@@ -72,7 +73,7 @@ export default function MarketingHome() {
                 setAuthMode("signin");
                 setAuthOpen(true);
               }}
-              className="rounded-12 border border-[#e4e0ef] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              className="hidden md:inline-flex rounded-12 border border-[#e4e0ef] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
             >
               Log in
             </button>
@@ -82,12 +83,56 @@ export default function MarketingHome() {
                 setAuthMode("signup");
                 setAuthOpen(true);
               }}
-              className="rounded-12 bg-[#6147D4] px-20 py-10 text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98]"
+              className="rounded-12 bg-[#6147D4] px-16 md:px-20 py-9 md:py-10 text-[14px] md:text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98]"
+            >
+              Get started
+            </button>
+            {/* Hamburger — mobile only */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label="Menu"
+              aria-expanded={mobileMenuOpen}
+              className="md:hidden flex h-40 w-40 items-center justify-center rounded-12 border border-[#e4e0ef] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                {mobileMenuOpen ? (
+                  <path d="M6 6l12 12M18 6L6 18" strokeWidth="1.8" strokeLinecap="round" />
+                ) : (
+                  <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </nav>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute inset-x-0 top-full z-30 mx-24 overflow-hidden rounded-16 border border-[#eae6f3] bg-white p-8 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setAuthMode("signin");
+                setAuthOpen(true);
+              }}
+              className="flex w-full items-center rounded-10 px-12 py-12 text-left text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+            >
+              Log in
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setAuthMode("signup");
+                setAuthOpen(true);
+              }}
+              className="mt-4 flex w-full items-center rounded-10 px-12 py-12 text-left text-[15px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa]"
             >
               Get started
             </button>
           </div>
-        </nav>
+        )}
       </header>
 
       {/* Hero */}

@@ -39,6 +39,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
   const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
 
@@ -65,11 +66,19 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
 
   return (
     <div className="flex min-h-screen bg-[#fbfafd] text-[#191622]">
-      {/* Sidebar */}
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — off-canvas drawer on mobile, in-flow on desktop */}
       <aside
-        className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-[#ece8f4] bg-white transition-[width] duration-200 ${
-          collapsed ? "w-[68px]" : "w-[264px]"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-r border-[#ece8f4] bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+        } ${collapsed ? "md:w-[68px]" : "md:w-[264px]"}`}
       >
         {/* Brand + collapse */}
         <div className="flex items-center justify-between px-16 py-18">
@@ -92,9 +101,20 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             type="button"
             onClick={() => setCollapsed((v) => !v)}
             aria-label="Toggle sidebar"
-            className="flex h-28 w-28 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+            className="hidden h-28 w-28 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:flex"
           >
             <SidebarIcon />
+          </button>
+          {/* Mobile drawer close */}
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close menu"
+            className="flex h-28 w-28 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:hidden"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+              <path d="M5 5l10 10M15 5L5 15" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
 
@@ -179,6 +199,25 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
 
       {/* Main */}
       <main className="relative flex-1 overflow-hidden">
+        {/* Mobile top bar — hamburger + centered logo */}
+        <div className="relative z-20 flex items-center justify-between px-16 py-12 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open menu"
+            className="flex h-40 w-40 items-center justify-center rounded-full border border-[#ece8f4] bg-white text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+          <Link href="/dashboard" className="flex items-center gap-8">
+            <Image src="/etlaq-logo.svg" alt="" width={26} height={24} className="h-[24px] w-auto" priority />
+            <span className="text-[18px] font-semibold tracking-[-0.02em]">{PRODUCT_NAME}</span>
+          </Link>
+          <span className="h-40 w-40" aria-hidden />
+        </div>
+
         {/* Brand gradient wash behind the hero */}
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[520px]">
           <div
@@ -193,7 +232,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
         <div className="relative z-10 mx-auto max-w-[860px] px-24">
           {/* Hero — vertically centered in the viewport */}
           <div className="flex min-h-[80vh] flex-col justify-center">
-            <h1 className="text-center text-[32px] font-bold tracking-[-0.025em] text-[#17141f]">
+            <h1 className="text-center text-[26px] font-bold tracking-[-0.025em] text-[#17141f] md:text-[32px]">
               Ready to build, {firstName}?
             </h1>
 
