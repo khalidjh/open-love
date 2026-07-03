@@ -4,6 +4,7 @@ import { parseMorphEdits, applyMorphEditToFile } from '@/lib/morph-fast-apply';
 import type { SandboxState } from '@/types/sandbox';
 import type { ConversationState } from '@/types/conversation';
 import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
+import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
 import { getTemplate, type Framework } from '@/lib/templates';
 
 declare global {
@@ -387,6 +388,24 @@ export async function POST(request: NextRequest) {
           parsedFiles: parsed.files,
           message: `Parsed ${parsed.files.length} files but couldn't apply them - sandbox creation failed.`
         }, { status: 500 });
+      }
+    }
+
+    // Guard against a provider whose underlying sandbox has been reaped (E2B TTL).
+    // The blocks above only handle a *missing* provider — a provider that still
+    // exists in memory but whose VM is dead would throw mid-write. Probe it, and
+    // if it's gone, transparently rebuild and replay the file cache so the edit
+    // still lands instead of surfacing "Sandbox Not Found".
+    if (provider) {
+      const alive = await (provider as any).ping?.().catch(() => false) ?? true;
+      if (!alive) {
+        console.log('[apply-ai-code-stream] Active sandbox is dead — auto-recovering...');
+        const recovered = await ensureActiveSandbox();
+        provider = recovered.provider;
+        global.activeSandboxProvider = recovered.provider;
+        global.sandboxData = recovered.sandboxData;
+      } else {
+        await (provider as any).keepAlive?.().catch(() => {});
       }
     }
 

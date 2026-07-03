@@ -72,12 +72,37 @@ export class E2BProvider extends SandboxProvider {
     }
   }
 
+  // Real liveness probe: the E2B microVM can be reaped once its TTL elapses, at
+  // which point the cached sandboxId/URL are dead. A trivial round-trip is the
+  // only reliable way to know — isAlive() only reflects the in-memory handle.
+  async ping(): Promise<boolean> {
+    if (!this.sandbox) return false;
+    try {
+      const result = await this.sandbox.runCode('print("pong")');
+      return !result.error;
+    } catch {
+      return false;
+    }
+  }
+
+  // Extend the sandbox's TTL so an active editing session isn't reaped mid-use.
+  async keepAlive(): Promise<void> {
+    if (!this.sandbox) return;
+    try {
+      if (typeof this.sandbox.setTimeout === 'function') {
+        this.sandbox.setTimeout(appConfig.e2b.timeoutMs);
+      }
+    } catch (e) {
+      console.error('[E2BProvider] keepAlive failed:', e);
+    }
+  }
+
   async runCommand(command: string): Promise<CommandResult> {
     if (!this.sandbox) {
       throw new Error('No active sandbox');
     }
 
-    
+
     const result = await this.sandbox.runCode(`
       import subprocess
       import os

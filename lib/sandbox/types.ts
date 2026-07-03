@@ -51,7 +51,21 @@ export abstract class SandboxProvider {
   abstract getSandboxInfo(): SandboxInfo | null;
   abstract terminate(): Promise<void>;
   abstract isAlive(): boolean;
-  
+
+  // Verify the sandbox is genuinely reachable via a real round-trip, rather than
+  // trusting cached in-memory state like isAlive(). Providers whose underlying
+  // sandbox can be reaped out from under us (e.g. E2B's TTL) should override this
+  // with an actual liveness probe. Default falls back to the in-memory flag.
+  async ping(): Promise<boolean> {
+    return this.isAlive();
+  }
+
+  // Refresh the sandbox's TTL so an active session isn't reaped mid-use. No-op by
+  // default; providers with an idle timeout should override.
+  async keepAlive(): Promise<void> {
+    // no-op
+  }
+
   // Working directory of the generated app inside the sandbox
   abstract getWorkingDirectory(): string;
 

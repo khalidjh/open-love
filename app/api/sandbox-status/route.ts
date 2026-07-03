@@ -18,10 +18,14 @@ export async function GET() {
 
     if (sandboxExists && provider) {
       try {
-        // Check if sandbox is healthy by getting its info
+        // Real liveness probe — getSandboxInfo() only returns cached in-memory
+        // data and reports "healthy" even after the underlying VM was reaped,
+        // which is exactly how the raw "Sandbox Not Found" page leaks through.
         const providerInfo = provider.getSandboxInfo();
-        sandboxHealthy = !!providerInfo;
-        
+        sandboxHealthy = typeof provider.ping === 'function'
+          ? await provider.ping()
+          : !!providerInfo;
+
         sandboxInfo = {
           sandboxId: providerInfo?.sandboxId || global.sandboxData?.sandboxId,
           url: providerInfo?.url || global.sandboxData?.url,

@@ -669,26 +669,52 @@ function AISandboxPage() {
     }
   };
 
+  // Transparently rebuild a reaped sandbox and swap in the fresh preview URL.
+  // Server-side, ensureActiveSandbox replays the generated files so the app comes
+  // back where the user left it — the changed URL forces the iframe to reload.
+  const recoveringRef = useRef<boolean>(false);
+  const recoverSandbox = async (): Promise<boolean> => {
+    if (recoveringRef.current) return false;
+    recoveringRef.current = true;
+    try {
+      updateStatus('Restoring preview…', true);
+      const res = await fetch('/api/ensure-sandbox', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.sandboxData?.url) {
+        setSandboxData(data.sandboxData);
+        setSandboxExpired(false);
+        updateStatus('Sandbox active', true);
+        return true;
+      }
+      setSandboxExpired(true);
+      return false;
+    } catch (error) {
+      console.error('[recoverSandbox] failed:', error);
+      setSandboxExpired(true);
+      return false;
+    } finally {
+      recoveringRef.current = false;
+    }
+  };
+
   const checkSandboxStatus = async () => {
     try {
       const response = await fetch('/api/sandbox-status');
       const data = await response.json();
-      
+
       const hadSandbox = !!sandboxDataRef.current;
       if (data.active && data.healthy && data.sandboxData) {
         console.log('[checkSandboxStatus] Setting sandboxData from API:', data.sandboxData);
         setSandboxData(data.sandboxData);
         setSandboxExpired(false);
         updateStatus('Sandbox active', true);
+      } else if (hadSandbox && (data.active === false || data.healthy === false)) {
+        // We had a live app but the sandbox is gone or unresponsive (reaped TTL).
+        // Rebuild it transparently instead of letting the raw 404 show through.
+        await recoverSandbox();
       } else if (data.active && !data.healthy) {
-        // Sandbox exists but not responding
+        // No prior sandbox to restore — just reflect the unhealthy state.
         updateStatus('Sandbox not responding', false);
-        if (hadSandbox) setSandboxExpired(true);
-        // Keep existing sandboxData if we have it - don't clear it
-      } else if (hadSandbox) {
-        // We had a live app but the sandbox is gone (expired) — offer a friendly restart.
-        setSandboxExpired(true);
-        updateStatus('Preview paused', false);
       } else {
         // Only clear sandboxData if we don't already have it or if we're explicitly checking from a fresh state
         // This prevents clearing sandboxData during normal operation when it should persist
