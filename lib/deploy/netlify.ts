@@ -13,10 +13,30 @@ async function netlify(path: string, token: string, init: RequestInit = {}) {
   let body: any = undefined;
   try { body = text ? JSON.parse(text) : undefined; } catch { body = text; }
   if (!res.ok) {
-    const message = body?.message || (typeof body === 'string' ? body : '') || res.statusText;
+    // Netlify surfaces 422 detail in `errors` (e.g. { subdomain: ["must be unique"] }),
+    // not `message` — include it so the failure isn't an opaque "Unprocessable Entity".
+    const message =
+      body?.message ||
+      (body?.errors ? JSON.stringify(body.errors) : '') ||
+      (typeof body === 'string' ? body : '') ||
+      res.statusText;
     throw new Error(`Netlify API ${res.status}: ${message}`);
   }
   return body;
+}
+
+// Netlify site names become the subdomain, so they must be lowercase, alphanumeric
+// + hyphens, and <= 63 chars. Slugify the human project name to fit.
+function slugifyNetlifyName(name?: string): string | undefined {
+  if (!name) return undefined;
+  const slug = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63)
+    .replace(/-+$/g, '');
+  return slug || undefined;
 }
 
 export interface NetlifyDeployResult {
@@ -56,11 +76,29 @@ export async function runNetlifyDeploy(
     try { await netlify(`/sites/${siteId}`, token); } catch { siteId = undefined; }
   }
   if (!siteId) {
-    const site = await netlify('/sites', token, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(opts.siteName ? { name: opts.siteName } : {}),
-    });
+    const name = slugifyNetlifyName(opts.siteName);
+    let site;
+    try {
+      site = await netlify('/sites', token, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(name ? { name } : {}),
+      });
+    } catch (e) {
+      // A chosen name can collide globally (Netlify subdomains are unique) or be
+      // otherwise rejected (422). Fall back to a Netlify-generated name so the
+      // deploy still succeeds — the returned siteId is persisted and reused next
+      // time, so the random name only appears on this first publish.
+      if (name && /Netlify API 422/.test((e as Error).message)) {
+        site = await netlify('/sites', token, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+      } else {
+        throw e;
+      }
+    }
     siteId = site.id;
   }
 
