@@ -13,9 +13,9 @@ infra) to make them work. Code is done; this covers the **operational** steps.
 ```
 ┌───────────── COMPUTE PLANE (see PDPL) ─────────────┐
 │ Etlaq control app (Next.js)  ·  build sandboxes     │
-│ Deployed apps:                                      │
-│   • Vite SPA      → Netlify (static)      [clean]    │
-│   • Next.js app   → KSA runtime (SSR/API) [clean]    │
+│ Deployed apps (both in-KSA, behind the same Caddy): │
+│   • Vite SPA      → KSA runtime (Caddy files) [clean]│
+│   • Next.js app   → KSA runtime (SSR/API)     [clean]│
 └───────────────────────┬─────────────────────────────┘
                          │  HTTPS (Supabase client)
                          ▼
@@ -35,15 +35,18 @@ transient. Static frontends are fine (the browser talks straight to KSA); a
 Article 29.
 
 - **One "Publish" button.** `/api/deploy` inspects the generated app's source and
-  auto-routes: Next.js → full-stack host, Vite → Netlify. The user never chooses.
+  auto-routes: Next.js → full-stack container on the KSA runtime, Vite → static
+  files on the KSA runtime. The user never chooses.
 - **Two templates, auto-selected.** The first build prompt is classified: a
   backend need (auth/db/server/payments) → Next.js; otherwise Vite. Stored on
   `projects.framework`.
 
-> **Compliance status:** the static/Vite→Netlify path is clean. The full-stack
-> path currently targets **Vercel (outside KSA), which is a PDPL transfer** — a
-> stopgap. The intended target is a **KSA-hosted Next.js runtime** so no personal
-> data is processed abroad. See the two sections below.
+> **Compliance status:** both paths now run **in-KSA** and are Case-1 clean.
+> Static (Vite) apps are served by Caddy on the KSA VM (`lib/deploy/ksa-static.ts`);
+> full-stack (Next.js) apps run as containers on the KSA VM (`lib/deploy/ksa.ts`).
+> Two opt-in escape hatches remain and both re-open a PDPL transfer — don't set
+> them in production: `STATIC_TARGET=netlify` (static → Netlify) and
+> `FULLSTACK_TARGET=vercel` (full-stack → Vercel).
 
 ---
 
@@ -64,8 +67,9 @@ Mapped onto our components:
 
 | Component | Runs | Touches personal data? | Verdict |
 |---|---|---|---|
-| **Static (Vite) app → Netlify** | outside KSA | No — browser talks directly to KSA Supabase; Netlify only serves static files | ✅ Case 1, clean |
+| **Static (Vite) app → KSA runtime** | KSA (`<slug>.apps.etlaq.sa`) | No — browser talks directly to KSA Supabase; Caddy only serves static files | ✅ Case 1, clean |
 | **Full-stack (Next.js) app → KSA runtime** | KSA (`<slug>.apps.etlaq.sa`) | yes — but inside KSA | ✅ in-KSA |
+| Static → Netlify (`STATIC_TARGET=netlify` fallback only) | outside KSA | No — Netlify only serves static files | ✅ Case 1, but off by default |
 | Full-stack → Vercel (`FULLSTACK_TARGET=vercel` fallback only) | outside KSA | **Yes** — SSR/API routes read KSA data to render | ⚠️ **Case 2, a transfer — off by default** |
 | Zitadel (accounts) | KSA | yes | ✅ in-KSA |
 | Etlaq control app | KSA (prod: `/opt/open-love`) | project/chat data | ✅ keep in KSA |
@@ -81,6 +85,13 @@ Case-1 clean. Vercel remains only as an explicit escape hatch
 (`FULLSTACK_TARGET=vercel`), which re-opens the transfer — don't set it in
 production. See **KSA full-stack runtime** below for the mechanics.
 
+**Static apps also moved in-KSA (2026-07-03).** Vite SPAs now build in the
+sandbox and are served as static files by the same Caddy at
+`<slug>.apps.etlaq.sa` (`lib/deploy/ksa-static.ts`) — no server runs at serve
+time. This was prompted by the Netlify free-tier limit, and it also brings
+static hosting inside KSA. Netlify survives only behind `STATIC_TARGET=netlify`.
+See `static-deploy-via-caddy.md` for the mechanics and rollout checklist.
+
 Two standing rules: **keep the control app in KSA**, and **never wire a non-KSA
 analytics/error tracker that captures PII**.
 
@@ -93,12 +104,14 @@ These involve accounts, secrets, or infrastructure — they cannot be done in co
 ### A1. Deploy provider accounts + tokens
 | Provider | Why | Action |
 |---|---|---|
-| **Netlify** | hosts static (Vite) apps | Create a Personal Access Token: https://app.netlify.com/user/applications#personal-access-tokens → put in `NETLIFY_API_KEY`. *(already set)* |
-| **KSA runtime** | hosts full-stack (Next.js) apps in-KSA | No account — containers on this VM. One-time: wildcard DNS `*.apps.etlaq.sa` → server. See *KSA full-stack runtime*. |
+| **KSA runtime** | hosts **both** static (Vite) and full-stack (Next.js) apps in-KSA | No account — files + containers on this VM behind Caddy. One-time: wildcard DNS `*.apps.etlaq.sa` → server. See *KSA full-stack runtime* + `static-deploy-via-caddy.md`. |
+| Netlify *(fallback only)* | static escape hatch (`STATIC_TARGET=netlify`) | Personal Access Token: https://app.netlify.com/user/applications#personal-access-tokens → `NETLIFY_API_KEY`. Not needed unless the fallback is enabled. |
 | Vercel *(fallback only)* | full-stack escape hatch (`FULLSTACK_TARGET=vercel`) — **PDPL transfer** | Token: https://vercel.com/account/tokens → `VERCEL_TOKEN` (+ `VERCEL_TEAM_ID` if team-scoped). Don't enable in production. |
 
-Netlify (static) is fine outside KSA. Full-stack apps run **in-KSA by default**;
-the Vercel fallback re-opens the PDPL transfer — see *Data residency & PDPL*.
+Both static and full-stack apps run **in-KSA by default** on the same VM. The
+Netlify and Vercel fallbacks host outside KSA — Netlify only serves static files
+(still Case-1 clean) but the Vercel fallback re-opens a PDPL transfer. See *Data
+residency & PDPL*.
 
 ### A2. KSA data plane (the residency boundary)
 Already running in dev as local Docker Supabase (`supabase start`) + self-hosted
@@ -149,7 +162,8 @@ reference table below. The **new** ones for this feature set are `VERCEL_TOKEN`,
 Env changes require a dev-server / process restart to take effect.
 
 ### B4. No build/CI changes needed
-Vercel builds full-stack apps itself; the sandbox builds static apps. Nothing to
+Full-stack apps build in a throwaway container on the KSA VM; static apps build
+in the sandbox (`npm run build`) and are unpacked on the KSA VM. Nothing to
 configure in a pipeline.
 
 ---
@@ -158,8 +172,9 @@ configure in a pipeline.
 
 | Var | Plane | Required for | Prod note |
 |---|---|---|---|
-| `NETLIFY_API_KEY` | compute | static deploys | any region |
-| `KSA_APPS_DOMAIN` / `KSA_APPS_DIR` / `KSA_CADDY_APPS_DIR` / `KSA_RUNTIME_IMAGE` / `DOCKER_SOCK` | compute (KSA) | full-stack deploys | optional — defaults fit this server |
+| `KSA_APPS_DOMAIN` / `KSA_APPS_DIR` / `KSA_CADDY_APPS_DIR` / `KSA_RUNTIME_IMAGE` / `DOCKER_SOCK` | compute (KSA) | static + full-stack deploys | optional — defaults fit this server |
+| `STATIC_TARGET` | compute | set `netlify` to use the fallback | leave unset in prod (default = KSA) |
+| `NETLIFY_API_KEY` | compute | only for `STATIC_TARGET=netlify` fallback | any region |
 | `FULLSTACK_TARGET` | compute | set `vercel` to use the fallback | leave unset in prod (PDPL) |
 | `VERCEL_TOKEN` | compute | Vercel fallback only | PDPL transfer — fallback |
 | `VERCEL_TEAM_ID` | compute | Vercel fallback (team tokens) | optional |
@@ -182,9 +197,10 @@ configure in a pipeline.
 - [x] Supabase reachable at a public HTTPS URL: `https://auth.etlaq.sa` (Caddy → Kong :8000).
 - [x] Zitadel deployed at `https://id.etlaq.sa` (Caddy → :8080, `/opt/zitadel`).
 - [x] `VERCEL_TOKEN` set *(token validated; `VERCEL_TEAM_ID` not needed — token resolves to the default team)*.
-- [x] `NETLIFY_API_KEY` set.
+- [x] `NETLIFY_API_KEY` set *(now only used if `STATIC_TARGET=netlify`; static defaults to the KSA runtime)*.
 - [x] `NEXT_PUBLIC_*` Supabase values are the public ones (baked into the image as build args).
-- [ ] Wildcard DNS `*.apps.etlaq.sa` → `149.104.105.231` — required before the first full-stack publish (KSA runtime subdomains + their TLS certs).
+- [x] Wildcard DNS `*.apps.etlaq.sa` → `149.104.105.231` — added; serves both static and full-stack KSA-runtime subdomains + their TLS certs.
+- [ ] Validate a **static** publish end-to-end on the VM (needs sandbox + Docker socket + Caddy): `https://<slug>.apps.etlaq.sa` serves the SPA, deep-links fall back to `index.html`, assets load, TLS valid, and Caddy can read `/opt/etlaq-apps/<slug>/public`. See `static-deploy-via-caddy.md`.
 
 ## KSA full-stack runtime (how Publish hosts Next.js apps in-KSA)
 
