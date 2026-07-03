@@ -6,6 +6,7 @@ import { detectDeployTarget, collectSandboxSource, type DeployTarget } from '@/l
 import { runNetlifyDeploy } from '@/lib/deploy/netlify';
 import { runVercelDeploy } from '@/lib/deploy/vercel';
 import { runKsaDeploy } from '@/lib/deploy/ksa';
+import { runKsaStaticDeploy } from '@/lib/deploy/ksa-static';
 
 // =============================================================================
 // Single deploy entrypoint. The user clicks one "Publish" button; we inspect the
@@ -13,7 +14,8 @@ import { runKsaDeploy } from '@/lib/deploy/ksa';
 //   • Next.js / server code → full-stack on the KSA runtime (containers on the
 //     KSA VM behind Caddy; set FULLSTACK_TARGET=vercel to fall back to Vercel —
 //     that path is a PDPL transfer)
-//   • plain Vite SPA        → static on Netlify
+//   • plain Vite SPA        → static on the KSA runtime (Caddy file_server on the
+//     KSA VM; set STATIC_TARGET=netlify to fall back to Netlify)
 // Either way the app talks to the KSA-hosted Supabase, so data stays in KSA.
 // =============================================================================
 
@@ -118,20 +120,55 @@ export async function POST(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------ static
-    const token = process.env.NETLIFY_API_KEY;
-    if (!token) {
+    // Netlify escape hatch (opt-in; we default to serving static in-KSA to avoid
+    // the free-tier limit and keep hosting inside KSA).
+    if (process.env.STATIC_TARGET === 'netlify') {
+      const token = process.env.NETLIFY_API_KEY;
+      if (!token) {
+        return NextResponse.json(
+          { success: false, error: 'STATIC_TARGET=netlify but NETLIFY_API_KEY is not set.' },
+          { status: 400 }
+        );
+      }
+
+      const siteId = project.netlifySiteId || undefined;
+      const result = await runNetlifyDeploy(provider, { token, siteId, siteName });
+
+      try {
+        await updateProject(orgId, projectId, {
+          netlifySiteId: result.siteId,
+          deployUrl: result.url,
+          deployTarget: 'static',
+        });
+      } catch (e) {
+        console.error('[deploy] Failed to persist static metadata:', e);
+      }
+
+      return NextResponse.json({
+        success: true,
+        target,
+        url: result.url,
+        state: result.state,
+        message: result.state === 'ready' ? 'Published your app' : 'Published (still processing)',
+      });
+    }
+
+    // Default: serve the built SPA from the KSA runtime via Caddy.
+    if (!projectId || !orgId) {
       return NextResponse.json(
-        { success: false, error: 'NETLIFY_API_KEY is not set. Add it to .env.local and restart the dev server.' },
+        { success: false, error: 'A saved project is required to publish a static app.' },
         { status: 400 }
       );
     }
 
-    const siteId = project.netlifySiteId || undefined;
-    const result = await runNetlifyDeploy(provider, { token, siteId, siteName });
+    const result = await runKsaStaticDeploy(provider, {
+      projectId,
+      siteName,
+      prevUrl: project?.deployUrl,
+    });
 
     try {
       await updateProject(orgId, projectId, {
-        netlifySiteId: result.siteId,
         deployUrl: result.url,
         deployTarget: 'static',
       });
@@ -144,7 +181,7 @@ export async function POST(request: NextRequest) {
       target,
       url: result.url,
       state: result.state,
-      message: result.state === 'ready' ? 'Published your app' : 'Published (still processing)',
+      message: 'Published your app',
     });
   } catch (error) {
     console.error('[deploy] Error:', error);
