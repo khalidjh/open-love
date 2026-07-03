@@ -1,4 +1,4 @@
-# Open Lovable - Vercel Sandbox
+# Etlaq - Vercel Sandbox
 
 This project is configured to use Vercel Sandboxes for code execution.
 

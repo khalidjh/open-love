@@ -16,7 +16,7 @@ const program = new Command();
 
 program
   .name('create-open-lovable')
-  .description('Create a new Open Lovable project with your choice of sandbox provider')
+  .description('Create a new Etlaq project with your choice of sandbox provider')
   .version('1.0.0')
   .option('-s, --sandbox <provider>', 'Sandbox provider (e2b or vercel)')
   .option('-n, --name <name>', 'Project name')
@@ -28,7 +28,7 @@ program
 const options = program.opts();
 
 async function main() {
-  console.log(chalk.cyan('\n🚀 Welcome to Open Lovable Setup!\n'));
+  console.log(chalk.cyan('\n🚀 Welcome to Etlaq Setup!\n'));
 
   let config = {
     sandbox: options.sandbox,

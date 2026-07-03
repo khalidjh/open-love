@@ -1,7 +1,7 @@
 {
   "name": "create-open-lovable",
   "version": "1.0.0",
-  "description": "CLI to bootstrap Open Lovable with your choice of sandbox provider",
+  "description": "CLI to bootstrap Etlaq with your choice of sandbox provider",
   "type": "module",
   "main": "index.js",
   "bin": {

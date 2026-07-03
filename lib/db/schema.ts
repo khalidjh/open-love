@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, timestamp, jsonb, integer, index } from 'drizzle-orm/pg-core';
 
 // =============================================================================
-// Control-plane schema for Open Lovable (multi-tenant PaaS)
+// Control-plane schema for Etlaq (multi-tenant PaaS)
 //
 // Auth users live in Supabase's `auth.users`. We mirror the minimum here and
 // model tenants (orgs), projects, versioned code snapshots, chat history, and

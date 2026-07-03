@@ -117,7 +117,7 @@ function AISandboxPage() {
   // Free-text "build from description" prompt handed off from the home page
   const [autoBuildPrompt, setAutoBuildPrompt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
-  // Builder chrome (Lovable-style): fullscreen chat vs split view, and the project title.
+  // Builder chrome (Etlaq-style): fullscreen chat vs split view, and the project title.
   const [chatFullscreen, setChatFullscreen] = useState(true);
   // Mobile single-panel chrome: which panel is showing, and the header menu.
   const [mobileView, setMobileView] = useState<'chat' | 'panel'>('chat');
@@ -2063,7 +2063,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#e7e3f0] bg-white'
                   : 'w-full h-full border-none'
               }
-              title="Open Lovable Sandbox"
+              title="Etlaq Sandbox"
               allow="clipboard-write"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
@@ -3865,7 +3865,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
   return (
     <HeaderProvider>
-      <div className="font-sans bg-[#fbfafd] text-[#191622] h-screen flex flex-col">
+      <div style={{ height: '100dvh' }} className="font-sans bg-[#fbfafd] text-[#191622] h-screen flex flex-col">
       {/* Mobile header — hamburger + centered project title + preview toggle.
           Hidden in preview mode so the preview is truly full-screen. */}
       <div className={`relative ${mobileView === 'chat' ? 'flex' : 'hidden'} md:hidden shrink-0 items-center justify-between px-16 pb-10 pt-[max(20px,env(safe-area-inset-top))] bg-[#fbfafd]`}>
@@ -4643,7 +4643,7 @@ Focus on the key sections and content, making it clean and modern.`;
             </div>
           )}
 
-          <div className="p-16">
+          <div className="px-16 pt-16 pb-[max(16px,env(safe-area-inset-bottom))]">
             <div className="rounded-20 border border-[#e7e3f0] bg-white p-10 transition-colors focus-within:border-[#c3b8ee]">
               {/* Attachment previews */}
               {attachments.length > 0 && (
@@ -4767,7 +4767,7 @@ Focus on the key sections and content, making it clean and modern.`;
           </div>
 
           {/* Mobile-only bottom bar: back to chat + utilities */}
-          <div className="flex items-center justify-between gap-8 px-16 py-10 md:hidden">
+          <div className="flex items-center justify-between gap-8 px-16 pt-10 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
             <button
               onClick={() => setMobileView('chat')}
               className="flex items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-16 py-9 text-[14px] font-medium text-[#191622] transition-colors hover:bg-[#f3f0fa]"

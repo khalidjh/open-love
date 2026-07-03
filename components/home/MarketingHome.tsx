@@ -15,7 +15,7 @@ export default function MarketingHome() {
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#fbfafd] text-[#191622]">
-      {/* Layered brand mesh — a light-theme take on Lovable's cinematic glow. */}
+      {/* Layered brand mesh — a light-theme cinematic glow. */}
       <div className="pointer-events-none absolute inset-0 -z-0">
         <div
           className="absolute inset-x-0 bottom-[-20%] h-[85vh]"
