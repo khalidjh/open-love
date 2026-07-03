@@ -7,6 +7,13 @@ import { toast } from "sonner";
 
 const PRODUCT_NAME = "Etlaq";
 
+const ROTATING_PLACEHOLDERS = [
+  `Ask ${PRODUCT_NAME} to build a landing page…`,
+  "…a todo app with a dark mode",
+  "…a portfolio site for a photographer",
+  "…a pricing page with three tiers",
+];
+
 interface Attachment {
   id: string;
   name: string;
@@ -25,6 +32,8 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [phIndex, setPhIndex] = useState(0);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -47,6 +56,15 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [attachMenuOpen]);
+
+  // Gently cycle the placeholder while the box is untouched and no override is set.
+  useEffect(() => {
+    if (placeholder || prompt) return;
+    const id = setInterval(() => {
+      setPhIndex((i) => (i + 1) % ROTATING_PLACEHOLDERS.length);
+    }, 3200);
+    return () => clearInterval(id);
+  }, [placeholder, prompt]);
 
   const handleAttachFiles = (files: FileList | null) => {
     if (!files) return;
@@ -97,7 +115,27 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const hasImages = attachments.some((a) => a.kind === "image");
 
   return (
-    <div className="rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_8px_40px_rgba(97,71,212,0.06)] backdrop-blur-xl transition-all duration-300 focus-within:border-[#c3b8ee] focus-within:shadow-[0_12px_50px_rgba(97,71,212,0.14)]">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        handleAttachFiles(e.dataTransfer.files);
+      }}
+      className={`relative rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_8px_40px_rgba(97,71,212,0.06)] backdrop-blur-xl transition-all duration-300 focus-within:border-[#c3b8ee] focus-within:shadow-[0_12px_50px_rgba(97,71,212,0.14)] ${isDragging ? "border-dashed border-[#6147D4] bg-[#f5f2fe]" : ""}`}
+    >
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-28 bg-[#f5f2fe]/85 backdrop-blur-[2px] animate-in fade-in duration-150">
+          <span className="text-[15px] font-semibold text-[#6147D4]">Drop to attach</span>
+        </div>
+      )}
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="mb-12 flex flex-wrap gap-8">
@@ -149,7 +187,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           }
         }}
         rows={1}
-        placeholder={placeholder ?? `Ask ${PRODUCT_NAME} to build a landing page...`}
+        placeholder={placeholder ?? ROTATING_PLACEHOLDERS[phIndex]}
         className="max-h-[220px] min-h-[96px] w-full resize-none bg-transparent px-4 py-4 text-[16px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none"
       />
 

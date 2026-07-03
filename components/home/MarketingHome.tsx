@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import BuildPrompt from "@/components/home/BuildPrompt";
 
@@ -12,6 +12,14 @@ export default function MarketingHome() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#fbfafd] text-[#191622]">
@@ -50,15 +58,25 @@ export default function MarketingHome() {
       </div>
 
       {/* Header */}
-      <header className="anim-fade-in relative z-20">
-        <nav className="flex w-full items-center justify-between py-16 md:py-20 px-24 md:px-48 lg:px-80 xl:px-120 2xl:px-160">
-          <Link href="/" className="flex items-center gap-10">
+      <header
+        className={`anim-fade-in sticky top-0 z-20 transition-all duration-300 ${
+          scrolled
+            ? "border-b border-[#eae6f3] bg-[#fbfafd]/80 backdrop-blur-md"
+            : "border-b border-transparent"
+        }`}
+      >
+        <nav
+          className={`flex w-full items-center justify-between px-24 md:px-48 lg:px-80 xl:px-120 2xl:px-160 ${
+            scrolled ? "py-10 md:py-12" : "py-16 md:py-20"
+          }`}
+        >
+          <Link href="/" className="group flex items-center gap-10">
             <Image
               src="/etlaq-logo.svg"
               alt=""
               width={32}
               height={30}
-              className="h-[30px] w-auto"
+              className="h-[30px] w-auto transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3"
               priority
             />
             <span className="text-[26px] font-semibold tracking-[-0.02em]">

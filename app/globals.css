@@ -76,13 +76,52 @@
   transform: translateY(-2px);
 }
 
+/* Checkmark that strokes itself in. Put pathLength={1} on the <path>. */
+@keyframes etlaq-check-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.anim-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: etlaq-check-draw 0.45s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+/* One-shot success glow — a soft purple ring that expands and fades. */
+@keyframes etlaq-pulse-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(97, 71, 212, 0.35); }
+  70%  { box-shadow: 0 0 0 10px rgba(97, 71, 212, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(97, 71, 212, 0); }
+}
+.anim-pulse-glow { animation: etlaq-pulse-glow 1.1s ease-out 1; }
+
+/* Slide a panel in from the right/left — only on mobile, where switching
+   between the chat and the preview genuinely swaps one view for another. */
+@keyframes etlaq-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes etlaq-slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (max-width: 767px) {
+  .anim-slide-in-right { animation: etlaq-slide-in-right 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .anim-slide-in-left  { animation: etlaq-slide-in-left 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-up,
   .anim-fade-in,
   .anim-scale-in,
-  .anim-pop-in {
+  .anim-pop-in,
+  .anim-slide-in-right,
+  .anim-slide-in-left,
+  .anim-check-draw,
+  .anim-pulse-glow {
     animation: none !important;
   }
+  .anim-check-draw { stroke-dashoffset: 0; }
   .hover-lift:hover {
     transform: none;
   }

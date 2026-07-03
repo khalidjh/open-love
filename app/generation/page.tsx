@@ -535,10 +535,11 @@ function AISandboxPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+    const el = chatMessagesRef.current;
+    if (!el) return;
+    // Ease down to the newest message rather than snapping.
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [chatMessages, generationProgress.isGenerating, preparingBuild]);
 
   // Auto-trigger generation when flag is set (from home page navigation)
   useEffect(() => {
@@ -2070,7 +2071,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       if (sandboxData?.url) {
         return (
           <div
-            className={`relative w-full h-full ${
+            className={`relative w-full h-full transition-colors duration-300 ${
               previewDevice === 'mobile' ? 'flex items-center justify-center bg-[#f3f0fa] p-16' : ''
             }`}
           >
@@ -2085,8 +2086,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               }}
               className={
                 previewDevice === 'mobile'
-                  ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#e7e3f0] bg-white'
-                  : 'w-full h-full border-none'
+                  ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#e7e3f0] bg-white transition-all duration-300'
+                  : 'w-full h-full border-none transition-all duration-300'
               }
               title="Etlaq Sandbox"
               allow="clipboard-write"
@@ -4062,31 +4063,49 @@ Focus on the key sections and content, making it clean and modern.`;
             <div className="inline-flex items-center gap-6">
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
+                className={`relative flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
                   activeTab === 'preview'
-                    ? 'bg-[#f0ecfb] text-[#6147D4]'
+                    ? 'text-[#6147D4]'
                     : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
                 }`}
               >
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
-                  <circle cx="10" cy="10" r="7.5" strokeWidth="1.4" />
-                  <path d="M2.5 10h15" strokeWidth="1.4" />
-                  <path d="M10 2.5c2.2 2.6 2.2 12.4 0 15M10 2.5c-2.2 2.6-2.2 12.4 0 15" strokeWidth="1.4" />
-                </svg>
-                Preview
+                {activeTab === 'preview' && (
+                  <motion.span
+                    layoutId="panelTabPill"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 z-0 rounded-10 bg-[#f0ecfb]"
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-6">
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+                    <circle cx="10" cy="10" r="7.5" strokeWidth="1.4" />
+                    <path d="M2.5 10h15" strokeWidth="1.4" />
+                    <path d="M10 2.5c2.2 2.6 2.2 12.4 0 15M10 2.5c-2.2 2.6-2.2 12.4 0 15" strokeWidth="1.4" />
+                  </svg>
+                  Preview
+                </span>
               </button>
               <button
                 onClick={() => setActiveTab('generation')}
-                className={`flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
+                className={`relative flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
                   activeTab === 'generation'
-                    ? 'bg-[#f0ecfb] text-[#6147D4]'
+                    ? 'text-[#6147D4]'
                     : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
                 }`}
               >
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
-                  <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Code
+                {activeTab === 'generation' && (
+                  <motion.span
+                    layoutId="panelTabPill"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 z-0 rounded-10 bg-[#f0ecfb]"
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-6">
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+                    <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Code
+                </span>
               </button>
             </div>
 
@@ -4101,11 +4120,18 @@ Focus on the key sections and content, making it clean and modern.`;
                   <button
                     onClick={() => setPreviewDevice('desktop')}
                     title="Desktop view"
-                    className={`flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
-                      previewDevice === 'desktop' ? 'bg-white text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
+                    className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
+                      previewDevice === 'desktop' ? 'text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
                     }`}
                   >
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {previewDevice === 'desktop' && (
+                      <motion.span
+                        layoutId="deviceTogglePill"
+                        transition={{ type: 'spring', stiffness: 500, damping: 36 }}
+                        className="absolute inset-0 z-0 rounded-8 bg-white shadow-[0_1px_3px_rgba(23,20,31,0.12)]"
+                      />
+                    )}
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="relative z-10">
                       <rect x="3" y="4" width="18" height="12" rx="2" strokeWidth="1.7" />
                       <path strokeWidth="1.7" strokeLinecap="round" d="M9 20h6M12 16v4" />
                     </svg>
@@ -4113,11 +4139,18 @@ Focus on the key sections and content, making it clean and modern.`;
                   <button
                     onClick={() => setPreviewDevice('mobile')}
                     title="Mobile view"
-                    className={`flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
-                      previewDevice === 'mobile' ? 'bg-white text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
+                    className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
+                      previewDevice === 'mobile' ? 'text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
                     }`}
                   >
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {previewDevice === 'mobile' && (
+                      <motion.span
+                        layoutId="deviceTogglePill"
+                        transition={{ type: 'spring', stiffness: 500, damping: 36 }}
+                        className="absolute inset-0 z-0 rounded-8 bg-white shadow-[0_1px_3px_rgba(23,20,31,0.12)]"
+                      />
+                    )}
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="relative z-10">
                       <rect x="7" y="3" width="10" height="18" rx="2" strokeWidth="1.7" />
                       <path strokeWidth="1.7" strokeLinecap="round" d="M11 18h2" />
                     </svg>
@@ -4192,7 +4225,7 @@ Focus on the key sections and content, making it clean and modern.`;
         {/* Center Panel - AI Chat */}
         <div
           className={`flex-col bg-[#fbfafd] md:flex ${
-            mobileView === 'chat' ? 'flex' : 'hidden'
+            mobileView === 'chat' ? 'flex anim-slide-in-left' : 'hidden'
           } ${
             chatFullscreen
               ? 'w-full flex-1 md:items-center'
@@ -4342,7 +4375,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         className="flex w-full items-center gap-10 px-14 py-12 text-left"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[#6147D4]" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
                         <span className="flex-1 text-[14px] font-medium text-[#2a2635]">
                           Built your app · {builtFiles.length} {builtFiles.length === 1 ? 'file' : 'files'}
@@ -4361,7 +4394,7 @@ Focus on the key sections and content, making it clean and modern.`;
                               className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
                             >
                               <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
                               <span className="truncate">{f.split('/').pop()}</span>
                             </div>
@@ -4376,6 +4409,8 @@ Focus on the key sections and content, making it clean and modern.`;
               return (
                 <div key={idx} className={`anim-fade-up flex flex-col gap-8 ${msg.type === 'user' ? 'items-end' : 'items-start'}`}>
                       <div className={`${
+                        isGenerationComplete && idx === chatMessages.length - 1 ? 'anim-pulse-glow ' : ''
+                      }${
                         msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
                         msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#e7e3f0] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
                         msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#8b8798]' :
@@ -4690,7 +4725,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
                         >
                           <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                           <span className="truncate">{file.path.split('/').pop()}</span>
                         </div>
@@ -4716,9 +4751,20 @@ Focus on the key sections and content, making it clean and modern.`;
                   key={s}
                   onClick={() => sendChatMessage(s)}
                   style={{ animationDelay: `${i * 60}ms` }}
-                  className="anim-fade-up shrink-0 whitespace-nowrap rounded-full border border-[#a99cd9] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-all hover:border-[#6147D4] hover:bg-[#faf9fe] hover:text-[#191622] active:scale-[0.97]"
+                  className="group anim-fade-up inline-flex shrink-0 items-center gap-4 whitespace-nowrap rounded-full border border-[#a99cd9] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-all hover:border-[#6147D4] hover:bg-[#faf9fe] hover:text-[#191622] active:scale-[0.97]"
                 >
                   {s}
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    aria-hidden
+                    className="-translate-x-1 text-[#6147D4] opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+                  >
+                    <path d="M10 4v12M4 10h12" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
                 </button>
               ))}
             </div>
@@ -4849,7 +4895,7 @@ Focus on the key sections and content, making it clean and modern.`;
             Desktop: shown when not fullscreen chat. Mobile: shown when mobileView === 'panel'. */}
         <div
           className={`flex-1 flex-col overflow-hidden bg-[#fbfafd] p-0 md:p-8 ${
-            mobileView === 'panel' ? 'flex' : 'hidden'
+            mobileView === 'panel' ? 'flex anim-slide-in-right' : 'hidden'
           } ${chatFullscreen ? 'md:hidden' : 'md:flex'}`}
         >
           <div className="flex-1 relative overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#ece8f4]">

@@ -94,8 +94,11 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-12 bg-[#6147D4] py-12 text-center text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+          className="flex w-full items-center justify-center gap-8 rounded-12 bg-[#6147D4] py-12 text-center text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
         >
+          {loading && (
+            <span className="h-16 w-16 shrink-0 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+          )}
           {loading ? 'Please wait…' : mode === 'signin' ? 'Continue' : 'Create account'}
         </button>
       </form>

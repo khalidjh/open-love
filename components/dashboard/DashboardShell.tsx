@@ -282,6 +282,12 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                       <span className="truncate">{p.model || "app"}</span>
                       <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
                     </div>
+                    <span className="mt-12 flex items-center gap-4 self-end text-[13px] font-medium text-[#6147D4] opacity-0 translate-x-[-4px] transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
+                      Open
+                      <span aria-hidden className="transition-transform group-hover:translate-x-1">
+                        &rarr;
+                      </span>
+                    </span>
                   </Link>
                 ))}
               </div>
