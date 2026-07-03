@@ -33,6 +33,10 @@ export interface Template {
     supabaseSchema: string;
     authIssuer: string;
     authClientId: string;
+    // Server-only AI proxy vars (NO public prefix — must never reach the browser;
+    // only read inside a server route). Same names on both frameworks.
+    aiProxyUrl: string;
+    aiProxyKey: string;
     // How the generated app reads a public var, e.g. `import.meta.env.X` — used
     // only to phrase the prompt.
     read: (name: string) => string;
@@ -70,6 +74,8 @@ const VITE: Template = {
     supabaseSchema: 'VITE_SUPABASE_SCHEMA',
     authIssuer: 'VITE_AUTH_ISSUER',
     authClientId: 'VITE_AUTH_CLIENT_ID',
+    aiProxyUrl: 'ETLAQ_AI_URL',
+    aiProxyKey: 'ETLAQ_AI_KEY',
     read: (name) => `import.meta.env.${name}`,
   },
   configFiles: ['tailwind.config.js', 'vite.config.js', 'package.json', 'package-lock.json', 'tsconfig.json', 'postcss.config.js'],
@@ -91,6 +97,8 @@ const NEXTJS: Template = {
     supabaseSchema: 'NEXT_PUBLIC_SUPABASE_SCHEMA',
     authIssuer: 'NEXT_PUBLIC_AUTH_ISSUER',
     authClientId: 'NEXT_PUBLIC_AUTH_CLIENT_ID',
+    aiProxyUrl: 'ETLAQ_AI_URL',
+    aiProxyKey: 'ETLAQ_AI_KEY',
     read: (name) => `process.env.${name}`,
   },
   configFiles: ['tailwind.config.js', 'next.config.mjs', 'package.json', 'package-lock.json', 'jsconfig.json', 'postcss.config.js'],

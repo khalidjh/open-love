@@ -1001,6 +1001,45 @@ WHEN YOU USE THE DATABASE:
 </tables>
 `;
 
+        // Decide automatically whether this app needs to call an AI model at
+        // runtime (chatbot, assistant, "ask AI", summarize, generate text...).
+        // Only offered for Next.js — a secure integration needs a server route to
+        // hold the token; Vite/static apps can't do it safely.
+        if (framework === 'nextjs') {
+          systemPrompt += `
+
+DECIDE IF THIS APP NEEDS AI AT RUNTIME:
+The user is non-technical and will NOT ask for an "API key" or "LLM".
+- If the app should chat, answer questions, summarize, or generate text with AI,
+  use the BUILT-IN AI — never hardcode any API key or call a provider directly.
+- If it needs no AI, ignore this section.
+
+WHEN YOU USE AI:
+- Create a server Route Handler at app/api/chat/route.js that forwards the chat to
+  the platform AI proxy. It reads two server-only env vars (auto-provided; NEVER
+  expose them to the client, never prefix with NEXT_PUBLIC_):
+    ${template.env.read(template.env.aiProxyUrl)}   // proxy endpoint
+    ${template.env.read(template.env.aiProxyKey)}   // per-project bearer token
+  Canonical handler (stream the reply straight through as text):
+    // app/api/chat/route.js
+    export async function POST(req) {
+      const { messages } = await req.json();
+      const res = await fetch(${template.env.read(template.env.aiProxyUrl)}, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + ${template.env.read(template.env.aiProxyKey)},
+        },
+        body: JSON.stringify({ messages }),
+      });
+      return new Response(res.body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
+- The client component posts { messages: [{ role, content }] } to its OWN '/api/chat'
+  and reads the streamed text from the response body. Do NOT call the proxy from the
+  browser — always go through app/api/chat so the token stays on the server.
+`;
+        }
+
         // Framework-specific conventions (App Router paths, "use client", route
         // handlers, env access) — empty for Vite.
         systemPrompt += template.promptGuidance;

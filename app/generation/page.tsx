@@ -1471,6 +1471,31 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     /<tables>[\s\S]*?<\/tables>/i.test(generated) ||
     /@supabase\/supabase-js|VITE_SUPABASE_/.test(generated);
 
+  // Silently ensure this project has AI enabled. Called automatically when a
+  // generated app wires up the built-in AI — the user never asks for an "API key".
+  const aiEnabledRef = useRef(false);
+  const ensureAi = async (): Promise<boolean> => {
+    if (aiEnabledRef.current) return true;
+    const projectId = await ensureProjectId();
+    if (!projectId) return false;
+    addChatMessage('Enabling AI for your app…', 'system');
+    try {
+      const res = await fetch(`/api/projects/${projectId}/ai`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.ai?.status === 'ready') {
+        aiEnabledRef.current = true;
+        return true;
+      }
+      throw new Error(data.error || 'AI setup failed');
+    } catch (e: any) {
+      console.error('[ensureAi] failed:', e);
+      return false;
+    }
+  };
+
+  // Did the generated app wire up the built-in AI? (references the injected env vars)
+  const responseNeedsAi = (generated: string): boolean => /ETLAQ_AI_(URL|KEY)/.test(generated);
+
   // Create any tables the response declared, inside the project's storage.
   const createTablesFromResponse = async (generated: string, db: DbInfo | null) => {
     const projectId = currentProjectIdRef.current;
@@ -2771,6 +2796,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           if (responseNeedsDatabase(generatedCode)) {
             if (!db) db = await ensureDatabase();
             await createTablesFromResponse(generatedCode, db);
+          }
+
+          // Likewise decide if the app uses the built-in AI; if so provision the
+          // per-project token + inject it into the sandbox before applying code.
+          if (responseNeedsAi(generatedCode)) {
+            await ensureAi();
           }
 
           // Use isEdit flag that was determined at the start

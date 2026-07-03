@@ -112,7 +112,28 @@ export const tenantAuth = pgTable('tenant_auth', {
   projectIdx: index('tenant_auth_project_idx').on(t.projectId),
 }));
 
+// Phase-2 per-project AI: lets a generated app call an LLM at runtime WITHOUT
+// ever holding the platform's model key. Each project gets a revocable token; the
+// generated app's server route sends it to the Etlaq AI proxy, which forwards to
+// the AI Gateway. tokenHash is what the proxy looks up (never the raw token);
+// encryptedCredentials holds the raw token so redeploys can re-inject it.
+export const tenantAi = pgTable('tenant_ai', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('etlaq-gateway'),
+  model: text('model'),                  // null => proxy's server-side default
+  tokenHash: text('token_hash'),         // sha256 of the per-project token (proxy lookup)
+  // encrypted at rest (see lib/crypto); never store the plaintext token
+  encryptedCredentials: text('encrypted_credentials'),
+  status: text('status').notNull().default('pending'), // pending | provisioning | ready | error
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  projectIdx: index('tenant_ai_project_idx').on(t.projectId),
+  tokenHashIdx: index('tenant_ai_token_hash_idx').on(t.tokenHash),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type TenantAi = typeof tenantAi.$inferSelect;

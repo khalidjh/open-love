@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from './index';
 import {
-  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth,
+  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth, tenantAi,
   type NewProject,
 } from './schema';
 
@@ -182,4 +182,44 @@ export async function upsertProjectAuth(
 
 export async function deleteProjectAuth(projectId: string) {
   await db.delete(tenantAuth).where(eq(tenantAuth.projectId, projectId));
+}
+
+// -----------------------------------------------------------------------------
+// Per-project AI (Etlaq AI proxy token)
+// -----------------------------------------------------------------------------
+
+export async function getProjectAi(projectId: string) {
+  return db.query.tenantAi.findFirst({
+    where: eq(tenantAi.projectId, projectId),
+  });
+}
+
+// Used by the public AI proxy to authenticate a per-project token (looked up by
+// its sha256 hash — the raw token is never stored in a queryable column).
+export async function getProjectAiByTokenHash(tokenHash: string) {
+  return db.query.tenantAi.findFirst({
+    where: eq(tenantAi.tokenHash, tokenHash),
+  });
+}
+
+export async function upsertProjectAi(
+  projectId: string,
+  data: { provider?: string; model?: string; tokenHash?: string; encryptedCredentials?: string; status?: string }
+) {
+  const existing = await getProjectAi(projectId);
+  if (existing) {
+    const [row] = await db.update(tenantAi)
+      .set(data)
+      .where(eq(tenantAi.id, existing.id))
+      .returning();
+    return row;
+  }
+  const [row] = await db.insert(tenantAi)
+    .values({ projectId, provider: data.provider ?? 'etlaq-gateway', ...data })
+    .returning();
+  return row;
+}
+
+export async function deleteProjectAi(projectId: string) {
+  await db.delete(tenantAi).where(eq(tenantAi.projectId, projectId));
 }
