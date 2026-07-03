@@ -118,26 +118,9 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           </button>
         </div>
 
-        {/* Workspace */}
-        {!collapsed && (
-          <div className="mx-12 mb-8 flex items-center gap-10 rounded-12 border border-[#eee9f5] px-10 py-8">
-            <span className="flex h-28 w-28 items-center justify-center rounded-8 bg-[#6147D4] text-[13px] font-semibold text-white">
-              {initial}
-            </span>
-            <span className="truncate text-[14px] font-medium">
-              {firstName}&rsquo;s {PRODUCT_NAME}
-            </span>
-          </div>
-        )}
-
-        {/* Nav */}
-        <nav className="flex flex-col gap-2 px-12">
-          <NavItem href="/dashboard" active collapsed={collapsed} icon={<HomeIcon />} label="Dashboard" />
-        </nav>
-
         {/* Recents */}
         {!collapsed && (
-          <div className="mt-24 flex-1 overflow-y-auto px-12">
+          <div className="mt-8 flex-1 overflow-y-auto px-12">
             {recents.length > 0 && (
               <>
                 <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#a29db0]">
@@ -299,57 +282,13 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
   );
 }
 
-/* ---------- sidebar nav item + icons ---------- */
-
-function NavItem({
-  href,
-  label,
-  icon,
-  active = false,
-  collapsed,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  active?: boolean;
-  collapsed: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      title={collapsed ? label : undefined}
-      className={`flex items-center gap-10 rounded-10 px-10 py-8 text-[14px] font-medium transition-colors ${
-        collapsed ? "justify-center" : ""
-      } ${
-        active
-          ? "bg-[#f0ecfb] text-[#6147D4]"
-          : "text-[#5b5668] hover:bg-[#f3f0fa] hover:text-[#191622]"
-      }`}
-    >
-      <span className="shrink-0">{icon}</span>
-      {!collapsed && <span className="truncate">{label}</span>}
-    </Link>
-  );
-}
+/* ---------- sidebar icons ---------- */
 
 function SidebarIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
       <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
       <path d="M8 4V16" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path
-        d="M4 9L10 4L16 9V16H12V12H8V16H4V9Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
