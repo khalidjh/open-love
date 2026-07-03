@@ -43,8 +43,11 @@ export const projects = pgTable('projects', {
   model: text('model'),                 // AI model used
   sandboxId: text('sandbox_id'),        // last known live sandbox (ephemeral)
   sandboxProvider: text('sandbox_provider'), // 'e2b' | 'vercel'
-  netlifySiteId: text('netlify_site_id'),    // stable per-project deploy target
+  framework: text('framework').default('vite'), // 'vite' | 'nextjs' — chosen at creation
+  netlifySiteId: text('netlify_site_id'),    // stable per-project static deploy target
+  vercelProjectId: text('vercel_project_id'), // stable per-project full-stack deploy target
   deployUrl: text('deploy_url'),
+  deployTarget: text('deploy_target').default('static'), // 'static' | 'fullstack'
   currentVersionId: uuid('current_version_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

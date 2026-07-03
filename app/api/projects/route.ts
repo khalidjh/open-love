@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { createProject, listProjects } from '@/lib/db/repos';
+import { detectFramework, type Framework } from '@/lib/templates';
 
 // GET /api/projects — list the current tenant's projects
 export async function GET() {
@@ -21,10 +22,14 @@ export async function POST(request: NextRequest) {
   try {
     const { orgId } = await requireOrg();
     const body = await request.json().catch(() => ({}));
+    // Auto-detect the framework from the build request (a backend need → Next.js),
+    // unless the caller pins it explicitly.
+    const framework: Framework = body.framework || detectFramework(body.prompt || body.name);
     const project = await createProject(orgId, {
       name: body.name || 'Untitled app',
       sourceUrl: body.sourceUrl,
       model: body.model,
+      framework,
     });
     return NextResponse.json({ success: true, project });
   } catch (error) {

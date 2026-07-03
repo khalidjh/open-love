@@ -44,6 +44,9 @@ export const appConfig = {
     // Time to wait for Vite dev server to be ready (in milliseconds)
     viteStartupDelay: 10000,
 
+    // Next.js dev server boots slower than Vite; give it longer.
+    nextStartupDelay: 20000,
+
     // Working directory in sandbox
     workingDirectory: '/home/user/app',
   },

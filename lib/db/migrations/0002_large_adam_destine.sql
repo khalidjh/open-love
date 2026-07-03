@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "deploy_target" text DEFAULT 'static';

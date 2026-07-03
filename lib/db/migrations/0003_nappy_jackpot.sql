@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "vercel_project_id" text;

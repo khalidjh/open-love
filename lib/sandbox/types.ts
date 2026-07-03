@@ -75,4 +75,14 @@ export abstract class SandboxProvider {
     // Default implementation for restarting Vite
     throw new Error('restartViteServer not implemented for this provider');
   }
+
+  // Full-stack Next.js (App Router) equivalents — implemented by providers that
+  // support the Next.js template.
+  async setupNextApp(): Promise<void> {
+    throw new Error('setupNextApp not implemented for this provider');
+  }
+
+  async restartNextServer(): Promise<void> {
+    throw new Error('restartNextServer not implemented for this provider');
+  }
 }

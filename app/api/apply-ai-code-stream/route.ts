@@ -4,12 +4,14 @@ import { parseMorphEdits, applyMorphEditToFile } from '@/lib/morph-fast-apply';
 import type { SandboxState } from '@/types/sandbox';
 import type { ConversationState } from '@/types/conversation';
 import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
+import { getTemplate, type Framework } from '@/lib/templates';
 
 declare global {
   var conversationState: ConversationState | null;
   var activeSandboxProvider: any;
   var existingFiles: Set<string>;
   var sandboxState: SandboxState;
+  var activeFramework: Framework | undefined;
 }
 
 interface ParsedResponse {
@@ -321,7 +323,8 @@ export async function POST(request: NextRequest) {
         if (!provider.getSandboxInfo()) {
           console.log(`[apply-ai-code-stream] Creating new sandbox since reconnection failed for ${sandboxId}`);
           await provider.createSandbox();
-          await provider.setupViteApp();
+          if (global.activeFramework === 'nextjs') await provider.setupNextApp();
+          else await provider.setupViteApp();
           sandboxManager.registerSandbox(sandboxId, provider);
         }
 
@@ -354,7 +357,8 @@ export async function POST(request: NextRequest) {
         const { SandboxFactory } = await import('@/lib/sandbox/factory');
         provider = SandboxFactory.create();
         const sandboxInfo = await provider.createSandbox();
-        await provider.setupViteApp();
+        if (global.activeFramework === 'nextjs') await provider.setupNextApp();
+        else await provider.setupViteApp();
 
         // Register with sandbox manager
         sandboxManager.registerSandbox(sandboxInfo.sandboxId, provider);
@@ -525,8 +529,13 @@ export async function POST(request: NextRequest) {
           message: `Creating ${filesArray.length} files...`
         });
 
-        // Filter out config files that shouldn't be created
-        const configFiles = ['tailwind.config.js', 'vite.config.js', 'package.json', 'package-lock.json', 'tsconfig.json', 'postcss.config.js'];
+        // Framework-aware application: config files to never overwrite, and
+        // whether loose files get force-prefixed with src/ (Vite) or kept as-is
+        // (Next.js App Router paths like app/page.jsx).
+        const framework: Framework = global.activeFramework || 'vite';
+        const template = getTemplate(framework);
+        const configFiles = template.configFiles;
+        const applySrcPrefix = template.applySrcPrefix;
         let filteredFiles = filesArray.filter(file => {
           if (!file || typeof file !== 'object') return false;
           const fileName = (file.path || '').split('/').pop() || '';
@@ -578,7 +587,8 @@ export async function POST(request: NextRequest) {
             if (!file?.path) return true;
             let normalizedPath = file.path.startsWith('/') ? file.path.slice(1) : file.path;
             const fileName = normalizedPath.split('/').pop() || '';
-            if (!normalizedPath.startsWith('src/') &&
+            if (applySrcPrefix &&
+                !normalizedPath.startsWith('src/') &&
                 !normalizedPath.startsWith('public/') &&
                 normalizedPath !== 'index.html' &&
                 !configFiles.includes(fileName)) {
@@ -604,7 +614,8 @@ export async function POST(request: NextRequest) {
             if (normalizedPath.startsWith('/')) {
               normalizedPath = normalizedPath.substring(1);
             }
-            if (!normalizedPath.startsWith('src/') &&
+            if (applySrcPrefix &&
+              !normalizedPath.startsWith('src/') &&
               !normalizedPath.startsWith('public/') &&
               normalizedPath !== 'index.html' &&
               !configFiles.includes(normalizedPath.split('/').pop() || '')) {
@@ -613,9 +624,11 @@ export async function POST(request: NextRequest) {
 
             const isUpdate = global.existingFiles.has(normalizedPath);
 
-            // Remove any CSS imports from JSX/JS files (we're using Tailwind)
+            // Remove any CSS imports from JSX/JS files (we're using Tailwind).
+            // Skip for Next.js — the root layout MUST import ./globals.css.
             let fileContent = file.content;
-            if (file.path.endsWith('.jsx') || file.path.endsWith('.js') || file.path.endsWith('.tsx') || file.path.endsWith('.ts')) {
+            if (framework !== 'nextjs' &&
+              (file.path.endsWith('.jsx') || file.path.endsWith('.js') || file.path.endsWith('.tsx') || file.path.endsWith('.ts'))) {
               fileContent = fileContent.replace(/import\s+['"]\.\/[^'"]+\.css['"];?\s*\n?/g, '');
             }
 

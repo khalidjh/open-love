@@ -10,6 +10,7 @@ import { executeSearchPlan, formatSearchResultsForAI, selectTargetFile } from '@
 import { FileManifest } from '@/types/file-manifest';
 import type { ConversationState, ConversationMessage, ConversationEdit } from '@/types/conversation';
 import { appConfig } from '@/config/app.config';
+import { getTemplate, type Framework } from '@/lib/templates';
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -585,8 +586,12 @@ Remember: You are a SURGEON making a precise incision, not an artist repainting 
           }
         }
         
+        // The active sandbox was scaffolded from one template; generate for it.
+        const framework: Framework = (global as any).activeFramework === 'nextjs' ? 'nextjs' : 'vite';
+        const template = getTemplate(framework);
+
         // Build system prompt with conversation awareness
-        let systemPrompt = `You are an expert React developer with perfect memory of the conversation. You maintain context across messages and remember scraped websites, generated components, and applied code. Generate clean, modern React code for Vite applications.
+        let systemPrompt = `You are an expert React developer with perfect memory of the conversation. You maintain context across messages and remember scraped websites, generated components, and applied code. Generate clean, modern React code for ${framework === 'nextjs' ? 'Next.js (App Router) applications' : 'Vite applications'}.
 ${conversationContext}
 
 🚨 CRITICAL RULES - YOUR MOST IMPORTANT INSTRUCTIONS:
@@ -971,9 +976,9 @@ WHEN YOU USE THE DATABASE:
 - Client: import { createClient } from '@supabase/supabase-js' (auto-installed).
 - Create the client ONCE from env vars (auto-provided; never hardcode):
     export const supabase = createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_ANON_KEY,
-      { db: { schema: import.meta.env.VITE_SUPABASE_SCHEMA } }
+      ${template.env.read(template.env.supabaseUrl)},
+      ${template.env.read(template.env.supabaseAnonKey)},
+      { db: { schema: ${template.env.read(template.env.supabaseSchema)} } }
     )
 - Read/write via supabase.from('table_name')... (schema applied automatically).
 - Declare any tables you need with a <tables> block (in ADDITION to code files);
@@ -990,6 +995,10 @@ WHEN YOU USE THE DATABASE:
 ]
 </tables>
 `;
+
+        // Framework-specific conventions (App Router paths, "use client", route
+        // handlers, env access) — empty for Vite.
+        systemPrompt += template.promptGuidance;
 
         // Build full prompt with context
         let fullPrompt = prompt;

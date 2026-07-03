@@ -3,21 +3,25 @@ import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { getProject, getProjectDatabase, upsertProjectDatabase, deleteProjectDatabase } from '@/lib/db/repos';
 import { provisionProjectSchema, deprovisionProjectSchema } from '@/lib/db/provision-schema';
 import { encrypt, decrypt } from '@/lib/crypto';
+import { getTemplate, type Framework } from '@/lib/templates';
 
 declare global {
   var activeSandboxProvider: any;
 }
 
 // Best-effort: drop the Supabase creds into the live sandbox and install the
-// client so the generated app can `import.meta.env.VITE_SUPABASE_*` immediately.
-async function injectIntoSandbox(url: string, anonKey: string, schema: string) {
+// client so the generated app can read them immediately. Var names + which dev
+// server to restart depend on the project's framework (Vite vs Next.js).
+async function injectIntoSandbox(url: string, anonKey: string, schema: string, framework: Framework) {
   const provider = global.activeSandboxProvider;
   if (!provider) return;
   try {
-    const env = `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${anonKey}\nVITE_SUPABASE_SCHEMA=${schema}\n`;
+    const t = getTemplate(framework).env;
+    const env = `${t.supabaseUrl}=${url}\n${t.supabaseAnonKey}=${anonKey}\n${t.supabaseSchema}=${schema}\n`;
     await provider.writeFile('.env', env);
     await provider.runShell('npm install @supabase/supabase-js');
-    await provider.restartViteServer();
+    if (framework === 'nextjs') await provider.restartNextServer();
+    else await provider.restartViteServer();
   } catch (e) {
     console.error('[database] sandbox injection failed', e);
   }
@@ -79,7 +83,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       encryptedCredentials: encrypt(JSON.stringify({ url, anonKey, schema })),
     });
 
-    await injectIntoSandbox(url, anonKey, schema);
+    await injectIntoSandbox(url, anonKey, schema, (project.framework as Framework) || 'vite');
 
     return NextResponse.json({ success: true, database: { status: 'ready', schema, url, anonKey } });
   } catch (error) {

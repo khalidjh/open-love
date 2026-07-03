@@ -2,6 +2,7 @@ import { Sandbox } from '@e2b/code-interpreter';
 import { SandboxProvider, SandboxInfo, CommandResult } from '../types';
 // SandboxProviderConfig available through parent class
 import { appConfig } from '@/config/app.config';
+import { getTemplate } from '@/lib/templates';
 
 export class E2BProvider extends SandboxProvider {
   private existingFiles: Set<string> = new Set();
@@ -498,12 +499,73 @@ print('Waiting for server to be ready...')
     this.existingFiles.add('postcss.config.js');
   }
 
+  // Scaffold a full-stack Next.js (App Router) app instead of the Vite SPA.
+  // Runs Next on the same port the sandbox already proxies (5173) so the
+  // existing preview-URL plumbing is unchanged.
+  async setupNextApp(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    const tpl = getTemplate('nextjs');
+
+    // Ensure nested dirs (app/) exist, then write every scaffold file.
+    await this.runShell('mkdir -p app');
+    for (const f of tpl.scaffoldFiles) {
+      await this.writeFile(f.path, f.content);
+    }
+
+    // Install dependencies.
+    const legacy = appConfig.packages.useLegacyPeerDeps ? '--legacy-peer-deps' : '';
+    await this.runShell(`npm install ${legacy}`.trim());
+
+    // Start the Next dev server (non-blocking Popen, like the Vite setup).
+    await this.startNextServer();
+
+    for (const f of tpl.scaffoldFiles) this.existingFiles.add(f.path);
+  }
+
+  private async startNextServer(): Promise<void> {
+    if (!this.sandbox) throw new Error('No active sandbox');
+    await this.sandbox.runCode(`
+import subprocess
+import os
+import time
+
+os.chdir('/home/user/app')
+
+# Kill any existing Next process
+subprocess.run(['pkill', '-f', 'next'], capture_output=True)
+time.sleep(1)
+
+env = os.environ.copy()
+env['FORCE_COLOR'] = '0'
+env['PORT'] = '${appConfig.e2b.vitePort}'  # bind to the proxied port
+
+process = subprocess.Popen(
+    ['npm', 'run', 'dev'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    env=env
+)
+print(f'✓ Next dev server started with PID: {process.pid}')
+    `);
+    await new Promise(resolve => setTimeout(resolve, appConfig.e2b.nextStartupDelay));
+  }
+
+  async restartNextServer(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+    await this.startNextServer();
+  }
+
   async restartViteServer(): Promise<void> {
     if (!this.sandbox) {
       throw new Error('No active sandbox');
     }
 
-    
+
     await this.sandbox.runCode(`
 import subprocess
 import time

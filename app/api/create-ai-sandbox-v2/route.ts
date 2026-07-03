@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { SandboxFactory } from '@/lib/sandbox/factory';
 // SandboxProvider type is used through SandboxFactory
 import type { SandboxState } from '@/types/sandbox';
 import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
+import { type Framework } from '@/lib/templates';
 
 // Store active sandbox globally
 declare global {
@@ -10,11 +11,16 @@ declare global {
   var sandboxData: any;
   var existingFiles: Set<string>;
   var sandboxState: SandboxState;
+  // Which template the active sandbox was scaffolded from — read by the apply,
+  // generate, and env routes to stay framework-aware.
+  var activeFramework: Framework | undefined;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    console.log('[create-ai-sandbox-v2] Creating sandbox...');
+    const body = await request.json().catch(() => ({}));
+    const framework: Framework = body?.framework === 'nextjs' ? 'nextjs' : 'vite';
+    console.log('[create-ai-sandbox-v2] Creating sandbox...', { framework });
     
     // Clean up all existing sandboxes
     console.log('[create-ai-sandbox-v2] Cleaning up existing sandboxes...');
@@ -41,9 +47,15 @@ export async function POST() {
     const provider = SandboxFactory.create();
     const sandboxInfo = await provider.createSandbox();
     
-    console.log('[create-ai-sandbox-v2] Setting up Vite React app...');
-    await provider.setupViteApp();
-    
+    if (framework === 'nextjs') {
+      console.log('[create-ai-sandbox-v2] Setting up Next.js app...');
+      await provider.setupNextApp();
+    } else {
+      console.log('[create-ai-sandbox-v2] Setting up Vite React app...');
+      await provider.setupViteApp();
+    }
+    global.activeFramework = framework;
+
     // Register with sandbox manager
     sandboxManager.registerSandbox(sandboxInfo.sandboxId, provider);
     

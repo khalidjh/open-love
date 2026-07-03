@@ -43,7 +43,7 @@ export async function getUserOrgId(userId: string): Promise<string | null> {
 
 export async function createProject(orgId: string, data: Partial<NewProject> & { name: string }) {
   const [project] = await db.insert(projects)
-    .values({ orgId, name: data.name, sourceUrl: data.sourceUrl, model: data.model })
+    .values({ orgId, name: data.name, sourceUrl: data.sourceUrl, model: data.model, framework: data.framework })
     .returning();
   return project;
 }

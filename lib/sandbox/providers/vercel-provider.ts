@@ -1,6 +1,8 @@
 import { Sandbox } from '@vercel/sandbox';
 import { SandboxProvider, SandboxInfo, CommandResult } from '../types';
 // SandboxProviderConfig available through parent class
+import { appConfig } from '@/config/app.config';
+import { getTemplate } from '@/lib/templates';
 
 export class VercelProvider extends SandboxProvider {
   private existingFiles: Set<string> = new Set();
@@ -601,13 +603,60 @@ body {
     this.existingFiles.add('postcss.config.js');
   }
 
+  // Scaffold a full-stack Next.js (App Router) app instead of the Vite SPA.
+  // Runs Next on the same proxied port (5173) so the preview URL is unchanged.
+  async setupNextApp(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+
+    const tpl = getTemplate('nextjs');
+
+    // Ensure nested dirs (app/) exist, then write every scaffold file.
+    await this.sandbox.runCommand({ cmd: 'mkdir', args: ['-p', '/vercel/sandbox/app'] });
+    for (const f of tpl.scaffoldFiles) {
+      await this.writeFile(f.path, f.content);
+    }
+
+    // Install dependencies.
+    try {
+      await this.sandbox.runCommand({ cmd: 'npm', args: ['install'], cwd: '/vercel/sandbox' });
+    } catch (error: any) {
+      console.warn('[VercelProvider] npm install (next) issue:', error?.message);
+    }
+
+    await this.startNextServer();
+
+    for (const f of tpl.scaffoldFiles) this.existingFiles.add(f.path);
+  }
+
+  private async startNextServer(): Promise<void> {
+    if (!this.sandbox) throw new Error('No active sandbox');
+    await this.sandbox.runCommand({ cmd: 'sh', args: ['-c', 'pkill -f next || true'], cwd: '/' });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Bind Next to the proxied port via PORT env.
+    await this.sandbox.runCommand({
+      cmd: 'sh',
+      args: ['-c', `PORT=${appConfig.e2b.vitePort} nohup npm run dev > /tmp/next.log 2>&1 &`],
+      cwd: '/vercel/sandbox',
+    });
+    await new Promise(resolve => setTimeout(resolve, appConfig.e2b.nextStartupDelay));
+  }
+
+  async restartNextServer(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+    await this.startNextServer();
+  }
+
   async restartViteServer(): Promise<void> {
     if (!this.sandbox) {
       throw new Error('No active sandbox');
     }
 
     // Restarting Vite server
-    
+
     // Kill existing Vite process
     await this.sandbox.runCommand({
       cmd: 'sh',

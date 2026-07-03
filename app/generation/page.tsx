@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { appConfig } from '@/config/app.config';
+import { detectFramework } from '@/lib/templates';
 import HeroInput from '@/components/HeroInput';
 import SidebarInput from '@/components/app/generation/SidebarInput';
 import HeaderBrandKit from '@/components/shared/header/BrandKit/BrandKit';
@@ -754,10 +755,13 @@ function AISandboxPage() {
     setScreenshotError(null);
     
     try {
+      // Auto-detect the framework from the first build request so the sandbox is
+      // scaffolded with the right template (Next.js for backend apps, else Vite).
+      const framework = detectFramework(firstPromptRef.current);
       const response = await fetch('/api/create-ai-sandbox-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ framework })
       });
       
       const data = await response.json();
@@ -1299,7 +1303,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, model: aiModel }),
+        // Send the raw prompt so the server auto-detects the framework consistently.
+        body: JSON.stringify({ name, model: aiModel, prompt: firstUserMsg }),
       });
       const data = await res.json();
       if (data.success && data.project?.id) {
@@ -2742,30 +2747,35 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
-  const deployToNetlify = async () => {
+  const deployProject = async () => {
     if (!sandboxData) {
-      addChatMessage('Please wait for the sandbox to be created before deploying.', 'system');
+      addChatMessage('Please wait for the sandbox to be created before publishing.', 'system');
       return;
     }
 
     setLoading(true);
-    log('Deploying to Netlify...');
-    addChatMessage('Building and deploying your app to Netlify... This can take a minute.', 'system');
+    log('Publishing app...');
+    addChatMessage('Publishing your app... This can take a minute.', 'system');
 
     try {
-      const response = await fetch('/api/deploy-netlify', {
+      // Persist a project first so the deploy target is remembered on the project
+      // row (stable URL across deploys/restarts). The server auto-detects whether
+      // the app is static or full-stack and publishes it to the right place.
+      const projectId = await ensureProjectId();
+      const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ projectId })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        log(`Deployed to Netlify: ${data.url}`);
+        log(`Published: ${data.url}`);
         addChatMessage(
           `✅ ${data.message}!\n\nLive URL: ${data.url}` +
-          (data.state !== 'ready' ? '\n\nNetlify is still finishing processing — the URL will be live shortly.' : ''),
+          (data.state && data.state !== 'ready' && data.state !== 'READY'
+            ? '\n\nStill finishing processing — the URL will be live shortly.' : ''),
           'system'
         );
         if (data.url) {
@@ -2775,8 +2785,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         throw new Error(data.error);
       }
     } catch (error: any) {
-      log(`Failed to deploy to Netlify: ${error.message}`, 'error');
-      addChatMessage(`Failed to deploy to Netlify: ${error.message}`, 'system');
+      log(`Failed to publish: ${error.message}`, 'error');
+      addChatMessage(`Failed to publish: ${error.message}`, 'system');
     } finally {
       setLoading(false);
     }
@@ -3957,7 +3967,7 @@ Focus on the key sections and content, making it clean and modern.`;
               </button>
               <div className="my-6 h-px bg-[#eee9f5]" />
               <button
-                onClick={() => { deployToNetlify(); setMobileMenuOpen(false); }}
+                onClick={() => { deployProject(); setMobileMenuOpen(false); }}
                 disabled={!sandboxData || loading}
                 className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
@@ -4127,10 +4137,10 @@ Focus on the key sections and content, making it clean and modern.`;
                 </svg>
               </button>
               <button
-                onClick={deployToNetlify}
+                onClick={deployProject}
                 disabled={!sandboxData || loading}
                 className="flex items-center gap-6 rounded-10 bg-[#6147D4] px-14 py-7 text-[13px] font-semibold text-white transition-colors hover:bg-[#5238c0] disabled:opacity-40"
-                title="Publish (deploy to Netlify)"
+                title="Publish your app"
               >
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />

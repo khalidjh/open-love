@@ -15,6 +15,27 @@
       "when": 1783012974789,
       "tag": "0001_puzzling_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783074620532,
+      "tag": "0002_large_adam_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783074850618,
+      "tag": "0003_nappy_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783076452682,
+      "tag": "0004_silly_callisto",
+      "breakpoints": true
     }
   ]
 }
