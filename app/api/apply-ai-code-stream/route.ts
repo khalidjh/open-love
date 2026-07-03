@@ -5,6 +5,7 @@ import type { SandboxState } from '@/types/sandbox';
 import type { ConversationState } from '@/types/conversation';
 import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
 import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
+import { makeProjectFallback } from '@/lib/sandbox/db-fallback';
 import { getTemplate, type Framework } from '@/lib/templates';
 
 declare global {
@@ -266,7 +267,7 @@ function parseAIResponse(response: string): ParsedResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    const { response, isEdit = false, packages = [], sandboxId } = await request.json();
+    const { response, isEdit = false, packages = [], sandboxId, projectId } = await request.json();
 
     if (!response) {
       return NextResponse.json({
@@ -400,7 +401,7 @@ export async function POST(request: NextRequest) {
       const alive = await (provider as any).ping?.().catch(() => false) ?? true;
       if (!alive) {
         console.log('[apply-ai-code-stream] Active sandbox is dead — auto-recovering...');
-        const recovered = await ensureActiveSandbox();
+        const recovered = await ensureActiveSandbox({ loadFallback: makeProjectFallback(projectId) });
         provider = recovered.provider;
         global.activeSandboxProvider = recovered.provider;
         global.sandboxData = recovered.sandboxData;

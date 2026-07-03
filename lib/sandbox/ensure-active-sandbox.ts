@@ -18,6 +18,13 @@ export interface EnsureResult {
   recreated: boolean;
 }
 
+export interface EnsureOptions {
+  // Durable fallback for the files to replay when the in-memory cache is empty
+  // (e.g. the Node process restarted). Typically a DB-snapshot loader. Only
+  // invoked on the recovery path, and only when the cache has nothing to replay.
+  loadFallback?: () => Promise<{ files: Record<string, string>; framework?: Framework } | null>;
+}
+
 function currentProvider(): SandboxProvider | null {
   return sandboxManager.getActiveProvider() || global.activeSandboxProvider || null;
 }
@@ -48,7 +55,7 @@ function cachedFiles(): Record<string, string> {
  * framework, replay the cached files, reinstall deps, restart the dev server,
  * and re-wire global + manager state.
  */
-export async function ensureActiveSandbox(): Promise<EnsureResult> {
+export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<EnsureResult> {
   const existing = currentProvider();
 
   if (existing) {
@@ -68,9 +75,21 @@ export async function ensureActiveSandbox(): Promise<EnsureResult> {
   }
 
   // --- Recovery path: rebuild and replay ---
-  const files = cachedFiles();
+  let files = cachedFiles();
+  let framework: Framework = global.activeFramework || 'vite';
+
+  // If the in-memory cache is empty (the Node process likely restarted and lost
+  // it), fall back to the durable DB snapshot so we rebuild the real app rather
+  // than a blank scaffold.
+  if (Object.keys(files).length === 0 && opts.loadFallback) {
+    const fallback = await opts.loadFallback().catch(() => null);
+    if (fallback && Object.keys(fallback.files).length > 0) {
+      files = fallback.files;
+      if (fallback.framework) framework = fallback.framework;
+    }
+  }
+
   const paths = Object.keys(files);
-  const framework: Framework = global.activeFramework || 'vite';
 
   // Drop the dead handles so nothing else tries to reuse them.
   try { await sandboxManager.terminateAll(); } catch { /* best-effort */ }

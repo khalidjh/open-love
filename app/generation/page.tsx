@@ -678,7 +678,11 @@ function AISandboxPage() {
     recoveringRef.current = true;
     try {
       updateStatus('Restoring preview…', true);
-      const res = await fetch('/api/ensure-sandbox', { method: 'POST' });
+      const res = await fetch('/api/ensure-sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: currentProjectIdRef.current || undefined }),
+      });
       const data = await res.json();
       if (data.success && data.sandboxData?.url) {
         setSandboxData(data.sandboxData);
@@ -891,7 +895,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           response: code,
           isEdit: isEdit,
           packages: pendingPackages,
-          sandboxId: effectiveSandboxData?.sandboxId // Pass the sandbox ID to ensure proper connection
+          sandboxId: effectiveSandboxData?.sandboxId, // Pass the sandbox ID to ensure proper connection
+          projectId: currentProjectIdRef.current || undefined // enables DB-snapshot recovery if the sandbox died
         })
       });
       
