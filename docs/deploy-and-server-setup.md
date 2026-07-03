@@ -123,12 +123,36 @@ configure in a pipeline.
 
 ## Going-live checklist
 
-- [ ] `npm run db:migrate` run against the KSA Postgres.
-- [ ] KSA Supabase reachable at a public HTTPS URL; env points at it (not localhost).
-- [ ] KSA Zitadel reachable at a public HTTPS URL; `ZITADEL_TOKEN` valid.
-- [ ] `VERCEL_TOKEN` set (+ `VERCEL_TEAM_ID` if team) and a Vercel account exists.
-- [ ] `NETLIFY_API_KEY` set.
-- [ ] All `NEXT_PUBLIC_*`/`VITE_*` Supabase values are the **KSA public** ones.
+- [x] Migrations applied against the production Postgres *(2026-07-03 — via psql `ADD COLUMN IF NOT EXISTS`; note: this DB has no drizzle journal — schema was originally `db:push`ed, so `npm run db:migrate` cannot be used against it)*.
+- [x] Supabase reachable at a public HTTPS URL: `https://auth.etlaq.sa` (Caddy → Kong :8000).
+- [x] Zitadel deployed at `https://id.etlaq.sa` (Caddy → :8080, `/opt/zitadel`).
+- [x] `VERCEL_TOKEN` set *(token validated; `VERCEL_TEAM_ID` not needed — token resolves to the default team)*.
+- [x] `NETLIFY_API_KEY` set.
+- [x] `NEXT_PUBLIC_*` Supabase values are the public ones (baked into the image as build args).
+
+## Production server layout (as of 2026-07-03)
+
+| What | Where |
+|---|---|
+| App repo + `.env.local` | `/opt/open-love` |
+| App container | `open-love-prod` (image `open-love:paas`, `--network supabase_default`, `127.0.0.1:3000`) |
+| Supabase self-host | `/opt/supabase-selfhost/docker` (compose project `supabase`) |
+| Zitadel | `/opt/zitadel` (compose; PAT at `/opt/zitadel/pat/zitadel-pat`, masterkey in `/opt/zitadel/.env`) |
+| Caddy routes | `build.etlaq.sa` → app :3000 · `auth.etlaq.sa` → Kong :8000 · `id.etlaq.sa` → Zitadel :8080 |
+
+Redeploy after a code change:
+
+```bash
+cd /opt/open-love && git pull
+set -a && . ./.env.local && set +a
+docker build -t open-love:paas \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" .
+docker rm -f open-love-prod
+docker run -d --name open-love-prod --network supabase_default \
+  -p 127.0.0.1:3000:3000 --env-file /opt/open-love/.env.local \
+  --restart unless-stopped open-love:paas
+```
 
 ## Still open (product decisions, not blockers)
 

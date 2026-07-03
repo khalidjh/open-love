@@ -9,6 +9,12 @@ claim, and a **PostgREST** reconfig so your self-hosted Supabase trusts Zitadel'
 > same, proven config to production. Nothing here changes per project; Etlaq auto-provisions
 > each project (org + OIDC app) once Part C is done.
 
+> **Production values (2026-07-03):** `AUTH_DOMAIN` = `id.etlaq.sa` · `SUPABASE_HOST` =
+> `https://auth.etlaq.sa` · `SUPABASE_DIR` = `/opt/supabase-selfhost/docker` · `ETLAQ_ENV` =
+> `/opt/open-love/.env.local`. Zitadel runs from `/opt/zitadel` (PAT at
+> `/opt/zitadel/pat/zitadel-pat`, masterkey in `/opt/zitadel/.env`, bound to `127.0.0.1:8080`
+> behind Caddy).
+
 ## Fill these in first
 
 | Placeholder | Meaning | Example |
