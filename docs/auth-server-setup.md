@@ -14,6 +14,24 @@ claim, and a **PostgREST** reconfig so your self-hosted Supabase trusts Zitadel'
 > `/opt/open-love/.env.local`. Zitadel runs from `/opt/zitadel` (PAT at
 > `/opt/zitadel/pat/zitadel-pat`, masterkey in `/opt/zitadel/.env`, bound to `127.0.0.1:8080`
 > behind Caddy).
+>
+> **Status: Parts A–F completed 2026-07-03.** The `add_role` action (id `380144490909794307`)
+> is wired to Complement-Token triggers 4+5 via the Management API. Two deviations from the
+> steps below, both intentional:
+> 1. **No compose edit for PostgREST** — the supabase compose already reads
+>    `PGRST_JWT_SECRET: ${JWT_JWKS:-${JWT_SECRET}}`, so the combined JWKS lives in
+>    `SUPABASE_DIR/.env` as `JWT_JWKS=...` (backup: `.env.bak-jwks`). Rollback = remove that
+>    line and `docker compose up -d rest`.
+> 2. **`PGRST_JWT_AUD` deliberately NOT set** — Zitadel JWT access tokens carry the client/
+>    project IDs in `aud`, never `authenticated`, so enforcing that aud would reject every
+>    Zitadel token and defeat the whole setup. GoTrue/anon behavior is unchanged either way
+>    (verified: anon + service_role both 200 after the swap).
+>
+> Ops notes: the Zitadel container runs as uid 1000 — the bind-mounted `./pat` dir must be
+> writable by it *before first start*, or setup dies mid-init ("permission denied" then
+> `Instance.Domain.AlreadyExists` on every restart; fix = fresh `down -v` after `chown`).
+> `zdb` has a pg_isready healthcheck + `depends_on: condition: service_healthy` for the same
+> reason. If v1 Actions are ever migrated to v2, replicate the `role` claim before removing.
 
 ## Fill these in first
 
