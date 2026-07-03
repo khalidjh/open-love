@@ -13,9 +13,18 @@ export interface ProvisionedAi {
   model: string;
 }
 
-// AI is available whenever the platform has a gateway key to forward with.
+// AI is available whenever the platform has a usable model backend — the Vercel
+// AI Gateway, or any direct provider key the proxy can route to. (A project can
+// pin any of these via its `model` column; the default is Claude Haiku.)
 export function isEtlaqAiConfigured(): boolean {
-  return !!process.env.AI_GATEWAY_API_KEY;
+  return !!(
+    process.env.AI_GATEWAY_API_KEY ||
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.ZAI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    process.env.GROQ_API_KEY ||
+    process.env.GEMINI_API_KEY
+  );
 }
 
 // The proxy authenticates a token by its sha256 hash, so we never persist the raw

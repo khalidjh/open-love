@@ -32,6 +32,9 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     path.startsWith('/login') ||
     path.startsWith('/auth') ||
+    // Generated tenant apps call the AI proxy with a per-project bearer token,
+    // not a Supabase session — it authenticates itself and must stay public.
+    path.startsWith('/api/ai/proxy') ||
     path === '/' ||
     path === '/robots.txt' ||
     path === '/sitemap.xml' ||
