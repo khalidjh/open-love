@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 import { parseMorphEdits, applyMorphEditToFile } from '@/lib/morph-fast-apply';
 import type { SandboxState } from '@/types/sandbox';
 import type { ConversationState } from '@/types/conversation';
@@ -135,6 +136,8 @@ declare global {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     const { response, isEdit = false, packages = [] } = await request.json();
     

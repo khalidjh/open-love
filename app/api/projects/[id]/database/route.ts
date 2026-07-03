@@ -4,16 +4,14 @@ import { getProject, getProjectDatabase, upsertProjectDatabase, deleteProjectDat
 import { provisionProjectSchema, deprovisionProjectSchema } from '@/lib/db/provision-schema';
 import { encrypt, decrypt } from '@/lib/crypto';
 import { getTemplate, type Framework } from '@/lib/templates';
-
-declare global {
-  var activeSandboxProvider: any;
-}
+import { getSession } from '@/lib/sandbox/session-store';
 
 // Best-effort: drop the Supabase creds into the live sandbox and install the
 // client so the generated app can read them immediately. Var names + which dev
 // server to restart depend on the project's framework (Vite vs Next.js).
-async function injectIntoSandbox(url: string, anonKey: string, schema: string, framework: Framework) {
-  const provider = global.activeSandboxProvider;
+// Scoped to THIS project's sandbox session — never a shared global.
+async function injectIntoSandbox(projectId: string, url: string, anonKey: string, schema: string, framework: Framework) {
+  const provider = getSession(projectId)?.provider;
   if (!provider) return;
   try {
     const t = getTemplate(framework).env;
@@ -83,7 +81,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       encryptedCredentials: encrypt(JSON.stringify({ url, anonKey, schema })),
     });
 
-    await injectIntoSandbox(url, anonKey, schema, (project.framework as Framework) || 'vite');
+    await injectIntoSandbox(id, url, anonKey, schema, (project.framework as Framework) || 'vite');
 
     return NextResponse.json({ success: true, database: { status: 'ready', schema, url, anonKey } });
   } catch (error) {

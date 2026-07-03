@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Sandbox } from '@vercel/sandbox';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 import type { SandboxState } from '@/types/sandbox';
 import { appConfig } from '@/config/app.config';
 
@@ -14,6 +15,8 @@ declare global {
 }
 
 export async function POST() {
+  const denied = await guardAuth();
+  if (denied) return denied;
   // Check if sandbox creation is already in progress
   if (global.sandboxCreationInProgress && global.sandboxCreationPromise) {
     console.log('[create-ai-sandbox] Sandbox creation already in progress, waiting for existing creation...');

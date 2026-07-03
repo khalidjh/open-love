@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
 import { makeProjectFallback } from '@/lib/sandbox/db-fallback';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 
-// POST /api/ensure-sandbox   body: { projectId?: string }
-// Guarantees a live sandbox for the current session, transparently rebuilding
+// POST /api/ensure-sandbox   body: { projectId: string }
+// Guarantees a live sandbox for the caller's project, transparently rebuilding
 // and replaying the generated files if the previous one was reaped (E2B TTL).
-// When a projectId is supplied, falls back to the project's latest DB snapshot
-// if the in-memory file cache was lost (e.g. the server restarted), so recovery
-// restores the real app rather than a blank scaffold.
-// Returns the (possibly new) sandbox URL so the client can reload the preview.
+// Falls back to the project's latest DB snapshot if the in-memory session was
+// lost (e.g. the server restarted). Returns the (possibly new) sandbox URL.
+//
+// Tenant-isolated: requireProjectSession authenticates the caller and verifies
+// their org owns the project before any sandbox work happens.
 export async function POST(request: NextRequest) {
+  let projectId: string | undefined;
   try {
     const body = await request.json().catch(() => ({}));
-    const projectId: string | undefined = body?.projectId;
+    projectId = body?.projectId;
+
+    const { orgId, session } = await requireProjectSession(projectId);
 
     const result = await ensureActiveSandbox({
+      session,
+      orgId,
+      projectId: projectId!,
       loadFallback: makeProjectFallback(projectId),
     });
 
@@ -24,10 +32,6 @@ export async function POST(request: NextRequest) {
       recreated: result.recreated,
     });
   } catch (error) {
-    console.error('[ensure-sandbox] Error:', error);
-    return NextResponse.json(
-      { success: false, error: (error as Error).message },
-      { status: 500 }
-    );
+    return toErrorResponse(error);
   }
 }

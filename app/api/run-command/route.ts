@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 
 // Get active sandbox from global state (in production, use a proper state management solution)
 declare global {
@@ -6,6 +7,8 @@ declare global {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     const { command } = await request.json();
     

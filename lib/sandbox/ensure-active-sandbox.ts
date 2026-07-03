@@ -1,16 +1,9 @@
 import { SandboxFactory } from './factory';
 import { sandboxManager } from './sandbox-manager';
+import { updateProject } from '@/lib/db/repos';
 import type { SandboxProvider } from './types';
-import type { SandboxState } from '@/types/sandbox';
+import type { SandboxSession } from './session-store';
 import type { Framework } from '@/lib/templates';
-
-declare global {
-  var activeSandboxProvider: any;
-  var sandboxData: any;
-  var existingFiles: Set<string>;
-  var sandboxState: SandboxState;
-  var activeFramework: Framework | undefined;
-}
 
 export interface EnsureResult {
   provider: SandboxProvider;
@@ -19,44 +12,47 @@ export interface EnsureResult {
 }
 
 export interface EnsureOptions {
-  // Durable fallback for the files to replay when the in-memory cache is empty
-  // (e.g. the Node process restarted). Typically a DB-snapshot loader. Only
-  // invoked on the recovery path, and only when the cache has nothing to replay.
+  // The authenticated project's session — the sole source/target of sandbox
+  // state. All reads/writes go through here, never through process globals, so
+  // recovery is scoped to one tenant's project.
+  session: SandboxSession;
+  orgId: string;
+  projectId: string;
+  // Durable fallback for the files to replay when the session's file cache is
+  // empty (e.g. the Node process restarted). Typically a DB-snapshot loader.
+  // Only invoked on the recovery path, and only when the cache has nothing.
   loadFallback?: () => Promise<{ files: Record<string, string>; framework?: Framework } | null>;
 }
 
-function currentProvider(): SandboxProvider | null {
-  return sandboxManager.getActiveProvider() || global.activeSandboxProvider || null;
-}
-
-// Snapshot the in-memory file cache as a flat path -> content map. The cache
+// Snapshot the session's file cache as a flat path -> content map. The cache
 // stores { content, lastModified } objects, but tolerate raw strings too.
-function cachedFiles(): Record<string, string> {
-  const cache = global.sandboxState?.fileCache?.files || {};
+function cachedFiles(session: SandboxSession): Record<string, string> {
+  const cache = session.fileCache?.files || {};
   const out: Record<string, string> = {};
   for (const [path, entry] of Object.entries(cache)) {
-    const content = typeof entry === 'string' ? entry : (entry as any)?.content;
+    const content = typeof entry === 'string' ? entry : (entry as { content?: string })?.content;
     if (typeof content === 'string') out[path] = content;
   }
   return out;
 }
 
 /**
- * Guarantee a live sandbox, transparently recovering from a reaped one.
+ * Guarantee a live sandbox for one project, transparently recovering a reaped one.
  *
  * The common failure mode this fixes: E2B garbage-collects the microVM after its
- * TTL, leaving the app pointing at a dead sandbox URL ("Sandbox Not Found"). As
- * long as the Node process is still alive (its in-memory file cache intact), we
- * can rebuild an identical sandbox and replay the generated files so the user's
- * app comes back without them noticing.
+ * TTL, leaving the project pointing at a dead sandbox URL ("Sandbox Not Found").
+ * As long as the session's in-memory file cache is intact we rebuild an identical
+ * sandbox and replay the generated files; if the process restarted and the cache
+ * is gone we replay from the project's latest DB snapshot instead.
  *
- * Fast path: existing sandbox pings OK -> just refresh its TTL and return it.
+ * Fast path: existing sandbox pings OK -> refresh its TTL and return it.
  * Recovery path: sandbox is gone -> create a fresh one, re-scaffold the same
- * framework, replay the cached files, reinstall deps, restart the dev server,
- * and re-wire global + manager state.
+ * framework, replay the files, reinstall deps, restart the dev server, re-wire the
+ * session, and persist the new sandboxId to the project row.
  */
-export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<EnsureResult> {
-  const existing = currentProvider();
+export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureResult> {
+  const { session, orgId, projectId } = opts;
+  const existing = session.provider;
 
   if (existing) {
     const alive = await existing.ping().catch(() => false);
@@ -66,8 +62,8 @@ export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<Ens
       return {
         provider: existing,
         sandboxData: {
-          sandboxId: info?.sandboxId ?? global.sandboxData?.sandboxId,
-          url: info?.url ?? global.sandboxData?.url,
+          sandboxId: info?.sandboxId ?? session.sandboxData?.sandboxId ?? '',
+          url: info?.url ?? session.sandboxData?.url ?? '',
         },
         recreated: false,
       };
@@ -75,12 +71,12 @@ export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<Ens
   }
 
   // --- Recovery path: rebuild and replay ---
-  let files = cachedFiles();
-  let framework: Framework = global.activeFramework || 'vite';
+  let files = cachedFiles(session);
+  let framework: Framework = session.framework || 'vite';
 
-  // If the in-memory cache is empty (the Node process likely restarted and lost
-  // it), fall back to the durable DB snapshot so we rebuild the real app rather
-  // than a blank scaffold.
+  // If the session's file cache is empty (the Node process likely restarted and
+  // lost it), fall back to the durable DB snapshot so we rebuild the real app
+  // rather than a blank scaffold.
   if (Object.keys(files).length === 0 && opts.loadFallback) {
     const fallback = await opts.loadFallback().catch(() => null);
     if (fallback && Object.keys(fallback.files).length > 0) {
@@ -91,17 +87,17 @@ export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<Ens
 
   const paths = Object.keys(files);
 
-  // Drop the dead handles so nothing else tries to reuse them.
-  try { await sandboxManager.terminateAll(); } catch { /* best-effort */ }
-  if (global.activeSandboxProvider) {
-    try { await global.activeSandboxProvider.terminate(); } catch { /* best-effort */ }
-    global.activeSandboxProvider = null;
+  // Drop this project's dead handle so nothing else tries to reuse it. Note we
+  // only tear down THIS session's provider — never other tenants' sandboxes.
+  if (session.provider) {
+    try { await session.provider.terminate(); } catch { /* best-effort */ }
+    session.provider = null;
   }
 
   const provider = SandboxFactory.create();
   const info = await provider.createSandbox();
 
-  // Re-scaffold the same framework this session was using.
+  // Re-scaffold the same framework this project was using.
   if (framework === 'nextjs') await provider.setupNextApp();
   else await provider.setupViteApp();
 
@@ -128,24 +124,32 @@ export async function ensureActiveSandbox(opts: EnsureOptions = {}): Promise<Ens
     }
   }
 
-  // Re-wire global + manager state to the fresh sandbox.
+  // Re-wire the project's session to the fresh sandbox.
   sandboxManager.registerSandbox(info.sandboxId, provider);
-  global.activeSandboxProvider = provider;
-  global.sandboxData = { sandboxId: info.sandboxId, url: info.url };
-  global.sandboxState = {
-    fileCache: {
-      files: Object.fromEntries(
-        paths.map((p) => [p, { content: files[p], lastModified: Date.now() }])
-      ),
-      lastSync: Date.now(),
-      sandboxId: info.sandboxId,
-    },
-    sandbox: provider,
-    sandboxData: { sandboxId: info.sandboxId, url: info.url },
+  session.provider = provider;
+  session.framework = framework;
+  session.sandboxData = { sandboxId: info.sandboxId, url: info.url };
+  session.fileCache = {
+    files: Object.fromEntries(
+      paths.map((p) => [p, { content: files[p], lastModified: Date.now() }])
+    ),
+    lastSync: Date.now(),
+    sandboxId: info.sandboxId,
   };
-  global.existingFiles = new Set([...(global.existingFiles ?? []), ...paths]);
+  session.existingFiles = new Set([...session.existingFiles, ...paths]);
 
   await provider.keepAlive().catch(() => {});
+
+  // Persist the new binding so a returning session / fresh process knows which
+  // sandbox this project last used (and can rebuild from the DB snapshot).
+  try {
+    await updateProject(orgId, projectId, {
+      sandboxId: info.sandboxId,
+      sandboxProvider: (process.env.SANDBOX_PROVIDER || 'e2b') as string,
+    });
+  } catch (e) {
+    console.error('[ensureActiveSandbox] failed to persist sandbox binding', e);
+  }
 
   return {
     provider,

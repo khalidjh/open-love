@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 
 declare global {
   var viteErrors: any[];
@@ -10,6 +11,8 @@ if (!global.viteErrors) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     const { error, file, type = 'runtime-error' } = await request.json();
     

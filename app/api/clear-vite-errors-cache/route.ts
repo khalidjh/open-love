@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 
 declare global {
   var viteErrorsCache: { errors: any[], timestamp: number } | null;
 }
 
 export async function POST() {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     // Clear the cache
     global.viteErrorsCache = null;

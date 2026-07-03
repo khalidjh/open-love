@@ -1,15 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { parseJavaScriptFile, buildComponentTree } from '@/lib/file-parser';
 import { FileManifest, FileInfo, RouteInfo } from '@/types/file-manifest';
-// SandboxState type used implicitly through global.activeSandbox
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 
-declare global {
-  var activeSandboxProvider: any;
-}
-
-export async function GET() {
+// GET /api/get-sandbox-files?projectId=...
+export async function GET(request: NextRequest) {
+  const projectId = request.nextUrl.searchParams.get('projectId') || undefined;
+  let session;
   try {
-    const provider = global.activeSandboxProvider;
+    ({ session } = await requireProjectSession(projectId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+  try {
+    const provider = session.provider;
     if (!provider) {
       return NextResponse.json({
         success: false,
@@ -107,9 +111,9 @@ export async function GET() {
     // Extract routes (simplified - looks for Route components or page pattern)
     fileManifest.routes = extractRoutes(fileManifest.files);
     
-    // Update global file cache with manifest
-    if (global.sandboxState?.fileCache) {
-      global.sandboxState.fileCache.manifest = fileManifest;
+    // Update the project session's file cache with the manifest
+    if (session.fileCache) {
+      session.fileCache.manifest = fileManifest;
     }
 
     return NextResponse.json({

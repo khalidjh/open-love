@@ -1,160 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 import type { ConversationState } from '@/types/conversation';
 
-declare global {
-  var conversationState: ConversationState | null;
+function freshConversation(): ConversationState {
+  return {
+    conversationId: `conv-${Date.now()}`,
+    startedAt: Date.now(),
+    lastUpdated: Date.now(),
+    context: {
+      messages: [],
+      edits: [],
+      projectEvolution: { majorChanges: [] },
+      userPreferences: {},
+    },
+  };
 }
 
-// GET: Retrieve current conversation state
-export async function GET() {
+// GET: Retrieve the caller's project conversation state.
+export async function GET(request: NextRequest) {
+  const projectId = request.nextUrl.searchParams.get('projectId') || undefined;
+  if (!projectId) {
+    return NextResponse.json({ success: true, state: null, message: 'No active conversation' });
+  }
   try {
-    if (!global.conversationState) {
-      return NextResponse.json({
-        success: true,
-        state: null,
-        message: 'No active conversation'
-      });
-    }
-    
+    const { session } = await requireProjectSession(projectId);
     return NextResponse.json({
       success: true,
-      state: global.conversationState
+      state: session.conversationState ?? null,
+      message: session.conversationState ? undefined : 'No active conversation',
     });
   } catch (error) {
-    console.error('[conversation-state] Error getting state:', error);
-    return NextResponse.json({
-      success: false,
-      error: (error as Error).message
-    }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
 
-// POST: Reset or update conversation state
+// POST: Reset or update the caller's project conversation state.
 export async function POST(request: NextRequest) {
   try {
-    const { action, data } = await request.json();
-    
+    const { action, data, projectId } = await request.json();
+
+    // Best-effort mount-time cleanup can run before a project exists — no-op.
+    if (!projectId) {
+      return NextResponse.json({ success: true, message: 'No project yet; nothing to do', state: null });
+    }
+
+    const { session } = await requireProjectSession(projectId);
+
     switch (action) {
       case 'reset':
-        global.conversationState = {
-          conversationId: `conv-${Date.now()}`,
-          startedAt: Date.now(),
-          lastUpdated: Date.now(),
-          context: {
-            messages: [],
-            edits: [],
-            projectEvolution: { majorChanges: [] },
-            userPreferences: {}
-          }
-        };
-        
+        session.conversationState = freshConversation();
         console.log('[conversation-state] Reset conversation state');
-        
-        return NextResponse.json({
-          success: true,
-          message: 'Conversation state reset',
-          state: global.conversationState
-        });
-        
+        return NextResponse.json({ success: true, message: 'Conversation state reset', state: session.conversationState });
+
       case 'clear-old':
-        // Clear old conversation data but keep recent context
-        if (!global.conversationState) {
-          // Initialize conversation state if it doesn't exist
-          global.conversationState = {
-            conversationId: `conv-${Date.now()}`,
-            startedAt: Date.now(),
-            lastUpdated: Date.now(),
-            context: {
-              messages: [],
-              edits: [],
-              projectEvolution: { majorChanges: [] },
-              userPreferences: {}
-            }
-          };
-          
-          console.log('[conversation-state] Initialized new conversation state for clear-old');
-          
-          return NextResponse.json({
-            success: true,
-            message: 'New conversation state initialized',
-            state: global.conversationState
-          });
+        if (!session.conversationState) {
+          session.conversationState = freshConversation();
+          return NextResponse.json({ success: true, message: 'New conversation state initialized', state: session.conversationState });
         }
-        
-        // Keep only recent data
-        global.conversationState.context.messages = global.conversationState.context.messages.slice(-5);
-        global.conversationState.context.edits = global.conversationState.context.edits.slice(-3);
-        global.conversationState.context.projectEvolution.majorChanges = 
-          global.conversationState.context.projectEvolution.majorChanges.slice(-2);
-        
+        session.conversationState.context.messages = session.conversationState.context.messages.slice(-5);
+        session.conversationState.context.edits = session.conversationState.context.edits.slice(-3);
+        session.conversationState.context.projectEvolution.majorChanges =
+          session.conversationState.context.projectEvolution.majorChanges.slice(-2);
         console.log('[conversation-state] Cleared old conversation data');
-        
-        return NextResponse.json({
-          success: true,
-          message: 'Old conversation data cleared',
-          state: global.conversationState
-        });
-        
+        return NextResponse.json({ success: true, message: 'Old conversation data cleared', state: session.conversationState });
+
       case 'update':
-        if (!global.conversationState) {
-          return NextResponse.json({
-            success: false,
-            error: 'No active conversation to update'
-          }, { status: 400 });
+        if (!session.conversationState) {
+          return NextResponse.json({ success: false, error: 'No active conversation to update' }, { status: 400 });
         }
-        
-        // Update specific fields if provided
         if (data) {
           if (data.currentTopic) {
-            global.conversationState.context.currentTopic = data.currentTopic;
+            session.conversationState.context.currentTopic = data.currentTopic;
           }
           if (data.userPreferences) {
-            global.conversationState.context.userPreferences = {
-              ...global.conversationState.context.userPreferences,
-              ...data.userPreferences
+            session.conversationState.context.userPreferences = {
+              ...session.conversationState.context.userPreferences,
+              ...data.userPreferences,
             };
           }
-          
-          global.conversationState.lastUpdated = Date.now();
+          session.conversationState.lastUpdated = Date.now();
         }
-        
-        return NextResponse.json({
-          success: true,
-          message: 'Conversation state updated',
-          state: global.conversationState
-        });
-        
+        return NextResponse.json({ success: true, message: 'Conversation state updated', state: session.conversationState });
+
       default:
-        return NextResponse.json({
-          success: false,
-          error: 'Invalid action. Use "reset" or "update"'
-        }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Invalid action. Use "reset" or "update"' }, { status: 400 });
     }
   } catch (error) {
-    console.error('[conversation-state] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: (error as Error).message
-    }, { status: 500 });
+    return toErrorResponse(error);
   }
 }
 
-// DELETE: Clear conversation state
-export async function DELETE() {
+// DELETE: Clear the caller's project conversation state.
+export async function DELETE(request: NextRequest) {
+  const projectId = request.nextUrl.searchParams.get('projectId') || undefined;
+  if (!projectId) {
+    return NextResponse.json({ success: true, message: 'No project yet; nothing to do' });
+  }
   try {
-    global.conversationState = null;
-    
+    const { session } = await requireProjectSession(projectId);
+    session.conversationState = null;
     console.log('[conversation-state] Cleared conversation state');
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Conversation state cleared'
-    });
+    return NextResponse.json({ success: true, message: 'Conversation state cleared' });
   } catch (error) {
-    console.error('[conversation-state] Error clearing state:', error);
-    return NextResponse.json({
-      success: false,
-      error: (error as Error).message
-    }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

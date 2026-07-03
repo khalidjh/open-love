@@ -1,16 +1,27 @@
-import { NextResponse } from 'next/server';
-import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 
-declare global {
-  var activeSandboxProvider: any;
-  var sandboxData: any;
-  var existingFiles: Set<string>;
-}
+// GET /api/sandbox-status?projectId=...
+// Reports whether the caller's project has a live sandbox. Runs on page mount, so
+// a missing projectId (brand-new session, nothing created yet) is not an error —
+// it just means "no sandbox".
+export async function GET(request: NextRequest) {
+  const projectId = request.nextUrl.searchParams.get('projectId') || undefined;
 
-export async function GET() {
+  // No project yet → nothing to report. Don't 400 the mount-time poll.
+  if (!projectId) {
+    return NextResponse.json({
+      success: true,
+      active: false,
+      healthy: false,
+      sandboxData: null,
+      message: 'No active sandbox',
+    });
+  }
+
   try {
-    // Check sandbox manager first, then fall back to global state
-    const provider = sandboxManager.getActiveProvider() || global.activeSandboxProvider;
+    const { session } = await requireProjectSession(projectId);
+    const provider = session.provider;
     const sandboxExists = !!provider;
 
     let sandboxHealthy = false;
@@ -26,36 +37,36 @@ export async function GET() {
           ? await provider.ping()
           : !!providerInfo;
 
+        // Refresh the TTL on every healthy poll so a sandbox the user is actively
+        // viewing never gets reaped out from under them.
+        if (sandboxHealthy && typeof provider.keepAlive === 'function') {
+          await provider.keepAlive().catch(() => {});
+        }
+
         sandboxInfo = {
-          sandboxId: providerInfo?.sandboxId || global.sandboxData?.sandboxId,
-          url: providerInfo?.url || global.sandboxData?.url,
-          filesTracked: global.existingFiles ? Array.from(global.existingFiles) : [],
-          lastHealthCheck: new Date().toISOString()
+          sandboxId: providerInfo?.sandboxId || session.sandboxData?.sandboxId,
+          url: providerInfo?.url || session.sandboxData?.url,
+          filesTracked: Array.from(session.existingFiles),
+          lastHealthCheck: new Date().toISOString(),
         };
       } catch (error) {
         console.error('[sandbox-status] Health check failed:', error);
         sandboxHealthy = false;
       }
     }
-    
+
     return NextResponse.json({
       success: true,
       active: sandboxExists,
       healthy: sandboxHealthy,
       sandboxData: sandboxInfo,
-      message: sandboxHealthy 
-        ? 'Sandbox is active and healthy' 
-        : sandboxExists 
-          ? 'Sandbox exists but is not responding' 
-          : 'No active sandbox'
+      message: sandboxHealthy
+        ? 'Sandbox is active and healthy'
+        : sandboxExists
+          ? 'Sandbox exists but is not responding'
+          : 'No active sandbox',
     });
-    
   } catch (error) {
-    console.error('[sandbox-status] Error:', error);
-    return NextResponse.json({ 
-      success: false,
-      active: false,
-      error: (error as Error).message 
-    }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-declare global {
-  var activeSandbox: any;
-  var activeSandboxProvider: any;
-  var sandboxData: any;
-}
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 
 export async function POST(request: NextRequest) {
+  let session;
+  let packages: unknown;
   try {
-    const { packages } = await request.json();
-    // sandboxId not used - using global sandbox
-    
+    const body = await request.json();
+    packages = body?.packages;
+    ({ session } = await requireProjectSession(body?.projectId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+  try {
     if (!packages || !Array.isArray(packages) || packages.length === 0) {
       return NextResponse.json({ 
         success: false, 
@@ -37,13 +38,13 @@ export async function POST(request: NextRequest) {
       console.log(`[install-packages] Cleaned:`, validPackages);
     }
     
-    // Get active sandbox provider
-    const provider = global.activeSandboxProvider;
-    
+    // Get this project's sandbox provider
+    const provider = session.provider;
+
     if (!provider) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No active sandbox provider available' 
+      return NextResponse.json({
+        success: false,
+        error: 'No active sandbox provider available'
       }, { status: 400 });
     }
     

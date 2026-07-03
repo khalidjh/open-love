@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { getProject, getLatestVersion } from '@/lib/db/repos';
-
-declare global {
-  var activeSandboxProvider: any;
-}
+import { getSession } from '@/lib/sandbox/session-store';
 
 // POST /api/projects/:id/restore
 // Writes the project's latest saved files into the currently-active sandbox,
@@ -20,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     }
 
-    const provider = global.activeSandboxProvider;
+    const provider = getSession(id)?.provider;
     if (!provider) {
       return NextResponse.json(
         { success: false, error: 'No active sandbox to restore into' },

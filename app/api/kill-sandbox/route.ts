@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 
 declare global {
   var activeSandboxProvider: any;
@@ -7,6 +8,8 @@ declare global {
 }
 
 export async function POST() {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     console.log('[kill-sandbox] Stopping active sandbox...');
 

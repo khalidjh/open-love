@@ -179,6 +179,19 @@ function AISandboxPage() {
   // "Sandbox Not Found" 404 never shows through while the app is starting up.
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The iframe is cross-origin, so its onLoad fires even for E2B's raw 404 page —
+  // we can't read the content to tell "real app" from "Sandbox Not Found". So we
+  // only lift the loader once BOTH are true: the frame has painted something
+  // (onLoad), and a server-side health ping has confirmed the URL is actually
+  // live. Either signal alone can lie; together they can't.
+  const previewPaintedRef = useRef(false);
+  const previewHealthyRef = useRef(false);
+  const maybeRevealPreview = () => {
+    if (!previewPaintedRef.current || !previewHealthyRef.current) return;
+    if (previewLoadTimerRef.current) clearTimeout(previewLoadTimerRef.current);
+    // Small settle delay so the dev server inside the VM has a beat to paint.
+    previewLoadTimerRef.current = setTimeout(() => setPreviewLoading(false), 800);
+  };
   
   const [codeApplicationState, setCodeApplicationState] = useState<CodeApplicationState>({
     stage: null
@@ -348,7 +361,7 @@ function AISandboxPage() {
         await fetch('/api/conversation-state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'clear-old' })
+          body: JSON.stringify({ action: 'clear-old', projectId: currentProjectIdRef.current || undefined })
         });
         console.log('[home] Cleared old conversation data on mount');
       } catch (error) {
@@ -611,7 +624,7 @@ function AISandboxPage() {
       const response = await fetch('/api/install-packages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packages })
+        body: JSON.stringify({ packages, projectId: currentProjectIdRef.current || undefined })
       });
       
       if (!response.ok) {
@@ -687,6 +700,11 @@ function AISandboxPage() {
       if (data.success && data.sandboxData?.url) {
         setSandboxData(data.sandboxData);
         setSandboxExpired(false);
+        // Recovery handed back a live URL — clear the reveal gate. Covers the
+        // case where the URL is unchanged (revived in place), so the url-change
+        // effect won't re-fire to confirm health on its own.
+        previewHealthyRef.current = true;
+        maybeRevealPreview();
         updateStatus('Sandbox active', true);
         return true;
       }
@@ -703,7 +721,8 @@ function AISandboxPage() {
 
   const checkSandboxStatus = async () => {
     try {
-      const response = await fetch('/api/sandbox-status');
+      const pid = currentProjectIdRef.current;
+      const response = await fetch(`/api/sandbox-status${pid ? `?projectId=${encodeURIComponent(pid)}` : ''}`);
       const data = await response.json();
 
       const hadSandbox = !!sandboxDataRef.current;
@@ -711,10 +730,15 @@ function AISandboxPage() {
         console.log('[checkSandboxStatus] Setting sandboxData from API:', data.sandboxData);
         setSandboxData(data.sandboxData);
         setSandboxExpired(false);
+        // Authoritative "the URL is live" signal — allow the loader to lift.
+        previewHealthyRef.current = true;
+        maybeRevealPreview();
         updateStatus('Sandbox active', true);
       } else if (hadSandbox && (data.active === false || data.healthy === false)) {
         // We had a live app but the sandbox is gone or unresponsive (reaped TTL).
         // Rebuild it transparently instead of letting the raw 404 show through.
+        // Keep the loader down (don't reveal a dead URL) until recovery lands.
+        previewHealthyRef.current = false;
         await recoverSandbox();
       } else if (data.active && !data.healthy) {
         // No prior sandbox to restore — just reflect the unhealthy state.
@@ -753,7 +777,9 @@ function AISandboxPage() {
   }, [sandboxData]);
 
   // Poll sandbox health so we can show a friendly "went to sleep" prompt instead
-  // of letting the provider's raw 404 show through the preview iframe.
+  // of letting the provider's raw 404 show through the preview iframe. Each poll
+  // also refreshes the TTL server-side, so an actively-viewed sandbox is never
+  // reaped mid-session.
   useEffect(() => {
     if (!sandboxData?.url) return;
     const id = setInterval(() => {
@@ -763,13 +789,38 @@ function AISandboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sandboxData?.url]);
 
-  // Whenever the sandbox URL (re)appears, cover the iframe with a loader until it
-  // finishes loading — with a hard fallback in case onLoad never fires.
+  // Coming back to a backgrounded tab is the classic moment a sandbox has been
+  // reaped. Re-verify immediately on focus/visibility instead of waiting up to
+  // 25s for the next poll, so recovery kicks in before the user notices.
   useEffect(() => {
     if (!sandboxData?.url) return;
+    const onWake = () => {
+      if (document.visibilityState === 'visible') checkSandboxStatus();
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+    return () => {
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sandboxData?.url]);
+
+  // Whenever the sandbox URL (re)appears, cover the iframe with the branded
+  // loader and re-arm the reveal gate: we don't lift the loader until a health
+  // ping confirms this URL is actually live (see maybeRevealPreview). This is
+  // what keeps E2B's raw "Sandbox Not Found" 404 from ever flashing through.
+  useEffect(() => {
+    if (!sandboxData?.url) return;
+    previewPaintedRef.current = false;
+    previewHealthyRef.current = false;
     setPreviewLoading(true);
-    const fallback = setTimeout(() => setPreviewLoading(false), 15000);
+    // Verify right away — reveals on healthy, or transparently recovers on dead.
+    checkSandboxStatus();
+    // Safety valve: never wedge the loader open forever if signals go missing.
+    const fallback = setTimeout(() => setPreviewLoading(false), 20000);
     return () => clearTimeout(fallback);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sandboxData?.url]);
 
   const createSandbox = async (fromHomeScreen = false) => {
@@ -791,10 +842,16 @@ function AISandboxPage() {
       // Auto-detect the framework from the first build request so the sandbox is
       // scaffolded with the right template (Next.js for backend apps, else Vite).
       const framework = detectFramework(firstPromptRef.current);
+      // A sandbox belongs to a project — make sure one exists first so the server
+      // can key the sandbox by projectId (tenant isolation).
+      const projectId = await ensureProjectId();
+      if (!projectId) {
+        throw new Error('Could not create a project for this sandbox. Please sign in and try again.');
+      }
       const response = await fetch('/api/create-ai-sandbox-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ framework })
+        body: JSON.stringify({ framework, projectId })
       });
       
       const data = await response.json();
@@ -1304,7 +1361,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (!sandboxData) return null;
 
     try {
-      const response = await fetch('/api/get-sandbox-files', {
+      const pid = currentProjectIdRef.current;
+      const response = await fetch(`/api/get-sandbox-files${pid ? `?projectId=${encodeURIComponent(pid)}` : ''}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -2110,10 +2168,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               ref={iframeRef}
               src={sandboxData.url}
               onLoad={() => {
-                // Debounced: a fresh sandbox often loads the provider's 404 first, then
-                // reloads into the real app. Wait for load activity to settle before revealing.
-                if (previewLoadTimerRef.current) clearTimeout(previewLoadTimerRef.current);
-                previewLoadTimerRef.current = setTimeout(() => setPreviewLoading(false), 1200);
+                // The frame painted *something* — but cross-origin, we can't tell
+                // whether it's the real app or E2B's 404. Mark it painted and let
+                // the reveal gate decide; it only lifts once a health ping has
+                // also confirmed the URL is live.
+                previewPaintedRef.current = true;
+                maybeRevealPreview();
               }}
               className={
                 previewDevice === 'mobile'
@@ -2370,6 +2430,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       console.log('[chat] - sandboxId:', fullContext.sandboxId);
       console.log('[chat] - isEdit:', conversationContext.appliedCode.length > 0);
       
+      const genProjectId = currentProjectIdRef.current || (await ensureProjectId());
       const response = await fetch('/api/generate-ai-code-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2377,7 +2438,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           prompt: apiPrompt,
           model: aiModel,
           context: fullContext,
-          isEdit: conversationContext.appliedCode.length > 0
+          isEdit: conversationContext.appliedCode.length > 0,
+          projectId: genProjectId || undefined
         })
       });
       
@@ -2770,7 +2832,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     try {
       const response = await fetch('/api/create-zip', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: currentProjectIdRef.current || undefined })
       });
       
       const data = await response.json();
@@ -3667,12 +3730,14 @@ Focus on the key sections and content, making it clean and modern.`;
           lastProcessedPosition: 0
         }));
         
+        const genProjectId = currentProjectIdRef.current || (await ensureProjectId());
         const aiResponse = await fetch('/api/generate-ai-code-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             prompt,
             model: aiModel,
+            projectId: genProjectId || undefined,
             context: {
               sandboxId: sandboxData?.sandboxId,
               structure: structureContent,

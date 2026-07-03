@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseMorphEdits, applyMorphEditToFile } from '@/lib/morph-fast-apply';
-// Sandbox import not needed - using global sandbox from sandbox-manager
-import type { SandboxState } from '@/types/sandbox';
-import type { ConversationState } from '@/types/conversation';
-import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
 import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
 import { makeProjectFallback } from '@/lib/sandbox/db-fallback';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 import { getTemplate, type Framework } from '@/lib/templates';
-
-declare global {
-  var conversationState: ConversationState | null;
-  var activeSandboxProvider: any;
-  var existingFiles: Set<string>;
-  var sandboxState: SandboxState;
-  var activeFramework: Framework | undefined;
-}
 
 interface ParsedResponse {
   explanation: string;
@@ -267,12 +256,22 @@ function parseAIResponse(response: string): ParsedResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    const { response, isEdit = false, packages = [], sandboxId, projectId } = await request.json();
+    const { response, isEdit = false, packages = [], projectId } = await request.json();
 
     if (!response) {
       return NextResponse.json({
         error: 'response is required'
       }, { status: 400 });
+    }
+
+    // Tenant-isolation boundary: authenticate the caller and resolve THEIR
+    // project's sandbox session before touching any sandbox.
+    let orgId: string;
+    let session: import('@/lib/sandbox/session-store').SandboxSession;
+    try {
+      ({ orgId, session } = await requireProjectSession(projectId));
+    } catch (authError) {
+      return toErrorResponse(authError);
     }
 
     // Debug log the response
@@ -301,113 +300,41 @@ export async function POST(request: NextRequest) {
     }
     console.log('[apply-ai-code-stream] Packages found:', parsed.packages);
 
-    // Initialize existingFiles if not already
-    if (!global.existingFiles) {
-      global.existingFiles = new Set<string>();
+    // Initialize this project's existingFiles tracker if needed.
+    if (!session.existingFiles) {
+      session.existingFiles = new Set<string>();
     }
 
-    // Try to get provider from sandbox manager first
-    let provider = sandboxId ? sandboxManager.getProvider(sandboxId) : sandboxManager.getActiveProvider();
-
-    // Fall back to global state if not found in manager
-    if (!provider) {
-      provider = global.activeSandboxProvider;
-    }
-
-    // If we have a sandboxId but no provider, try to get or create one
-    if (!provider && sandboxId) {
-      console.log(`[apply-ai-code-stream] No provider found for sandbox ${sandboxId}, attempting to get or create...`);
-
-      try {
-        provider = await sandboxManager.getOrCreateProvider(sandboxId);
-
-        // If we got a new provider (not reconnected), we need to create a new sandbox
-        if (!provider.getSandboxInfo()) {
-          console.log(`[apply-ai-code-stream] Creating new sandbox since reconnection failed for ${sandboxId}`);
-          await provider.createSandbox();
-          if (global.activeFramework === 'nextjs') await provider.setupNextApp();
-          else await provider.setupViteApp();
-          sandboxManager.registerSandbox(sandboxId, provider);
-        }
-
-        // Update legacy global state
-        global.activeSandboxProvider = provider;
-        console.log(`[apply-ai-code-stream] Successfully got provider for sandbox ${sandboxId}`);
-      } catch (providerError) {
-        console.error(`[apply-ai-code-stream] Failed to get or create provider for sandbox ${sandboxId}:`, providerError);
-        return NextResponse.json({
-          success: false,
-          error: `Failed to create sandbox provider for ${sandboxId}. The sandbox may have expired.`,
-          results: {
-            filesCreated: [],
-            packagesInstalled: [],
-            commandsExecuted: [],
-            errors: [`Sandbox provider creation failed: ${(providerError as Error).message}`]
-          },
-          explanation: parsed.explanation,
-          structure: parsed.structure,
-          parsedFiles: parsed.files,
-          message: `Parsed ${parsed.files.length} files but couldn't apply them - sandbox reconnection failed.`
-        }, { status: 500 });
-      }
-    }
-
-    // If we still don't have a provider, create a new one
-    if (!provider) {
-      console.log(`[apply-ai-code-stream] No active provider found, creating new sandbox...`);
-      try {
-        const { SandboxFactory } = await import('@/lib/sandbox/factory');
-        provider = SandboxFactory.create();
-        const sandboxInfo = await provider.createSandbox();
-        if (global.activeFramework === 'nextjs') await provider.setupNextApp();
-        else await provider.setupViteApp();
-
-        // Register with sandbox manager
-        sandboxManager.registerSandbox(sandboxInfo.sandboxId, provider);
-
-        // Store in legacy global state
-        global.activeSandboxProvider = provider;
-        global.sandboxData = {
-          sandboxId: sandboxInfo.sandboxId,
-          url: sandboxInfo.url
-        };
-
-        console.log(`[apply-ai-code-stream] Created new sandbox successfully`);
-      } catch (createError) {
-        console.error(`[apply-ai-code-stream] Failed to create new sandbox:`, createError);
-        return NextResponse.json({
-          success: false,
-          error: `Failed to create new sandbox: ${createError instanceof Error ? createError.message : 'Unknown error'}`,
-          results: {
-            filesCreated: [],
-            packagesInstalled: [],
-            commandsExecuted: [],
-            errors: [`Sandbox creation failed: ${createError instanceof Error ? createError.message : 'Unknown error'}`]
-          },
-          explanation: parsed.explanation,
-          structure: parsed.structure,
-          parsedFiles: parsed.files,
-          message: `Parsed ${parsed.files.length} files but couldn't apply them - sandbox creation failed.`
-        }, { status: 500 });
-      }
-    }
-
-    // Guard against a provider whose underlying sandbox has been reaped (E2B TTL).
-    // The blocks above only handle a *missing* provider — a provider that still
-    // exists in memory but whose VM is dead would throw mid-write. Probe it, and
-    // if it's gone, transparently rebuild and replay the file cache so the edit
-    // still lands instead of surfacing "Sandbox Not Found".
-    if (provider) {
-      const alive = await (provider as any).ping?.().catch(() => false) ?? true;
-      if (!alive) {
-        console.log('[apply-ai-code-stream] Active sandbox is dead — auto-recovering...');
-        const recovered = await ensureActiveSandbox({ loadFallback: makeProjectFallback(projectId) });
-        provider = recovered.provider;
-        global.activeSandboxProvider = recovered.provider;
-        global.sandboxData = recovered.sandboxData;
-      } else {
-        await (provider as any).keepAlive?.().catch(() => {});
-      }
+    // Guarantee a live sandbox for THIS project. ensureActiveSandbox uses the
+    // session's provider if it's still alive (refreshing its TTL), and otherwise
+    // transparently rebuilds + replays the files — from the session cache, or the
+    // project's DB snapshot if the process restarted — so the edit still lands
+    // instead of surfacing "Sandbox Not Found". All scoped to this project only.
+    let provider;
+    try {
+      const ensured = await ensureActiveSandbox({
+        session,
+        orgId,
+        projectId,
+        loadFallback: makeProjectFallback(projectId),
+      });
+      provider = ensured.provider;
+    } catch (createError) {
+      console.error(`[apply-ai-code-stream] Failed to prepare sandbox:`, createError);
+      return NextResponse.json({
+        success: false,
+        error: `Failed to prepare sandbox: ${createError instanceof Error ? createError.message : 'Unknown error'}`,
+        results: {
+          filesCreated: [],
+          packagesInstalled: [],
+          commandsExecuted: [],
+          errors: [`Sandbox preparation failed: ${createError instanceof Error ? createError.message : 'Unknown error'}`]
+        },
+        explanation: parsed.explanation,
+        structure: parsed.structure,
+        parsedFiles: parsed.files,
+        message: `Parsed ${parsed.files.length} files but couldn't apply them - sandbox preparation failed.`
+      }, { status: 500 });
     }
 
     // Create a response stream for real-time updates
@@ -484,10 +411,12 @@ export async function POST(request: NextRequest) {
 
             const installResponse = await fetch(apiUrl, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              // Forward the auth cookie + projectId so the tenant-scoped
+              // install-packages route authorizes this internal call.
+              headers: { 'Content-Type': 'application/json', cookie: req.headers.get('cookie') || '' },
               body: JSON.stringify({
                 packages: uniquePackages,
-                sandboxId: sandboxId || providerInstance.getSandboxInfo()?.sandboxId
+                projectId
               })
             });
 
@@ -552,7 +481,7 @@ export async function POST(request: NextRequest) {
         // Framework-aware application: config files to never overwrite, and
         // whether loose files get force-prefixed with src/ (Vite) or kept as-is
         // (Next.js App Router paths like app/page.jsx).
-        const framework: Framework = global.activeFramework || 'vite';
+        const framework: Framework = session.framework || 'vite';
         const template = getTemplate(framework);
         const configFiles = template.configFiles;
         const applySrcPrefix = template.applySrcPrefix;
@@ -642,7 +571,7 @@ export async function POST(request: NextRequest) {
               normalizedPath = 'src/' + normalizedPath;
             }
 
-            const isUpdate = global.existingFiles.has(normalizedPath);
+            const isUpdate = session.existingFiles.has(normalizedPath);
 
             // Remove any CSS imports from JSX/JS files (we're using Tailwind).
             // Skip for Next.js — the root layout MUST import ./globals.css.
@@ -671,8 +600,8 @@ export async function POST(request: NextRequest) {
             await providerInstance.writeFile(normalizedPath, fileContent);
 
             // Update file cache
-            if (global.sandboxState?.fileCache) {
-              global.sandboxState.fileCache.files[normalizedPath] = {
+            if (session.fileCache) {
+              session.fileCache.files[normalizedPath] = {
                 content: fileContent,
                 lastModified: Date.now()
               };
@@ -682,7 +611,7 @@ export async function POST(request: NextRequest) {
               if (results.filesUpdated) results.filesUpdated.push(normalizedPath);
             } else {
               if (results.filesCreated) results.filesCreated.push(normalizedPath);
-              if (global.existingFiles) global.existingFiles.add(normalizedPath);
+              session.existingFiles.add(normalizedPath);
             }
 
             await sendProgress({
@@ -779,8 +708,8 @@ export async function POST(request: NextRequest) {
         });
 
         // Track applied files in conversation state
-        if (global.conversationState && results.filesCreated.length > 0) {
-          const messages = global.conversationState.context.messages;
+        if (session.conversationState && results.filesCreated.length > 0) {
+          const messages = session.conversationState.context.messages;
           if (messages.length > 0) {
             const lastMessage = messages[messages.length - 1];
             if (lastMessage.role === 'user') {
@@ -792,15 +721,15 @@ export async function POST(request: NextRequest) {
           }
 
           // Track applied code in project evolution
-          if (global.conversationState.context.projectEvolution) {
-            global.conversationState.context.projectEvolution.majorChanges.push({
+          if (session.conversationState.context.projectEvolution) {
+            session.conversationState.context.projectEvolution.majorChanges.push({
               timestamp: Date.now(),
               description: parsed.explanation || 'Code applied',
               filesAffected: results.filesCreated || []
             });
           }
 
-          global.conversationState.lastUpdated = Date.now();
+          session.conversationState.lastUpdated = Date.now();
         }
 
       } catch (error) {

@@ -5,10 +5,7 @@ import { provisionProjectAuth } from '@/lib/auth/provision-auth';
 import { isZitadelConfigured } from '@/lib/auth/zitadel';
 import { encrypt, decrypt } from '@/lib/crypto';
 import { getTemplate, type Framework, type Template } from '@/lib/templates';
-
-declare global {
-  var activeSandboxProvider: any;
-}
+import { getSession } from '@/lib/sandbox/session-store';
 
 // The tiny client the generated app uses: OIDC (PKCE) login against the project's
 // Zitadel org, and a helper that hands the access token to supabase-js so PostgREST
@@ -40,12 +37,13 @@ export const etlaqAuth = {
 }
 
 async function injectIntoSandbox(opts: {
+  projectId: string;
   issuer: string;
   clientId: string;
   supabase?: { url: string; anonKey: string; schema: string };
   framework: Framework;
 }) {
-  const provider = global.activeSandboxProvider;
+  const provider = getSession(opts.projectId)?.provider;
   if (!provider) return;
   try {
     const t = getTemplate(opts.framework).env;
@@ -131,7 +129,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       try { supabase = JSON.parse(decrypt(dbRec.encryptedCredentials)); } catch {}
     }
 
-    await injectIntoSandbox({ issuer, clientId, supabase, framework: (project.framework as Framework) || 'vite' });
+    await injectIntoSandbox({ projectId: id, issuer, clientId, supabase, framework: (project.framework as Framework) || 'vite' });
 
     return NextResponse.json({ success: true, auth: { status: 'ready', issuer, clientId } });
   } catch (error) {

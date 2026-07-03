@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 
-declare global {
-  var activeSandboxProvider: any;
-}
-
-export async function POST() {
+export async function POST(request: NextRequest) {
+  let session;
   try {
-    const provider = global.activeSandboxProvider;
+    const body = await request.json().catch(() => ({}));
+    ({ session } = await requireProjectSession(body?.projectId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+  try {
+    const provider = session.provider;
     if (!provider) {
       return NextResponse.json({
         success: false,

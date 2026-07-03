@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SandboxProvider } from '@/lib/sandbox/types';
 import { sandboxManager } from '@/lib/sandbox/sandbox-manager';
+import { guardAuth } from '@/lib/sandbox/require-project-session';
 
 declare global {
   var activeSandboxProvider: any;
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await guardAuth();
+  if (denied) return denied;
   try {
     const { packages } = await request.json();
     

@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { getProject, updateProject } from '@/lib/db/repos';
+import { getSession } from '@/lib/sandbox/session-store';
+import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 import { detectDeployTarget, collectSandboxSource, type DeployTarget } from '@/lib/deploy/detect';
 import { runNetlifyDeploy } from '@/lib/deploy/netlify';
 import { runVercelDeploy } from '@/lib/deploy/vercel';
 import { runKsaDeploy } from '@/lib/deploy/ksa';
-
-declare global {
-  // Provider wrapper set by create-ai-sandbox-v2
-  var activeSandboxProvider: any;
-  // In-process fallback for the static site when there's no persisted project.
-  var netlifySiteId: string | undefined;
-}
 
 // =============================================================================
 // Single deploy entrypoint. The user clicks one "Publish" button; we inspect the
@@ -24,40 +18,29 @@ declare global {
 // =============================================================================
 
 export async function POST(request: NextRequest) {
+  let orgId: string;
+  let projectId: string;
+  let project: NonNullable<Awaited<ReturnType<typeof getProject>>>;
+  let provider: NonNullable<ReturnType<typeof getSession>>['provider'];
   try {
-    const provider = global.activeSandboxProvider;
+    const parsed = await request.json().catch(() => ({}));
+    projectId = parsed?.projectId;
+    // Deploy is tenant-scoped: authenticate and verify ownership, then use THIS
+    // project's sandbox — never a shared global.
+    const resolved = await requireProjectSession(projectId);
+    orgId = resolved.orgId;
+    project = resolved.project;
+    provider = resolved.session.provider;
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  try {
     if (!provider) {
       return NextResponse.json(
         { success: false, error: 'No active sandbox. Generate an app first.' },
         { status: 400 }
       );
-    }
-
-    let projectId: string | undefined;
-    try {
-      const parsed = await request.json();
-      projectId = parsed?.projectId;
-    } catch {
-      // body is optional
-    }
-
-    // Resolve + authorize the project when one is provided (needed to remember the
-    // deploy target and, for full-stack, to read the project's creds).
-    let orgId: string | undefined;
-    let project: Awaited<ReturnType<typeof getProject>> | undefined;
-    if (projectId) {
-      try {
-        ({ orgId } = await requireOrg());
-        project = await getProject(orgId, projectId);
-        if (!project) {
-          return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 });
-        }
-      } catch (e) {
-        if (e instanceof UnauthorizedError) {
-          return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-        throw e;
-      }
     }
 
     // Inspect the source and decide where it goes.
@@ -143,21 +126,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const siteId = project?.netlifySiteId || global.netlifySiteId;
-    const result = await runNetlifyDeploy(provider, { token, siteId: siteId || undefined, siteName });
+    const siteId = project.netlifySiteId || undefined;
+    const result = await runNetlifyDeploy(provider, { token, siteId, siteName });
 
-    if (project && orgId && projectId) {
-      try {
-        await updateProject(orgId, projectId, {
-          netlifySiteId: result.siteId,
-          deployUrl: result.url,
-          deployTarget: 'static',
-        });
-      } catch (e) {
-        console.error('[deploy] Failed to persist static metadata:', e);
-      }
-    } else {
-      global.netlifySiteId = result.siteId;
+    try {
+      await updateProject(orgId, projectId, {
+        netlifySiteId: result.siteId,
+        deployUrl: result.url,
+        deployTarget: 'static',
+      });
+    } catch (e) {
+      console.error('[deploy] Failed to persist static metadata:', e);
     }
 
     return NextResponse.json({
