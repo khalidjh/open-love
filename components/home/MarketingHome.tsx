@@ -50,7 +50,7 @@ export default function MarketingHome() {
       </div>
 
       {/* Header */}
-      <header className="relative z-20">
+      <header className="anim-fade-in relative z-20">
         <nav className="flex w-full items-center justify-between py-16 md:py-20 px-24 md:px-48 lg:px-80 xl:px-120 2xl:px-160">
           <Link href="/" className="flex items-center gap-10">
             <Image
@@ -73,7 +73,7 @@ export default function MarketingHome() {
                 setAuthMode("signin");
                 setAuthOpen(true);
               }}
-              className="hidden md:inline-flex rounded-12 border border-[#e4e0ef] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              className="hidden md:inline-flex rounded-12 border border-[#e4e0ef] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-all hover:bg-[#f3f0fa] active:scale-[0.98]"
             >
               Log in
             </button>
@@ -138,7 +138,7 @@ export default function MarketingHome() {
       {/* Hero */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-24 pb-[10vh] text-center">
         <h1
-          className="font-bold tracking-[-0.025em] text-[#17141f]"
+          className="anim-fade-up font-bold tracking-[-0.025em] text-[#17141f]"
           style={{
             fontFamily: "var(--font-geist-sans)",
             fontSize: "clamp(2.5rem, 5.2vw, 3.75rem)",
@@ -147,11 +147,11 @@ export default function MarketingHome() {
         >
           Build something with {PRODUCT_NAME}
         </h1>
-        <p className="mt-16 text-[18px] text-[#6b6577]">
+        <p className="anim-fade-up anim-delay-2 mt-16 text-[18px] text-[#6b6577]">
           Create apps and websites by chatting with AI
         </p>
 
-        <div className="mt-40 w-full max-w-[800px]">
+        <div className="anim-fade-up anim-delay-4 mt-40 w-full max-w-[800px]">
           <BuildPrompt />
         </div>
       </main>

@@ -232,18 +232,18 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
         <div className="relative z-10 mx-auto max-w-[860px] px-24">
           {/* Hero — vertically centered in the viewport */}
           <div className="flex min-h-[80vh] flex-col justify-center">
-            <h1 className="text-center text-[26px] font-bold tracking-[-0.025em] text-[#17141f] md:text-[32px]">
+            <h1 className="anim-fade-up text-center text-[26px] font-bold tracking-[-0.025em] text-[#17141f] md:text-[32px]">
               Ready to build, {firstName}?
             </h1>
 
-            <div className="mt-32">
+            <div className="anim-fade-up anim-delay-2 mt-32">
               <BuildPrompt placeholder={`Ask ${PRODUCT_NAME} to build a landing page...`} />
             </div>
           </div>
 
           {/* Projects */}
           <section className="pb-64">
-            <div className="mb-16 flex items-center justify-between">
+            <div className="anim-fade-up anim-delay-3 mb-16 flex items-center justify-between">
               <h2 className="text-[18px] font-semibold">Your projects</h2>
               <span className="text-[14px] text-[#8b8798]">
                 {projects.length} {projects.length === 1 ? "project" : "projects"}
@@ -251,18 +251,19 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             </div>
 
             {projects.length === 0 ? (
-              <div className="rounded-16 border border-dashed border-[#dcd6ec] bg-white/60 p-48 text-center">
+              <div className="anim-fade-up rounded-16 border border-dashed border-[#dcd6ec] bg-white/60 p-48 text-center">
                 <p className="text-[15px] text-[#6b6577]">
                   You haven&rsquo;t built anything yet. Describe an app above to get started.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-16 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((p) => (
+                {projects.map((p, index) => (
                   <Link
                     key={p.id}
                     href={`/generation?project=${p.id}`}
-                    className="group flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee]"
+                    style={{ animationDelay: `${Math.min(index * 45, 400)}ms` }}
+                    className="group anim-fade-up hover-lift flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_12px_40px_rgba(97,71,212,0.12)]"
                   >
                     <div className="flex items-start justify-between gap-8">
                       <h3 className="truncate text-[15px] font-medium text-[#191622]">

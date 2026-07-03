@@ -35,7 +35,7 @@ interface SandboxData {
 
 interface ChatMessage {
   content: string;
-  type: 'user' | 'ai' | 'system' | 'file-update' | 'command' | 'error';
+  type: 'user' | 'ai' | 'system' | 'file-update' | 'command' | 'error' | 'build';
   timestamp: Date;
   metadata?: {
     scrapedUrl?: string;
@@ -129,6 +129,8 @@ function AISandboxPage() {
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [codeSearch, setCodeSearch] = useState('');
   const [buildDetailsOpen, setBuildDetailsOpen] = useState(false);
+  // Which recorded build steps (in the conversation) are expanded to show their files.
+  const [openBuildRecords, setOpenBuildRecords] = useState<Record<number, boolean>>({});
   // True while the workspace is spinning up before the first build actually starts.
   const [preparingBuild, setPreparingBuild] = useState(false);
   // True when the sandbox has gone to sleep/expired (so we can offer a friendly restart).
@@ -1335,8 +1337,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         body: JSON.stringify({
           files,
           messages: chatMessagesDataRef.current
-            .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'system')
-            .map(m => ({ role: m.type, content: m.content })),
+            .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'system' || m.type === 'build')
+            // Build steps carry no text — persist their file list as JSON in `content`.
+            .map(m => m.type === 'build'
+              ? { role: 'build', content: JSON.stringify(m.metadata?.appliedFiles || []) }
+              : { role: m.type, content: m.content }),
           sandboxId: sandboxData?.sandboxId,
           sandboxProvider: (sandboxData as any)?.provider,
         }),
@@ -1442,11 +1447,24 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
       // Rehydrate chat history
       if (Array.isArray(data.messages) && data.messages.length > 0) {
-        setChatMessages(data.messages.map((m: any) => ({
-          content: m.content,
-          type: (['user', 'ai', 'system'].includes(m.role) ? m.role : 'system') as ChatMessage['type'],
-          timestamp: new Date(m.createdAt || Date.now()),
-        })));
+        setChatMessages(data.messages.map((m: any) => {
+          // Build steps were persisted with their file list JSON-encoded in `content`.
+          if (m.role === 'build') {
+            let files: string[] = [];
+            try { files = JSON.parse(m.content); } catch { files = []; }
+            return {
+              content: '',
+              type: 'build' as ChatMessage['type'],
+              metadata: { appliedFiles: files },
+              timestamp: new Date(m.createdAt || Date.now()),
+            };
+          }
+          return {
+            content: m.content,
+            type: (['user', 'ai', 'system'].includes(m.role) ? m.role : 'system') as ChatMessage['type'],
+            timestamp: new Date(m.createdAt || Date.now()),
+          };
+        }));
       }
 
       // Always need a fresh sandbox
@@ -1599,6 +1617,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
   // Send the composer message, feeding any attached file contents to the AI as context.
   const handleComposerSend = () => {
+    // Don't accept new requests while a build is in flight.
+    if (generationProgress.isGenerating || preparingBuild) return;
     const text = aiChatInput.trim();
     if (!text && attachments.length === 0) return;
     const fileAtts = attachments.filter((a) => a.kind === 'file');
@@ -2578,6 +2598,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           generatedFiles.push(match[1]);
         }
         
+        // Record the build as a permanent step in the conversation so the list of
+        // files stays visible after the build finishes and survives a page reload.
+        if (generatedFiles.length > 0) {
+          addChatMessage('', 'build', { appliedFiles: generatedFiles });
+        }
+
         // Show appropriate message based on edit mode
         if (isEdit && generatedFiles.length > 0) {
           // For edits, show which file(s) were edited
@@ -4302,9 +4328,53 @@ Focus on the key sections and content, making it clean and modern.`;
               
               // Get the files from metadata if this is a completion message
               // const completedFiles = msg.metadata?.appliedFiles || [];
-              
+
+              // A recorded build step: the list of files that were generated/edited.
+              // Kept in the conversation permanently and persisted across reloads.
+              if (msg.type === 'build') {
+                const builtFiles = msg.metadata?.appliedFiles || [];
+                const isOpen = !!openBuildRecords[idx];
+                return (
+                  <div key={idx} className="anim-fade-up flex w-full flex-col items-start">
+                    <div className="w-full overflow-hidden rounded-14 border border-[#ece8f4] bg-white transition-colors">
+                      <button
+                        onClick={() => setOpenBuildRecords((prev) => ({ ...prev, [idx]: !prev[idx] }))}
+                        className="flex w-full items-center gap-10 px-14 py-12 text-left"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[#6147D4]" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="flex-1 text-[14px] font-medium text-[#2a2635]">
+                          Built your app · {builtFiles.length} {builtFiles.length === 1 ? 'file' : 'files'}
+                        </span>
+                        {builtFiles.length > 0 && (
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#a29db0] transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                            <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                      {isOpen && builtFiles.length > 0 && (
+                        <div className="flex flex-col border-t border-[#ece8f4] px-14 py-4">
+                          {builtFiles.map((f, i) => (
+                            <div
+                              key={`built-${idx}-${i}`}
+                              className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
+                            >
+                              <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                              <span className="truncate">{f.split('/').pop()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <div key={idx} className={`flex flex-col gap-8 ${msg.type === 'user' ? 'items-end' : 'items-start'}`}>
+                <div key={idx} className={`anim-fade-up flex flex-col gap-8 ${msg.type === 'user' ? 'items-end' : 'items-start'}`}>
                       <div className={`${
                         msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
                         msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#e7e3f0] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
@@ -4347,10 +4417,10 @@ Focus on the key sections and content, making it clean and modern.`;
 
                       {/* Preview / code actions on the final message once the app is ready */}
                       {msg.type === 'ai' && idx === chatMessages.length - 1 && sandboxData?.url && !generationProgress.isGenerating && (
-                        <div className="mt-10 flex flex-wrap gap-8">
+                        <div className="anim-fade-up mt-10 flex flex-wrap gap-8">
                           <button
                             onClick={() => { setChatFullscreen(false); setActiveTab('preview'); setMobileView('panel'); }}
-                            className="flex items-center gap-6 rounded-10 bg-[#f0ecfb] px-14 py-8 text-[13px] font-medium text-[#6147D4] transition-colors hover:bg-[#e7e0f8]"
+                            className="flex items-center gap-6 rounded-10 bg-[#f0ecfb] px-14 py-8 text-[13px] font-medium text-[#6147D4] transition-all hover:bg-[#e7e0f8] active:scale-[0.97]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                               <circle cx="10" cy="10" r="7.5" strokeWidth="1.4" />
@@ -4361,7 +4431,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           </button>
                           <button
                             onClick={() => { setChatFullscreen(false); setActiveTab('generation'); setMobileView('panel'); }}
-                            className="flex items-center gap-6 rounded-10 border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
+                            className="flex items-center gap-6 rounded-10 border border-[#b7abdd] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-all hover:border-[#6147D4] hover:text-[#191622] hover:bg-[#faf9fe] active:scale-[0.97]"
                           >
                             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                               <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -4577,7 +4647,7 @@ Focus on the key sections and content, making it clean and modern.`;
             
             {/* Setting up the workspace (sandbox provisioning) before the build starts */}
             {preparingBuild && !generationProgress.isGenerating && (
-              <div className="flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+              <div className="anim-fade-up flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
                 <span className="etlaq-shimmer text-[14px] font-medium">
                   Setting up your workspace…
                 </span>
@@ -4586,7 +4656,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
             {/* Build progress — compact, friendly, expandable */}
             {generationProgress.isGenerating && (
-              <div className="overflow-hidden rounded-14 border border-[#ece8f4] bg-white">
+              <div className="anim-fade-up overflow-hidden rounded-14 border border-[#ece8f4] bg-white">
                 <button
                   onClick={() => setBuildDetailsOpen((v) => !v)}
                   className="flex w-full items-center gap-10 px-14 py-12 text-left"
@@ -4613,22 +4683,22 @@ Focus on the key sections and content, making it clean and modern.`;
                     {generationProgress.status && (
                       <div className="mb-8 text-[12px] font-medium text-[#8b8798]">{generationProgress.status}</div>
                     )}
-                    <div className="flex flex-wrap items-start gap-6">
+                    <div className="flex flex-col">
                       {generationProgress.files.map((file, idx) => (
                         <div
                           key={`file-${idx}`}
-                          className="inline-flex items-center gap-6 px-8 py-4 bg-[#f3f0fa] text-[#2a2635] border border-[#eae6f3] rounded-8 text-xs"
+                          className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
                         >
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
-                          {file.path.split('/').pop()}
+                          <span className="truncate">{file.path.split('/').pop()}</span>
                         </div>
                       ))}
                       {generationProgress.currentFile && (
-                        <div className="inline-flex items-center gap-6 px-8 py-4 bg-[#f3f0fa] text-[#2a2635] border border-[#eae6f3] rounded-8 text-xs">
-                          <div className="w-14 h-14 border-2 border-[#6147D4] border-t-transparent rounded-full animate-spin" />
-                          {generationProgress.currentFile.path.split('/').pop()}
+                        <div className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0">
+                          <div className="w-15 h-15 shrink-0 border-2 border-[#6147D4] border-t-transparent rounded-full animate-spin" />
+                          <span className="truncate">{generationProgress.currentFile.path.split('/').pop()}</span>
                         </div>
                       )}
                     </div>
@@ -4641,11 +4711,12 @@ Focus on the key sections and content, making it clean and modern.`;
           {/* Follow-up suggestion chips (after a build completes) */}
           {sandboxData && !generationProgress.isGenerating && conversationContext.appliedCode.length > 0 && (
             <div className="flex flex-nowrap gap-8 overflow-x-auto px-16 pb-4 scrollbar-hide md:flex-wrap">
-              {['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'].map((s) => (
+              {['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'].map((s, i) => (
                 <button
                   key={s}
                   onClick={() => sendChatMessage(s)}
-                  className="shrink-0 whitespace-nowrap rounded-full border border-[#c2b8e0] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-colors hover:border-[#6147D4] hover:text-[#191622]"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                  className="anim-fade-up shrink-0 whitespace-nowrap rounded-full border border-[#a99cd9] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-all hover:border-[#6147D4] hover:bg-[#faf9fe] hover:text-[#191622] active:scale-[0.97]"
                 >
                   {s}
                 </button>
@@ -4705,8 +4776,9 @@ Focus on the key sections and content, making it clean and modern.`;
                   }
                 }}
                 rows={1}
-                placeholder="Ask Etlaq…"
-                className="max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-8 py-6 text-[15px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none"
+                disabled={generationProgress.isGenerating || preparingBuild}
+                placeholder={generationProgress.isGenerating || preparingBuild ? 'Building your app…' : 'Ask Etlaq…'}
+                className="max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-8 py-6 text-[15px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none disabled:cursor-not-allowed"
               />
               <div className="mt-6 flex items-center justify-between">
                 {/* Attach ("+") */}
@@ -4751,13 +4823,21 @@ Focus on the key sections and content, making it clean and modern.`;
 
                 <button
                   onClick={handleComposerSend}
-                  disabled={!aiChatInput.trim() && attachments.length === 0}
+                  disabled={
+                    generationProgress.isGenerating ||
+                    preparingBuild ||
+                    (!aiChatInput.trim() && attachments.length === 0)
+                  }
                   aria-label="Send"
                   className="flex h-36 w-36 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:hover:scale-100"
                 >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden>
-                    <path d="M10 16V4M10 4L5 9M10 4L15 9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  {generationProgress.isGenerating || preparingBuild ? (
+                    <div className="w-16 h-16 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden>
+                      <path d="M10 16V4M10 4L5 9M10 4L15 9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>
@@ -4773,7 +4853,10 @@ Focus on the key sections and content, making it clean and modern.`;
           } ${chatFullscreen ? 'md:hidden' : 'md:flex'}`}
         >
           <div className="flex-1 relative overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#ece8f4]">
-            {renderMainContent()}
+            {/* Keyed so switching Preview ⇄ Code crossfades the panel. */}
+            <div key={activeTab} className="anim-fade-in h-full w-full">
+              {renderMainContent()}
+            </div>
           </div>
 
           {/* Mobile-only bottom bar: back to chat + utilities */}

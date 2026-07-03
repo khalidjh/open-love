@@ -84,7 +84,7 @@ button {
 
 /* Selection color using design system colors */
 *::selection {
-  background-color: var(--heat-20);
+  background-color: rgba(97, 71, 212, 0.18);
   color: var(--accent-black);
 }
 

@@ -97,14 +97,14 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const hasImages = attachments.some((a) => a.kind === "image");
 
   return (
-    <div className="rounded-28 border border-white/70 bg-white/90 p-24 text-left backdrop-blur-xl transition-colors focus-within:border-[#c3b8ee]">
+    <div className="rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_8px_40px_rgba(97,71,212,0.06)] backdrop-blur-xl transition-all duration-300 focus-within:border-[#c3b8ee] focus-within:shadow-[0_12px_50px_rgba(97,71,212,0.14)]">
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="mb-12 flex flex-wrap gap-8">
           {attachments.map((a) => (
             <div
               key={a.id}
-              className="relative flex items-center gap-8 rounded-10 border border-[#e7e3f0] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
+              className="anim-scale-in relative flex items-center gap-8 rounded-10 border border-[#e7e3f0] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
             >
               {a.kind === "image" && a.dataUrl ? (
                 <img src={a.dataUrl} alt="" className="h-28 w-28 rounded-6 object-cover" />
@@ -201,7 +201,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           onClick={handleSubmit}
           disabled={!prompt.trim() && attachments.length === 0}
           aria-label="Build"
-          className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
+          className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
         >
           <ArrowUp />
         </button>

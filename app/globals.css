@@ -24,5 +24,66 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: etlaq-shimmer 1.9s linear infinite;
+  animation: etlaq-shimmer 3.4s linear infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Motion system — a small, consistent vocabulary of entrances and
+   micro-interactions used across the whole product. Keep durations
+   short and easings soft so motion feels responsive, never showy.
+   ───────────────────────────────────────────────────────────── */
+@keyframes etlaq-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes etlaq-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes etlaq-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes etlaq-pop-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.98); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Soft ease-out-expo — the house easing for entrances. */
+.anim-fade-up  { animation: etlaq-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-fade-in  { animation: etlaq-fade-in 0.5s ease both; }
+.anim-scale-in { animation: etlaq-scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-pop-in   { animation: etlaq-pop-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Stagger helpers — apply alongside an entrance class. */
+.anim-delay-1 { animation-delay: 60ms; }
+.anim-delay-2 { animation-delay: 120ms; }
+.anim-delay-3 { animation-delay: 180ms; }
+.anim-delay-4 { animation-delay: 240ms; }
+.anim-delay-5 { animation-delay: 300ms; }
+.anim-delay-6 { animation-delay: 360ms; }
+.anim-delay-7 { animation-delay: 420ms; }
+.anim-delay-8 { animation-delay: 480ms; }
+
+/* A reusable "lift on hover" for cards and tiles. */
+.hover-lift {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.22s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up,
+  .anim-fade-in,
+  .anim-scale-in,
+  .anim-pop-in {
+    animation: none !important;
+  }
+  .hover-lift:hover {
+    transform: none;
+  }
 }
