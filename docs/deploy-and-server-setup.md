@@ -15,7 +15,7 @@ infra) to make them work. Code is done; this covers the **operational** steps.
 │ Etlaq control app (Next.js)  ·  build sandboxes     │
 │ Deployed apps:                                      │
 │   • Vite SPA      → Netlify (static)      [clean]    │
-│   • Next.js app   → Vercel  (SSR/API) [⚠ transfer]  │
+│   • Next.js app   → KSA runtime (SSR/API) [clean]    │
 └───────────────────────┬─────────────────────────────┘
                          │  HTTPS (Supabase client)
                          ▼
@@ -65,18 +65,21 @@ Mapped onto our components:
 | Component | Runs | Touches personal data? | Verdict |
 |---|---|---|---|
 | **Static (Vite) app → Netlify** | outside KSA | No — browser talks directly to KSA Supabase; Netlify only serves static files | ✅ Case 1, clean |
-| **Full-stack (Next.js) app → Vercel** | outside KSA | **Yes** — SSR/API routes read KSA data to render | ⚠️ **Case 2, a transfer** |
+| **Full-stack (Next.js) app → KSA runtime** | KSA (`<slug>.apps.etlaq.sa`) | yes — but inside KSA | ✅ in-KSA |
+| Full-stack → Vercel (`FULLSTACK_TARGET=vercel` fallback only) | outside KSA | **Yes** — SSR/API routes read KSA data to render | ⚠️ **Case 2, a transfer — off by default** |
 | Zitadel (accounts) | KSA | yes | ✅ in-KSA |
 | Etlaq control app | KSA (prod: `/opt/open-love`) | project/chat data | ✅ keep in KSA |
 | Build sandboxes (E2B/Vercel) | outside KSA | app *code*, not end-user PII | ✅ clean |
 | AI providers (Anthropic/Z.AI/Groq…) | outside KSA | build instructions + code, not end-user PII | ✅ keep it that way |
 | Analytics / error trackers | — | — | ✅ none added — don't add non-KSA ones that capture PII |
 
-**The one gap: full-stack apps on Vercel.** To make every app Case-1 clean
-without an Article 29 process, run the **Next.js runtime in KSA** (self-hosted —
-e.g. Coolify/containers on the KSA VM) instead of Vercel. The change is contained
-almost entirely in `lib/deploy/vercel.ts` (swap the target); detection, the
-single Publish button, templates, and the env split are unchanged.
+**~~The one gap: full-stack apps on Vercel.~~ Closed (2026-07-03).** Full-stack
+apps now deploy to the **KSA runtime** by default: each app builds and runs as a
+container on the KSA VM behind Caddy at `<slug>.apps.etlaq.sa`
+(`lib/deploy/ksa.ts`). SSR/API routes execute inside KSA — every path is now
+Case-1 clean. Vercel remains only as an explicit escape hatch
+(`FULLSTACK_TARGET=vercel`), which re-opens the transfer — don't set it in
+production. See **KSA full-stack runtime** below for the mechanics.
 
 Two standing rules: **keep the control app in KSA**, and **never wire a non-KSA
 analytics/error tracker that captures PII**.
@@ -91,11 +94,11 @@ These involve accounts, secrets, or infrastructure — they cannot be done in co
 | Provider | Why | Action |
 |---|---|---|
 | **Netlify** | hosts static (Vite) apps | Create a Personal Access Token: https://app.netlify.com/user/applications#personal-access-tokens → put in `NETLIFY_API_KEY`. *(already set)* |
-| **Vercel** | hosts full-stack (Next.js) apps *(interim — PDPL transfer; see below)* | Create an account + token: https://vercel.com/account/tokens → put in `VERCEL_TOKEN`. If the token is team-scoped, also set `VERCEL_TEAM_ID`. |
+| **KSA runtime** | hosts full-stack (Next.js) apps in-KSA | No account — containers on this VM. One-time: wildcard DNS `*.apps.etlaq.sa` → server. See *KSA full-stack runtime*. |
+| Vercel *(fallback only)* | full-stack escape hatch (`FULLSTACK_TARGET=vercel`) — **PDPL transfer** | Token: https://vercel.com/account/tokens → `VERCEL_TOKEN` (+ `VERCEL_TEAM_ID` if team-scoped). Don't enable in production. |
 
-Netlify (static) is fine outside KSA. **Vercel (full-stack) is an interim target
-that constitutes a PDPL transfer** — see *Data residency & PDPL*; the intended
-target is a KSA-hosted Next.js runtime.
+Netlify (static) is fine outside KSA. Full-stack apps run **in-KSA by default**;
+the Vercel fallback re-opens the PDPL transfer — see *Data residency & PDPL*.
 
 ### A2. KSA data plane (the residency boundary)
 Already running in dev as local Docker Supabase (`supabase start`) + self-hosted
@@ -119,7 +122,8 @@ KSA Postgres.
 In dev, Supabase is on `127.0.0.1:54321`. **Deployed apps cannot reach that:**
 - A **static app on Netlify** runs in the visitor's browser and calls
   `NEXT_PUBLIC_SUPABASE_URL` / `VITE_SUPABASE_URL` directly.
-- A **full-stack app on Vercel** calls the Supabase URL from Vercel's servers.
+- A **full-stack app on the KSA runtime** calls the Supabase URL from its
+  container — also the public URL, not localhost.
 
 Both need a **public HTTPS Supabase URL served from your KSA VM**. Until that
 exists, apps deploy but can't talk to their database. So in production the
@@ -155,8 +159,10 @@ configure in a pipeline.
 | Var | Plane | Required for | Prod note |
 |---|---|---|---|
 | `NETLIFY_API_KEY` | compute | static deploys | any region |
-| `VERCEL_TOKEN` | compute | **full-stack deploys** | interim — PDPL transfer; move to KSA host |
-| `VERCEL_TEAM_ID` | compute | full-stack (team tokens) | optional |
+| `KSA_APPS_DOMAIN` / `KSA_APPS_DIR` / `KSA_CADDY_APPS_DIR` / `KSA_RUNTIME_IMAGE` / `DOCKER_SOCK` | compute (KSA) | full-stack deploys | optional — defaults fit this server |
+| `FULLSTACK_TARGET` | compute | set `vercel` to use the fallback | leave unset in prod (PDPL) |
+| `VERCEL_TOKEN` | compute | Vercel fallback only | PDPL transfer — fallback |
+| `VERCEL_TEAM_ID` | compute | Vercel fallback (team tokens) | optional |
 | `NEXT_PUBLIC_SUPABASE_URL` | data | app ↔ DB | **public KSA HTTPS URL** |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | data | app ↔ DB (RLS) | KSA instance's key |
 | `SUPABASE_SERVICE_ROLE_KEY` | data | server-side provisioning | KSA; never ship to tenant apps |
@@ -178,6 +184,44 @@ configure in a pipeline.
 - [x] `VERCEL_TOKEN` set *(token validated; `VERCEL_TEAM_ID` not needed — token resolves to the default team)*.
 - [x] `NETLIFY_API_KEY` set.
 - [x] `NEXT_PUBLIC_*` Supabase values are the public ones (baked into the image as build args).
+- [ ] Wildcard DNS `*.apps.etlaq.sa` → `149.104.105.231` — required before the first full-stack publish (KSA runtime subdomains + their TLS certs).
+
+## KSA full-stack runtime (how Publish hosts Next.js apps in-KSA)
+
+`lib/deploy/ksa.ts` — the default full-stack target. Per app:
+
+1. **Source** is written to `/opt/etlaq-apps/<slug>/app` (bind-mounted into the
+   control app container; paths are sanitized against escape). Project creds go
+   in `.env.production.local`, which outranks any env file the generated app
+   ships and feeds both `next build` (NEXT_PUBLIC inlining) and `next start`.
+2. **Build**: a one-shot `node:22-slim` container runs
+   `npm install && next build` in that dir (uid 1001, 2 GB cap, 15 min timeout).
+   `node_modules`/`.next`/`.npm-cache` persist across redeploys → incremental.
+3. **Run**: container `etlaq-app-<slug>` runs `next start` on
+   `127.0.0.1:<port>` (stable per app, range 34000–34999, reused on redeploy),
+   `--restart unless-stopped`, 1 GB cap. Health = in-container HTTP probe.
+4. **Route**: writes `/etc/caddy/apps.d/<slug>.caddy`
+   (`<slug>.apps.etlaq.sa → 127.0.0.1:<port>`); the `caddy-apps.path` systemd
+   unit watches that dir and reloads Caddy, which issues the cert via HTTP-01.
+
+The control app drives all of this through the **Docker Engine API over the
+mounted socket** (`lib/deploy/docker.ts`) — no docker CLI in the image, no new
+npm deps. The subdomain slug is derived from the project name + id and recovered
+from `projects.deploy_url` on redeploy, so no schema change was needed.
+
+**Host prerequisites (all in place on this server):**
+- wildcard DNS `*.apps.etlaq.sa` → the server *(the one manual step)*
+- `/opt/etlaq-apps` and `/etc/caddy/apps.d` owned by uid 1001;
+  `import /etc/caddy/apps.d/*.caddy` in the Caddyfile (with a `_keep.caddy`
+  placeholder so the glob always matches)
+- `caddy-apps.path` + `caddy-apps.service` systemd units (watch dir → reload)
+- the control app container gets: docker socket (`--group-add <docker gid>`,
+  999 here), `/opt/etlaq-apps`, and `/etc/caddy/apps.d` mounted — see the
+  redeploy recipe below
+
+**Security note:** mounting the docker socket makes the control app
+root-equivalent on the host. Acceptable while control plane and runtime share
+one VM; revisit (socket proxy or a separate runtime VM) when tenant load grows.
 
 ## Production server layout (as of 2026-07-03)
 
@@ -200,16 +244,18 @@ docker build -t open-love:paas \
 docker rm -f open-love-prod
 docker run -d --name open-love-prod --network supabase_default \
   -p 127.0.0.1:3000:3000 --env-file /opt/open-love/.env.local \
+  -v /var/run/docker.sock:/var/run/docker.sock --group-add 999 \
+  -v /opt/etlaq-apps:/opt/etlaq-apps \
+  -v /etc/caddy/apps.d:/etc/caddy/apps.d \
   --restart unless-stopped open-love:paas
 ```
 
 ## Still open (product decisions, not blockers)
 
-- **Move the full-stack target into KSA (PDPL).** Vercel is an interim host and
-  is a data transfer. Swap it for a KSA-hosted Next.js runtime (Coolify /
-  containers on the KSA VM); the change is contained in `lib/deploy/vercel.ts`.
-  Until then, full-stack apps are the only non-compliant path.
-- **Vercel `secretEnv` is intentionally empty.** Shipping the shared Supabase
+- ~~**Move the full-stack target into KSA (PDPL).**~~ Done 2026-07-03 — KSA
+  runtime is the default (`lib/deploy/ksa.ts`); Vercel survives only behind
+  `FULLSTACK_TARGET=vercel`.
+- **`secretEnv` is intentionally empty.** Shipping the shared Supabase
   service-role key to a tenant app would break tenant isolation. A per-project
   scoped key must be minted before any server-only secret is injected.
 - **Region latency.** Whichever full-stack host is used, keep it close to the KSA

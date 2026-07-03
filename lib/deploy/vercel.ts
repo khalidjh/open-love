@@ -1,9 +1,9 @@
-// Full-stack deploy: upload the app SOURCE to Vercel and let it build, so SSR +
-// API routes run as serverless functions. The app reads the KSA-hosted Supabase
-// over HTTPS — data stays resident in KSA, only transiently processed at Vercel.
+// FALLBACK full-stack deploy (FULLSTACK_TARGET=vercel): upload the app SOURCE
+// to Vercel and let it build. NOTE: SSR/API routes then process KSA data outside
+// KSA — a PDPL Article-29 transfer. The default target is the KSA runtime
+// (lib/deploy/ksa.ts); keep this only as an escape hatch.
 
-import { getProjectDatabase, getProjectAuth } from '@/lib/db/repos';
-import { decrypt } from '@/lib/crypto';
+import { buildEnv } from './env';
 
 const VERCEL_API = 'https://api.vercel.com';
 
@@ -23,32 +23,6 @@ async function vercel(path: string, token: string, init: RequestInit = {}) {
     throw new Error(`Vercel API ${res.status}: ${message}`);
   }
   return body;
-}
-
-// Pull the project's KSA-Supabase + auth creds and split them by exposure.
-// NEXT_PUBLIC_* ships to the browser (safe: URL + anon key + OIDC client id).
-async function buildEnv(projectId: string) {
-  const publicEnv: Record<string, string> = {};
-  const secretEnv: Record<string, string> = {};
-
-  const dbRec = await getProjectDatabase(projectId);
-  if (dbRec?.encryptedCredentials) {
-    try {
-      const { url, anonKey, schema } = JSON.parse(decrypt(dbRec.encryptedCredentials));
-      if (url) publicEnv.NEXT_PUBLIC_SUPABASE_URL = url;
-      if (anonKey) publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY = anonKey;
-      if (schema) publicEnv.NEXT_PUBLIC_SUPABASE_SCHEMA = schema;
-    } catch { /* ignore malformed creds */ }
-  }
-
-  const authRec = await getProjectAuth(projectId);
-  if (authRec?.issuer) publicEnv.NEXT_PUBLIC_AUTH_ISSUER = authRec.issuer;
-  if (authRec?.clientId) publicEnv.NEXT_PUBLIC_AUTH_CLIENT_ID = authRec.clientId;
-
-  // TODO(phase2): server-only secrets go in secretEnv. Do NOT ship the shared
-  // SUPABASE_SERVICE_ROLE_KEY to a tenant app — mint a per-project scoped key first.
-
-  return { publicEnv, secretEnv };
 }
 
 export interface VercelDeployResult {

@@ -4,6 +4,7 @@ import { getProject, updateProject } from '@/lib/db/repos';
 import { detectDeployTarget, collectSandboxSource, type DeployTarget } from '@/lib/deploy/detect';
 import { runNetlifyDeploy } from '@/lib/deploy/netlify';
 import { runVercelDeploy } from '@/lib/deploy/vercel';
+import { runKsaDeploy } from '@/lib/deploy/ksa';
 
 declare global {
   // Provider wrapper set by create-ai-sandbox-v2
@@ -15,7 +16,9 @@ declare global {
 // =============================================================================
 // Single deploy entrypoint. The user clicks one "Publish" button; we inspect the
 // project's source and route it to the right target automatically:
-//   • Next.js / server code → full-stack on Vercel
+//   • Next.js / server code → full-stack on the KSA runtime (containers on the
+//     KSA VM behind Caddy; set FULLSTACK_TARGET=vercel to fall back to Vercel —
+//     that path is a PDPL transfer)
 //   • plain Vite SPA        → static on Netlify
 // Either way the app talks to the KSA-hosted Supabase, so data stays in KSA.
 // =============================================================================
@@ -64,13 +67,6 @@ export async function POST(request: NextRequest) {
 
     // -------------------------------------------------------------- full-stack
     if (target === 'fullstack') {
-      const token = process.env.VERCEL_TOKEN;
-      if (!token) {
-        return NextResponse.json(
-          { success: false, error: 'This app needs a server (Vercel), but VERCEL_TOKEN is not set.' },
-          { status: 400 }
-        );
-      }
       if (!projectId || !orgId) {
         return NextResponse.json(
           { success: false, error: 'A saved project is required to publish a full-stack app.' },
@@ -78,17 +74,50 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const result = await runVercelDeploy(provider, {
-        token,
+      // Vercel escape hatch (PDPL transfer — interim/testing only).
+      if (process.env.FULLSTACK_TARGET === 'vercel') {
+        const token = process.env.VERCEL_TOKEN;
+        if (!token) {
+          return NextResponse.json(
+            { success: false, error: 'FULLSTACK_TARGET=vercel but VERCEL_TOKEN is not set.' },
+            { status: 400 }
+          );
+        }
+        const result = await runVercelDeploy(provider, {
+          token,
+          projectId,
+          vercelProjectId: project?.vercelProjectId,
+          siteName,
+          files: source,
+        });
+        try {
+          await updateProject(orgId, projectId, {
+            vercelProjectId: result.vercelProjectId,
+            deployUrl: result.url,
+            deployTarget: 'fullstack',
+          });
+        } catch (e) {
+          console.error('[deploy] Failed to persist full-stack metadata:', e);
+        }
+        return NextResponse.json({
+          success: true,
+          target,
+          url: result.url,
+          state: result.state,
+          message: 'Published your app',
+        });
+      }
+
+      // Default: KSA runtime — SSR/API routes run inside KSA, no PDPL transfer.
+      const result = await runKsaDeploy({
         projectId,
-        vercelProjectId: project?.vercelProjectId,
         siteName,
+        prevUrl: project?.deployUrl,
         files: source,
       });
 
       try {
         await updateProject(orgId, projectId, {
-          vercelProjectId: result.vercelProjectId,
           deployUrl: result.url,
           deployTarget: 'fullstack',
         });
