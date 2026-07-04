@@ -52,6 +52,26 @@ const zai = createOpenAI({
   baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
 });
 
+// Models that can read images. GLM (zai) and Kimi (groq) are text-only, so a request
+// with attached reference images must be routed to one of these instead.
+function isVisionCapableModel(m: string): boolean {
+  return (
+    m.startsWith('anthropic/') ||
+    m.startsWith('google/') ||
+    (m.startsWith('openai/') && !m.includes('oss'))
+  );
+}
+
+// Pick the best vision-capable model given the configured provider keys (or AI Gateway,
+// which proxies all of them). Preference: Anthropic → OpenAI → Google.
+function firstAvailableVisionModel(): string | null {
+  const gateway = !!process.env.AI_GATEWAY_API_KEY;
+  if (gateway || process.env.ANTHROPIC_API_KEY) return 'anthropic/claude-sonnet-4-20250514';
+  if (process.env.OPENAI_API_KEY) return 'openai/gpt-5';
+  if (process.env.GEMINI_API_KEY) return 'google/gemini-3-pro-preview';
+  return null;
+}
+
 // Helper function to analyze user preferences from conversation history
 function analyzeUserPreferences(messages: ConversationMessage[]): {
   commonPatterns: string[];
@@ -93,7 +113,27 @@ function analyzeUserPreferences(messages: ConversationMessage[]): {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, model = 'openai/gpt-oss-20b', context, isEdit = false, projectId } = await request.json();
+    const { prompt, model: requestedModel = 'openai/gpt-oss-20b', context, isEdit = false, projectId, images } = await request.json();
+
+    // Uploaded reference images arrive as data URLs. They let the AI "see" the user's
+    // own assets (logo, screenshot, design reference). Cap the count and validate shape.
+    const imageInputs: string[] = Array.isArray(images)
+      ? images.filter((s: unknown): s is string => typeof s === 'string' && s.startsWith('data:image/')).slice(0, 6)
+      : [];
+
+    // The default/text-only models (GLM, Kimi) can't read images — auto-route to a
+    // vision-capable model when the request carries reference images.
+    let model = requestedModel;
+    if (imageInputs.length > 0 && !isVisionCapableModel(model)) {
+      const visionModel = firstAvailableVisionModel();
+      if (visionModel) {
+        console.log(`[generate-ai-code-stream] ${imageInputs.length} image(s) attached; routing ${model} → ${visionModel} for vision`);
+        model = visionModel;
+      } else {
+        console.warn('[generate-ai-code-stream] Images attached but no vision-capable model configured; ignoring images');
+      }
+    }
+    const useVision = imageInputs.length > 0 && isVisionCapableModel(model);
 
     // Tenant-isolation boundary: authenticate and resolve the caller's project
     // session before reading any sandbox/conversation state.
@@ -1448,6 +1488,49 @@ WHEN YOU USE AI:
         console.log(`[generate-ai-code-stream] AI Gateway enabled: ${isUsingAIGateway}`);
         console.log(`[generate-ai-code-stream] Model string: ${model}`);
 
+        // Build the user turn. Text-only by default; when the user attached reference
+        // images (and we're on a vision model), send a multimodal message so the model
+        // can actually look at their logo / screenshot / design and build to match.
+        const buildUserMessage = () => {
+          const completionRules = `
+
+CRITICAL: You MUST complete EVERY file you start. If you write:
+<file path="src/components/Hero.jsx">
+
+You MUST include the closing </file> tag and ALL the code in between.
+
+NEVER write partial code like:
+<h1>Build and deploy on the AI Cloud.</h1>
+<p>Some text...</p>  ❌ WRONG
+
+ALWAYS write complete code:
+<h1>Build and deploy on the AI Cloud.</h1>
+<p>Some text here with full content</p>  ✅ CORRECT
+
+If you're running out of space, generate FEWER files but make them COMPLETE.
+It's better to have 3 complete files than 10 incomplete files.`;
+
+          if (!useVision) {
+            return { role: 'user' as const, content: fullPrompt + completionRules };
+          }
+
+          const visionGuidance = `
+
+The user attached ${imageInputs.length} reference image(s) below — these are their OWN brand assets (a logo, a screenshot, or a design reference). Study them carefully and reflect them in what you build:
+- Match the color palette, typography feel, spacing, and overall visual style you see.
+- If an image is a LOGO, recreate a faithful, clean version of it as inline SVG (or tightly styled markup) and use it as the app's logo/wordmark. This OVERRIDES the usual "do not draw complex logos" rule for THIS specific logo.
+- If an image is a SCREENSHOT or full design, treat it as the visual blueprint for layout and components.
+- Never mention the images, "the reference", or that you were given assets anywhere in the app's UI or copy.`;
+
+          return {
+            role: 'user' as const,
+            content: [
+              { type: 'text' as const, text: fullPrompt + visionGuidance + completionRules },
+              ...imageInputs.map((img) => ({ type: 'image' as const, image: img })),
+            ],
+          };
+        };
+
         // Make streaming API call with appropriate provider
         // Z.AI only supports the OpenAI Chat Completions API, not the newer Responses API,
         // so force .chat() for it (AI SDK v5 defaults the OpenAI provider to /responses).
@@ -1497,26 +1580,7 @@ Example:
 <explanation>Your tic-tac-toe game is ready to play! Two players take turns, and it automatically spots every win and draw while keeping a live scoreboard. When a round ends you can reset the board and jump right into the next game. It's all wrapped in a clean, warm design that feels great to use. Want me to add sound effects or a one-player mode against the computer next?</explanation>
 Do NOT put any prose outside code files except this single explanation tag at the very end.`
             },
-            { 
-              role: 'user', 
-              content: fullPrompt + `
-
-CRITICAL: You MUST complete EVERY file you start. If you write:
-<file path="src/components/Hero.jsx">
-
-You MUST include the closing </file> tag and ALL the code in between.
-
-NEVER write partial code like:
-<h1>Build and deploy on the AI Cloud.</h1>
-<p>Some text...</p>  ❌ WRONG
-
-ALWAYS write complete code:
-<h1>Build and deploy on the AI Cloud.</h1>
-<p>Some text here with full content</p>  ✅ CORRECT
-
-If you're running out of space, generate FEWER files but make them COMPLETE.
-It's better to have 3 complete files than 10 incomplete files.`
-            }
+            buildUserMessage()
           ],
           maxTokens: 8192, // Reduce to ensure completion
           stopSequences: [] // Don't stop early

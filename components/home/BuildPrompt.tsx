@@ -26,8 +26,8 @@ interface Attachment {
 
 /**
  * The free-text "describe what to build" box. Stores the prompt (+ any attached
- * file contents) in sessionStorage and routes to /generation, which auto-starts.
- * Images are preview-only for now (the model can't read them yet).
+ * file contents and reference images) in sessionStorage and routes to /generation,
+ * which auto-starts. Attached images are sent to the AI as vision input.
  * Shared between the marketing home and the logged-in dashboard.
  */
 export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
@@ -100,12 +100,16 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const handleSubmit = () => {
     const value = prompt.trim();
     const fileAtts = attachments.filter((a) => a.kind === "file");
+    const imageAtts = attachments
+      .filter((a) => a.kind === "image" && a.dataUrl)
+      .map((a) => a.dataUrl as string);
     if (!value && attachments.length === 0) {
       toast.error("Describe what you want to build");
       textareaRef.current?.focus();
       return;
     }
-    const finalPrompt = value || "Build using the attached file(s).";
+    const finalPrompt =
+      value || (imageAtts.length ? "Build from the attached image(s)." : "Build using the attached file(s).");
     sessionStorage.setItem("initialBuildPrompt", finalPrompt);
     sessionStorage.setItem("selectedModel", appConfig.ai.defaultModel);
     sessionStorage.setItem("autoStart", "true");
@@ -116,6 +120,18 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
       );
     } else {
       sessionStorage.removeItem("initialBuildAttachments");
+    }
+    if (imageAtts.length) {
+      // Data URLs are large; sessionStorage can throw QuotaExceededError. Degrade
+      // gracefully to a text-only build rather than blocking the user.
+      try {
+        sessionStorage.setItem("initialBuildImages", JSON.stringify(imageAtts));
+      } catch {
+        sessionStorage.removeItem("initialBuildImages");
+        toast.error("Those images are a bit large to send — try smaller ones.");
+      }
+    } else {
+      sessionStorage.removeItem("initialBuildImages");
     }
     router.push("/generation");
   };
@@ -161,8 +177,8 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
               )}
               <span className="max-w-[160px] truncate">{a.name}</span>
               {a.kind === "image" && (
-                <span className="rounded-4 bg-[#eee9f5] px-4 text-[10px] font-medium text-[#8b8798]">
-                  soon
+                <span className="rounded-4 bg-[#ece7fb] px-4 text-[10px] font-medium text-[#6147D4]">
+                  vision
                 </span>
               )}
               <button
@@ -179,8 +195,8 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         </div>
       )}
       {hasImages && (
-        <p className="mb-8 px-4 text-[12px] text-[#a29db0]">
-          Images are attached for reference — reading images is coming soon.
+        <p className="mb-8 px-4 text-[12px] text-[#8b8798]">
+          Etlaq will look at your image(s) and build to match — great for a logo, a screenshot, or a design you like.
         </p>
       )}
 

@@ -139,6 +139,8 @@ function AISandboxPage() {
   const firstPromptRef = useRef<string | null>(null);
   // Extra context (attached file contents) to feed the auto-build from the home/dashboard box.
   const autoBuildContextRef = useRef<string | null>(null);
+  // Reference images (data URLs) handed off from the home box, fed to the AI as vision input.
+  const autoBuildImagesRef = useRef<string[] | null>(null);
   // In-flight guard so concurrent callers (mount createSandbox + the generation
   // path) share a single project-creation request instead of each POSTing a new
   // project row and splitting the session's data across duplicates.
@@ -385,6 +387,20 @@ function AISandboxPage() {
           }
         }
 
+        // Attached images (data URLs) → fed to the AI as vision input on the first build.
+        const storedImages = sessionStorage.getItem('initialBuildImages');
+        sessionStorage.removeItem('initialBuildImages');
+        if (storedImages) {
+          try {
+            const imgs = JSON.parse(storedImages) as string[];
+            if (Array.isArray(imgs) && imgs.length) {
+              autoBuildImagesRef.current = imgs.filter((s) => typeof s === 'string' && s.startsWith('data:image/'));
+            }
+          } catch {
+            // ignore malformed image payloads
+          }
+        }
+
         if (storedModel) setAiModel(storedModel);
 
         // Skip the home screen and go straight to the builder chat
@@ -613,11 +629,13 @@ function AISandboxPage() {
     if (autoBuildPrompt && sandboxData && !showHomeScreen) {
       const promptToBuild = autoBuildPrompt;
       const extraContext = autoBuildContextRef.current;
+      const buildImages = autoBuildImagesRef.current;
       autoBuildContextRef.current = null;
+      autoBuildImagesRef.current = null;
       setAutoBuildPrompt(null);
       console.log('[generation] Auto-building from prompt:', promptToBuild);
       // skipEcho: the user message was already shown before the sandbox was ready.
-      sendChatMessage(promptToBuild, extraContext || undefined, true);
+      sendChatMessage(promptToBuild, extraContext || undefined, true, buildImages || undefined);
     }
   }, [autoBuildPrompt, sandboxData, showHomeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1909,15 +1927,25 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     const text = aiChatInput.trim();
     if (!text && attachments.length === 0) return;
     const fileAtts = attachments.filter((a) => a.kind === 'file');
+    // Image attachments become vision input for the AI (data URLs).
+    const imageAtts = attachments
+      .filter((a) => a.kind === 'image' && a.dataUrl)
+      .map((a) => a.dataUrl as string);
     const extra = fileAtts.length
       ? 'Attached files (use as reference/context):\n' +
         fileAtts.map((a) => `--- ${a.name} ---\n${a.text}`).join('\n\n')
       : '';
-    const display = text || (fileAtts.length ? 'Use the attached file(s).' : 'See the attached image(s).');
+    const display =
+      text ||
+      (imageAtts.length
+        ? 'Build from the attached image(s).'
+        : fileAtts.length
+        ? 'Use the attached file(s).'
+        : 'See the attached image(s).');
     setAiChatInput('');
     setAttachments([]);
     setAttachMenuOpen(false);
-    sendChatMessage(display, extra || undefined);
+    sendChatMessage(display, extra || undefined, false, imageAtts.length ? imageAtts : undefined);
   };
 
   const renderMainContent = () => {
@@ -2616,7 +2644,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
-  const sendChatMessage = async (overrideMessage?: string, extraContext?: string, skipEcho?: boolean) => {
+  const sendChatMessage = async (overrideMessage?: string, extraContext?: string, skipEcho?: boolean, images?: string[]) => {
     const message = (overrideMessage ?? aiChatInput).trim();
     if (!message) return;
     // The workspace is (or is about to be) building — drop the "setting up" placeholder.
@@ -2736,7 +2764,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           model: aiModel,
           context: fullContext,
           isEdit: conversationContext.appliedCode.length > 0,
-          projectId: genProjectId || undefined
+          projectId: genProjectId || undefined,
+          images: images && images.length ? images : undefined
         })
       });
       
@@ -5215,8 +5244,8 @@ Focus on the key sections and content, making it clean and modern.`;
                       )}
                       <span className="max-w-[140px] truncate">{a.name}</span>
                       {a.kind === 'image' && (
-                        <span className="rounded-4 bg-[#eee9f5] px-4 text-[10px] font-medium text-[#8b8798]" title="Image preview only — the AI can't read images yet">
-                          soon
+                        <span className="rounded-4 bg-[#ece7fb] px-4 text-[10px] font-medium text-[#6147D4]" title="Etlaq will look at this image and build to match">
+                          vision
                         </span>
                       )}
                       <button
@@ -5233,8 +5262,8 @@ Focus on the key sections and content, making it clean and modern.`;
                 </div>
               )}
               {attachments.some((a) => a.kind === 'image') && (
-                <p className="mb-8 px-4 text-[12px] text-[#a29db0]">
-                  Images are attached for reference — reading images is coming soon.
+                <p className="mb-8 px-4 text-[12px] text-[#8b8798]">
+                  Etlaq will look at your image(s) and build to match — great for logos, screenshots, or a design you like.
                 </p>
               )}
 
