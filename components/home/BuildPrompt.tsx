@@ -24,6 +24,74 @@ interface Attachment {
   dataUrl?: string;
 }
 
+interface Theme {
+  id: string;
+  label: string;
+  swatches: string[]; // preview dots
+  instruction: string; // the design steer sent to the model
+}
+
+// Friendly, non-technical color themes. `instruction` carries the concrete hexes
+// so the model has a strong palette to honor; `swatches` are just for the preview.
+const THEMES: Theme[] = [
+  {
+    id: "ocean",
+    label: "Ocean",
+    swatches: ["#0EA5E9", "#0F766E", "#E0F2FE"],
+    instruction:
+      "a cool ocean palette — deep teal and sky-blue accents (#0EA5E9, #0F766E) on airy near-white backgrounds (#F0F9FF), with slate text",
+  },
+  {
+    id: "sunset",
+    label: "Sunset",
+    swatches: ["#F97316", "#DB2777", "#FFF7ED"],
+    instruction:
+      "a warm sunset palette — orange and pink accents (#F97316, #DB2777) on soft cream backgrounds (#FFF7ED), with warm dark text",
+  },
+  {
+    id: "forest",
+    label: "Forest",
+    swatches: ["#16A34A", "#065F46", "#F0FDF4"],
+    instruction:
+      "a fresh forest palette — rich greens (#16A34A, #065F46) on warm off-white backgrounds (#F0FDF4), calm and natural",
+  },
+  {
+    id: "midnight",
+    label: "Midnight",
+    swatches: ["#0B0B0F", "#7C3AED", "#22D3EE"],
+    instruction:
+      "a dark, moody theme — near-black backgrounds (#0B0B0F, #16151D) with electric violet and cyan accents (#7C3AED, #22D3EE) and light text",
+  },
+  {
+    id: "candy",
+    label: "Candy",
+    swatches: ["#EC4899", "#8B5CF6", "#FDF2F8"],
+    instruction:
+      "a playful candy palette — vibrant pink and purple (#EC4899, #8B5CF6) on light backgrounds (#FDF2F8), fun and energetic",
+  },
+  {
+    id: "mono",
+    label: "Minimal",
+    swatches: ["#111111", "#6B7280", "#FFFFFF"],
+    instruction:
+      "a minimal monochrome palette — black, white, and neutral grays with a single sharp accent, lots of whitespace and clean typography",
+  },
+  {
+    id: "royal",
+    label: "Royal",
+    swatches: ["#6147D4", "#A78BFA", "#F5F2FE"],
+    instruction:
+      "a refined purple palette — deep violet as the dominant color (#6147D4) with lavender accents (#A78BFA) on light backgrounds (#F5F2FE)",
+  },
+  {
+    id: "earth",
+    label: "Earth",
+    swatches: ["#C2410C", "#92400E", "#FEF3C7"],
+    instruction:
+      "a warm earthy palette — terracotta and clay tones (#C2410C, #92400E) on sandy backgrounds (#FEF3C7), grounded and organic",
+  },
+];
+
 /**
  * The free-text "describe what to build" box. Stores the prompt (+ any attached
  * file contents and reference images) in sessionStorage and routes to /generation,
@@ -34,12 +102,16 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+  const [customTheme, setCustomTheme] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [phIndex, setPhIndex] = useState(0);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
   // Voice dictation: append transcribed speech to the prompt, spacing it out.
   const { isSupported: micSupported, isListening: micListening, audioLevel, toggle: toggleMic, stop: stopMic } = useSpeechDictation({
     onTranscript: (text) => {
@@ -64,6 +136,17 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [attachMenuOpen]);
+
+  useEffect(() => {
+    if (!themeMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
+        setThemeMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [themeMenuOpen]);
 
   // Gently cycle the placeholder while the box is untouched and no override is set.
   useEffect(() => {
@@ -133,10 +216,30 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
     } else {
       sessionStorage.removeItem("initialBuildImages");
     }
+    // Optional color theme / palette the user picked for the generated site.
+    if (activeTheme) {
+      sessionStorage.setItem(
+        "initialBuildTheme",
+        JSON.stringify({ label: activeTheme.label, instruction: activeTheme.instruction })
+      );
+    } else {
+      sessionStorage.removeItem("initialBuildTheme");
+    }
     router.push("/generation");
   };
 
   const hasImages = attachments.some((a) => a.kind === "image");
+
+  // Resolve the currently chosen theme (preset or custom free-text), or null.
+  const activeTheme: { label: string; instruction: string } | null =
+    selectedThemeId === "custom"
+      ? customTheme.trim()
+        ? { label: "Custom", instruction: customTheme.trim() }
+        : null
+      : (() => {
+          const t = THEMES.find((x) => x.id === selectedThemeId);
+          return t ? { label: t.label, instruction: t.instruction } : null;
+        })();
 
   return (
     <div
@@ -216,6 +319,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
       />
 
       <div className="mt-12 flex items-center justify-between">
+       <div className="flex items-center gap-6">
         {/* Attach ("+") */}
         <div className="relative" ref={attachMenuRef}>
           <input
@@ -257,6 +361,84 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             </div>
           )}
         </div>
+
+        {/* Themes / color palette */}
+        <div className="relative" ref={themeMenuRef}>
+          <button
+            type="button"
+            onClick={() => setThemeMenuOpen((v) => !v)}
+            aria-label="Choose a color theme"
+            aria-expanded={themeMenuOpen}
+            className={`flex h-40 items-center gap-6 rounded-full pl-10 pr-14 text-[13px] font-medium transition-colors ${
+              activeTheme
+                ? "bg-[#f0ecfb] text-[#6147D4]"
+                : "text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]"
+            }`}
+          >
+            <PaletteIcon />
+            {activeTheme?.label ?? "Themes"}
+          </button>
+          {themeMenuOpen && (
+            <div className="absolute top-full left-0 z-40 mt-8 w-[300px] rounded-14 border border-[#eae6f3] bg-white p-10 shadow-[0_12px_40px_rgba(25,22,34,0.10)] animate-in fade-in slide-in-from-top-1 duration-150">
+              <p className="px-4 pb-8 text-[12px] font-medium text-[#8b8798]">
+                Pick a look for your site
+              </p>
+              <div className="grid grid-cols-2 gap-6">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedThemeId(t.id);
+                      setThemeMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-8 rounded-10 border px-8 py-8 text-left transition-colors ${
+                      selectedThemeId === t.id
+                        ? "border-[#6147D4] bg-[#f6f3fe]"
+                        : "border-[#eee9f3] hover:bg-[#faf9fc]"
+                    }`}
+                  >
+                    <span className="flex -space-x-4">
+                      {t.swatches.map((c, i) => (
+                        <span
+                          key={i}
+                          className="h-16 w-16 rounded-full border border-white"
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-[13px] font-medium text-[#2a2635]">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-10 border-t border-[#f0edf6] pt-10">
+                <input
+                  value={customTheme}
+                  onChange={(e) => {
+                    setCustomTheme(e.target.value);
+                    setSelectedThemeId("custom");
+                  }}
+                  placeholder="Or describe your own colors…"
+                  className="w-full rounded-8 border border-[#eae6f3] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#c3b8ee] focus:outline-none"
+                />
+              </div>
+              {activeTheme && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedThemeId(null);
+                    setCustomTheme("");
+                    setThemeMenuOpen(false);
+                  }}
+                  className="mt-8 px-4 text-[12px] text-[#a29db0] transition-colors hover:text-[#6147D4]"
+                >
+                  Clear theme
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+       </div>
 
         <div className="flex items-center gap-6">
           {/* Live waveform while dictating */}
@@ -340,6 +522,22 @@ function StopIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="relative">
       <rect x="5" y="5" width="10" height="10" rx="2.5" />
+    </svg>
+  );
+}
+
+function PaletteIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+      <path
+        d="M10 2.5c-4.14 0-7.5 3.13-7.5 7 0 3.04 2.46 4.5 4.5 4.5.9 0 1.5.6 1.5 1.5 0 .74.6 1.5 1.5 1.5 3.87 0 7.5-3.36 7.5-7.5 0-3.87-3.36-7-7.5-7z"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <circle cx="6.5" cy="9" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="10" r="1" fill="currentColor" stroke="none" />
     </svg>
   );
 }

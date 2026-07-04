@@ -401,6 +401,28 @@ function AISandboxPage() {
           }
         }
 
+        // Optional color theme / palette the user picked in the build box → a
+        // design directive prepended to the build context so the model honors it.
+        const storedTheme = sessionStorage.getItem('initialBuildTheme');
+        sessionStorage.removeItem('initialBuildTheme');
+        if (storedTheme) {
+          try {
+            const t = JSON.parse(storedTheme) as { label?: string; instruction?: string };
+            if (t?.instruction) {
+              const themeDirective =
+                `DESIGN THEME — the user chose the "${t.label || 'Custom'}" look. ` +
+                `Make this the site's visual identity: ${t.instruction}. ` +
+                `Keep this palette dominant and cohesive across backgrounds, surfaces, buttons, links, and accents; ` +
+                `do not fall back to a generic default palette.`;
+              autoBuildContextRef.current = autoBuildContextRef.current
+                ? `${themeDirective}\n\n${autoBuildContextRef.current}`
+                : themeDirective;
+            }
+          } catch {
+            // ignore malformed theme payloads
+          }
+        }
+
         if (storedModel) setAiModel(storedModel);
 
         // Skip the home screen and go straight to the builder chat
@@ -4796,7 +4818,7 @@ Focus on the key sections and content, making it clean and modern.`;
           )}
 
           <div
-            className="flex-1 overflow-y-auto px-20 py-24 flex flex-col gap-24 scrollbar-hide"
+            className="min-h-0 flex-1 overflow-y-auto px-20 py-24 flex flex-col gap-24 scrollbar-hide"
             ref={chatMessagesRef}>
             {chatMessages.map((msg, idx) => {
               // Skip stray code fragments that leak from the generation stream
