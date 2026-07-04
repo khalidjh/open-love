@@ -595,6 +595,72 @@ Remember: You are a SURGEON making a precise incision, not an artist repainting 
         const framework: Framework = session.framework === 'nextjs' ? 'nextjs' : 'vite';
         const template = getTemplate(framework);
 
+        // Design-excellence directive. Injected ONLY on the initial build (never on
+        // edits, where surgical discipline must win). Pushes each generated app toward
+        // a distinctive, hand-crafted aesthetic instead of generic "AI slop", while
+        // staying strictly inside the pipeline's hard constraints: standard/arbitrary
+        // Tailwind only, a single global stylesheet, and no packages on first build.
+        const designExcellence = `
+========================================================================
+DESIGN EXCELLENCE — MAKE IT UNFORGETTABLE (applies to this initial build)
+========================================================================
+This app must look like a real, hand-crafted product a designer sweated over —
+NOT a generic AI template. Generic output is a FAILURE even if it works.
+
+Before writing code, silently commit to ONE bold, cohesive aesthetic direction that
+genuinely fits the app's purpose and audience, then execute it with precision. Pick an
+extreme rather than a safe middle:
+  editorial/magazine · brutalist/raw · retro-futuristic · luxury/refined ·
+  playful/toy-like · organic/natural · industrial/utilitarian · soft/pastel ·
+  art-deco/geometric · minimal-monochrome · warm-maximalist.
+Different apps must get different directions — never reach for the same look twice.
+
+TYPOGRAPHY (the single strongest signal of quality):
+- NEVER default to Inter, Roboto, Arial, or system-ui. Choose a distinctive typeface.
+- Load fonts by placing a Google Fonts @import as the VERY FIRST line of the global
+  stylesheet (src/index.css for Vite, app/globals.css for Next), ABOVE the @tailwind
+  directives, e.g.:
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap');
+  Then set the base family in @layer base { body { font-family: 'Space Grotesk', sans-serif; } }
+  and apply per-element faces with arbitrary classes, e.g. font-['Fraunces'].
+- Pair a characterful DISPLAY face for headings with a clean face for body text.
+  Strong choices: Space Grotesk, Fraunces, Instrument Serif, Bricolage Grotesque,
+  Syne, DM Serif Display, Archivo, Sora, Clash-style grotesks, Playfair Display.
+- Exploit type-scale contrast: oversized headings (text-6xl -> text-8xl), deliberate
+  tracking-tight, considered leading. Let typography carry the composition.
+
+COLOR & ATMOSPHERE:
+- Commit to ONE dominant color with 1-2 sharp accents. Avoid timid, evenly-spread
+  palettes and the overused purple-gradient-on-white cliche.
+- Arbitrary hex values ARE standard Tailwind and are ENCOURAGED: bg-[#0B0B0F],
+  text-[#E8E4D9], border-[#1F1F27], from-[#FF5E00], ring-[#0A84FF]. The ONLY banned
+  classes are shadcn-style semantic tokens (bg-background, text-foreground, border-border).
+- Backgrounds must have depth — NEVER a flat plain-white page. Use at least one:
+  * Gradient mesh — layered radial-gradients on body via @layer base.
+  * Ambient glow blobs — absolute divs with a color bg, rounded-full, blur-3xl, low opacity.
+  * Subtle grid / dot / film-grain texture on a fixed background layer.
+  * A rich dark canvas (e.g. bg-[#0A0A0B]) with luminous accent colors.
+
+DEPTH, MOTION & COMPOSITION:
+- Orchestrate ONE memorable page load: a staggered reveal of the hero elements beats
+  scattered micro-interactions. Standard Tailwind animate-pulse/bounce/spin/ping work
+  out of the box. For reveals, add real keyframes to the global stylesheet:
+    @layer utilities {
+      @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+      .animate-fade-up { animation: fade-up .7s cubic-bezier(.16,1,.3,1) both; }
+    }
+  Stagger the delays with the standard arbitrary-property class (NOT inline styles),
+  e.g. className="animate-fade-up [animation-delay:120ms]".
+- Break the default grid: use asymmetry, overlap, diagonal flow, generous negative
+  space OR deliberate density, and layered z-index. Avoid the centered-3-card-grid.
+- Build tactile depth with border, ring, shadow-2xl, and backdrop-blur — not flat boxes.
+
+WHAT "AI SLOP" LOOKS LIKE (if your output resembles this, change direction):
+- Inter/system font, three evenly-spaced feature cards, bg-blue-600 buttons, flat white
+  page, everything centered, timid pastel gradients, emoji used as icons. Ship the
+  opposite of this.
+`;
+
         // Build system prompt with conversation awareness
         let systemPrompt = `You are an expert React developer with perfect memory of the conversation. You maintain context across messages and remember scraped websites, generated components, and applied code. Generate clean, modern React code for ${framework === 'nextjs' ? 'Next.js (App Router) applications' : 'Vite applications'}.
 ${conversationContext}
@@ -614,11 +680,17 @@ ${conversationContext}
    - Simple style/text change = 1 file ONLY
    - New component = 2 files MAX (component + parent)
    - If >3 files, YOU'RE DOING TOO MUCH
-6. **DO NOT CREATE SVGs FROM SCRATCH**:
-   - NEVER generate custom SVG code unless explicitly asked
-   - Use existing icon libraries (lucide-react, heroicons, etc.)
-   - Or use placeholder elements/text if icons are not critical
-   - Only create custom SVGs when user specifically requests "create an SVG" or "draw an SVG"
+6. **ICONS & SVG**:
+   - The INITIAL build has NO icon packages installed. For icons, write clean, simple
+     inline SVGs (24x24 viewBox, stroke="currentColor", stroke-width 1.5-2, one concept
+     each) so they inherit color and stay crisp. Keep a small, consistent icon set.
+   - Decorative / atmospheric SVG is WELCOME and encouraged — grain textures, gradient
+     blobs, geometric accents, dividers, blurred glow shapes. This is the depth that
+     makes a design feel crafted rather than templated.
+   - Do NOT hand-draw COMPLEX illustrations, mascots, or detailed brand logos from
+     scratch (they render broken and ugly) — use a typographic wordmark or a simple
+     geometric mark instead.
+   - On EDITS you MAY add lucide-react / heroicons via a <package> tag and use those.
 
 COMPONENT RELATIONSHIPS (CHECK THESE FIRST):
 - Navigation usually lives INSIDE Header.jsx, not separate Nav.jsx
@@ -766,7 +838,7 @@ CRITICAL UI/UX RULES:
 - ALWAYS make sections full-width by default - avoid max-w-7xl or similar constraints
 - For full-width layouts: use className="w-full" or no width constraint at all
 - Only add max-width constraints when explicitly needed for readability (like blog posts)
-- Prefer system fonts and clean typography
+- Use intentional, characterful typography — NEVER default to system-ui / Inter / Arial (see DESIGN EXCELLENCE below)
 - Ensure all interactive elements have proper hover/focus states
 - Use proper semantic HTML elements for accessibility
 
@@ -793,7 +865,9 @@ CRITICAL STYLING RULES - MUST FOLLOW:
   - For borders: use "border-gray-200", "border-gray-300", etc. NOT "border-border"
   - For backgrounds: use "bg-white", "bg-gray-100", etc. NOT "bg-background"
   - For text: use "text-gray-900", "text-black", etc. NOT "text-foreground"
-- Examples of good Tailwind usage:
+- Examples below show correct Tailwind SYNTAX / mechanics only — do NOT copy their
+  plain aesthetic (bg-blue-600, bg-white cards). Apply the DESIGN EXCELLENCE palette,
+  fonts, and atmosphere on top of these mechanics:
   - Buttons: className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200"
   - Cards: className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-xl transition-shadow duration-300"
   - Full-width sections: className="w-full px-4 sm:px-6 lg:px-8"
@@ -802,7 +876,7 @@ CRITICAL STYLING RULES - MUST FOLLOW:
   - Hero sections: className="animate-fade-in-up"
   - Feature cards: className="transform hover:scale-105 transition-transform duration-300"
   - CTAs: className="animate-pulse hover:animate-none"
-
+${!isEdit ? designExcellence : ''}
 CRITICAL STRING AND SYNTAX RULES:
 - ALWAYS escape apostrophes in strings: use \' instead of ' or use double quotes
 - ALWAYS escape quotes properly in JSX attributes

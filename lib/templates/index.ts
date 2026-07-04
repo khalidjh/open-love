@@ -224,6 +224,10 @@ This is a full-stack Next.js 14 App Router app, NOT Vite. Follow these rules:
 - Read public config via process.env.NEXT_PUBLIC_* (e.g. process.env.NEXT_PUBLIC_SUPABASE_URL). Server-only secrets use process.env.* (no NEXT_PUBLIC_ prefix) and must only be read inside Route Handlers / server components.
 - Do NOT create package.json, next.config.mjs, tailwind.config.js, postcss.config.js, or jsconfig.json — they already exist.
 - Use Tailwind CSS utility classes for styling.
+- Apply the DESIGN EXCELLENCE guidance here too. Load distinctive fonts by adding a
+  Google Fonts @import as the FIRST line of app/globals.css (above @tailwind), or use
+  next/font in app/layout.jsx. Put base font-family, gradient-mesh backgrounds, and any
+  @keyframes reveal utilities in app/globals.css @layer base/@layer utilities.
 - The first file you output should be app/globals.css (if changing global styles), and the main page should be app/page.jsx.
 `,
 };
