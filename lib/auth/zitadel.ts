@@ -93,7 +93,14 @@ export async function createOidcApp(
       appType: 'OIDC_APP_TYPE_USER_AGENT', // SPA
       authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE', // public + PKCE, no client secret
       accessTokenType: 'OIDC_TOKEN_TYPE_JWT', // JWT access tokens PostgREST can verify
-      devMode: false,
+      // Generated apps log in from an EPHEMERAL sandbox origin (E2B) and, once
+      // deployed, from <slug>.apps.etlaq.sa — neither is known when the app is
+      // provisioned, so a fixed redirectUris allowlist would reject every real
+      // login with a redirect_uri mismatch. devMode relaxes redirect-URI/origin
+      // validation. Safe here: these are public PKCE SPA clients, so an auth code
+      // sent to any URI is worthless without the PKCE verifier the real app holds.
+      // Harden later (v2): register explicit sandbox + deploy URIs per app.
+      devMode: true,
     }),
   });
   return { clientId: body.clientId };
