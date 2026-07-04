@@ -10,8 +10,17 @@ export const APPS_DIR = process.env.KSA_APPS_DIR || '/opt/etlaq-apps';
 export const CADDY_APPS_DIR = process.env.KSA_CADDY_APPS_DIR || '/etc/caddy/apps.d';
 export const RUNTIME_IMAGE = process.env.KSA_RUNTIME_IMAGE || 'node:22-slim';
 
-export function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+// Keep slugs short and readable. When over the cap, cut on a hyphen boundary so
+// words aren't chopped mid-way, and never leave a dangling trailing hyphen.
+export function slugify(name: string, maxLen = 24): string {
+  let s = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (s.length > maxLen) {
+    s = s.slice(0, maxLen);
+    const lastDash = s.lastIndexOf('-');
+    if (lastDash >= Math.floor(maxLen / 2)) s = s.slice(0, lastDash);
+    s = s.replace(/-+$/, '');
+  }
+  return s;
 }
 
 // Subdomain stays stable across redeploys (and project renames) by reusing the

@@ -51,6 +51,9 @@ e2b-template-*
 .vscode/
 .idea/
 
+# Claude Code local worktrees (transient nested checkouts)
+.claude/worktrees/
+
 # Temporary files
 *.tmp
 *.temp

@@ -75,8 +75,8 @@ function deriveProjectName(prompt?: string | null): string {
   );
   name = name.replace(/[.!?]+$/, '').trim();
   if (!name) return 'Untitled app';
-  // Cap length on a word boundary.
-  if (name.length > 50) name = name.slice(0, 50).replace(/\s+\S*$/, '') + '…';
+  // Cap length on a word boundary — keep names short and glanceable.
+  if (name.length > 32) name = name.slice(0, 32).replace(/\s+\S*$/, '') + '…';
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
@@ -92,6 +92,12 @@ function AISandboxPage() {
   // Always-current mirror of chatMessages, so async saves aren't stale.
   const chatMessagesDataRef = useRef<ChatMessage[]>([]);
   const [aiChatInput, setAiChatInput] = useState('');
+  // AI-generated, context-aware follow-up suggestions shown after each build/edit.
+  // Seeded with sensible defaults so the chips never flash empty before the
+  // tailored suggestions arrive.
+  const DEFAULT_FOLLOWUPS = ['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'];
+  const [followupSuggestions, setFollowupSuggestions] = useState<string[]>(DEFAULT_FOLLOWUPS);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [aiEnabled] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -463,6 +469,48 @@ function AISandboxPage() {
   useEffect(() => {
     chatMessagesDataRef.current = chatMessages;
   }, [chatMessages]);
+
+  // After each successful build/edit, fetch context-aware follow-up suggestions
+  // tailored to what this specific app now contains (falls back gracefully).
+  useEffect(() => {
+    if (!sandboxData || generationProgress.isGenerating) return;
+    if (conversationContext.appliedCode.length === 0) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    (async () => {
+      setSuggestionsLoading(true);
+      try {
+        const res = await fetch('/api/suggest-followups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: chatMessagesDataRef.current
+              .slice(-8)
+              .map((m) => ({ type: m.type, content: (m.content || '').slice(0, 800) })),
+            files: (generationProgress.files || []).map((f) => f.path).slice(0, 60),
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data?.suggestions) && data.suggestions.length > 0) {
+          setFollowupSuggestions(data.suggestions.slice(0, 4));
+        }
+      } catch {
+        // Silent: the chips just won't refresh this round.
+      } finally {
+        if (!cancelled) setSuggestionsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+    // Re-run whenever a new build/edit is applied.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationContext.appliedCode.length, generationProgress.isGenerating]);
 
   // Close the project-name dropdown on outside click.
   useEffect(() => {
@@ -5006,30 +5054,30 @@ Focus on the key sections and content, making it clean and modern.`;
             )}
           </div>
 
-          {/* Follow-up suggestion chips (after a build completes) */}
+          {/* Follow-up suggestion chips — AI-tailored to the current app, refreshed after each build */}
           {sandboxData && !generationProgress.isGenerating && conversationContext.appliedCode.length > 0 && (
-            <div className="flex flex-nowrap gap-8 overflow-x-auto px-16 pb-4 scrollbar-hide md:flex-wrap">
-              {['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'].map((s, i) => (
-                <button
-                  key={s}
-                  onClick={() => sendChatMessage(s)}
-                  style={{ animationDelay: `${i * 60}ms` }}
-                  className="group anim-fade-up inline-flex shrink-0 items-center gap-4 whitespace-nowrap rounded-full border border-[#a99cd9] bg-white px-14 py-8 text-[13px] font-medium text-[#5b5668] transition-all hover:border-[#6147D4] hover:bg-[#faf9fe] hover:text-[#191622] active:scale-[0.97]"
-                >
-                  {s}
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    aria-hidden
-                    className="-translate-x-1 text-[#6147D4] opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+            <div className="px-16 pb-4">
+              <div className="mb-8 flex items-center gap-6 pl-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8b84a3]">
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden className={`text-[#6147D4] ${suggestionsLoading ? 'animate-pulse' : ''}`}>
+                  <path d="M10 1.5l1.8 4.9 4.9 1.8-4.9 1.8L10 15l-1.8-4.9L3.3 8.3l4.9-1.8L10 1.5z" />
+                </svg>
+                {suggestionsLoading ? 'Tailoring suggestions…' : 'Suggested next steps'}
+              </div>
+              <div className="flex flex-nowrap gap-8 overflow-x-auto scrollbar-hide md:flex-wrap">
+                {followupSuggestions.map((s, i) => (
+                  <button
+                    key={s}
+                    onClick={() => sendChatMessage(s)}
+                    style={{ animationDelay: `${i * 60}ms` }}
+                    className="group anim-fade-up inline-flex shrink-0 items-center gap-8 whitespace-nowrap rounded-full border border-[#e7e2f4] bg-gradient-to-b from-white to-[#faf9fe] px-14 py-8 text-[13px] font-medium text-[#4b4560] shadow-[0_1px_2px_rgba(97,71,212,0.05)] transition-all duration-200 hover:-translate-y-2 hover:border-[#a99cd9] hover:text-[#191622] hover:shadow-[0_6px_16px_rgba(97,71,212,0.14)] active:translate-y-0 active:scale-[0.98]"
                   >
-                    <path d="M10 4v12M4 10h12" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ))}
+                    <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="text-[#a99cd9] transition-colors group-hover:text-[#6147D4]">
+                      <path d="M10 1.5l1.8 4.9 4.9 1.8-4.9 1.8L10 15l-1.8-4.9L3.3 8.3l4.9-1.8L10 1.5z" />
+                    </svg>
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
