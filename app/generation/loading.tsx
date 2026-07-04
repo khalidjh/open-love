@@ -2,6 +2,8 @@
 // loads, so clicking a project from the dashboard feels immediate instead of
 // leaving the user on the previous page for a beat. Mirrors the split layout:
 // chat rail on the left, preview surface on the right.
+import PreviewSkeleton from '@/components/app/generation/PreviewSkeleton';
+
 export default function GenerationLoading() {
   return (
     <div className="flex h-screen flex-col bg-[#fbfafd]">
@@ -19,14 +21,9 @@ export default function GenerationLoading() {
           <div className="ml-auto h-32 w-1/2 animate-pulse rounded-16 bg-[#efeaf8]" />
         </div>
 
-        {/* Right: preview surface with a spinner */}
-        <div className="flex flex-1 flex-col overflow-hidden p-0 md:p-8">
-          <div className="flex flex-1 items-center justify-center overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#ece8f4]">
-            <div className="text-center">
-              <div className="mx-auto mb-12 h-32 w-32 animate-spin rounded-full border-2 border-[#e2ddf0] border-t-[#6147D4]" />
-              <p className="text-[14px] text-[#8b8798]">Opening your project…</p>
-            </div>
-          </div>
+        {/* Right: preview surface skeleton */}
+        <div className="flex-1 overflow-hidden">
+          <PreviewSkeleton label="Opening your project…" />
         </div>
       </div>
     </div>

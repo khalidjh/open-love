@@ -9,6 +9,7 @@ import HeroInput from '@/components/HeroInput';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import VoiceWaveform from '@/components/shared/VoiceWaveform';
 import SidebarInput from '@/components/app/generation/SidebarInput';
+import PreviewSkeleton from '@/components/app/generation/PreviewSkeleton';
 import HeaderBrandKit from '@/components/shared/header/BrandKit/BrandKit';
 import { HeaderProvider } from '@/components/shared/header/HeaderContext';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -110,6 +111,17 @@ function AISandboxPage() {
     !!(searchParams.get('project') || searchParams.get('sandbox') || searchParams.get('url')) ||
     (typeof window !== 'undefined' &&
       !!(sessionStorage.getItem('targetUrl') || sessionStorage.getItem('initialBuildPrompt')));
+  // The builder is not a destination on its own — it needs something to build
+  // (a prompt handed off from the home box, or a project/sandbox/url to restore).
+  // Someone typing /generation straight into the address bar has none of these,
+  // so bounce them to the home/dashboard where they can describe what they want.
+  // Captured once at mount: the hand-off sessionStorage keys are cleared during
+  // initialization, so reading enteringBuilderDirectly later would wrongly flip.
+  const arrivedWithBuildIntentRef = useRef(enteringBuilderDirectly);
+  useEffect(() => {
+    if (!arrivedWithBuildIntentRef.current) router.replace('/');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [aiModel, setAiModel] = useState(() => {
     const modelParam = searchParams.get('model');
     return appConfig.ai.availableModels.includes(modelParam || '') ? modelParam! : appConfig.ai.defaultModel;
@@ -2366,14 +2378,10 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
 
-            {/* Branded loader — hides the provider's transient "Sandbox Not Found" 404 */}
+            {/* Branded skeleton — hides the provider's transient "Sandbox Not Found" 404 */}
             {previewLoading && !sandboxExpired && (
-              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#fbfafd] p-24">
-                <div className="text-center">
-                  <div className="mx-auto mb-16 h-40 w-40 animate-spin rounded-full border-[3px] border-[#e2ddf0] border-t-[#6147D4]" />
-                  <h3 className="text-[16px] font-semibold text-[#191622]">Starting your preview…</h3>
-                  <p className="mt-6 text-[13px] text-[#8b8798]">This takes a few seconds.</p>
-                </div>
+              <div className="absolute inset-0 z-30">
+                <PreviewSkeleton label="Starting your preview…" />
               </div>
             )}
 
@@ -2498,26 +2506,29 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       }
       
       // Default state when no sandbox and no screenshot
-      return (
-        <div className="flex items-center justify-center h-full bg-white text-[#6b6577]">
-          {screenshotError ? (
+      if (screenshotError) {
+        return (
+          <div className="flex items-center justify-center h-full bg-white text-[#6b6577]">
             <div className="text-center">
               <p className="mb-8 text-[15px] text-[#191622]">Failed to capture screenshot</p>
               <p className="text-[13px] text-[#8b8798]">{screenshotError}</p>
             </div>
-          ) : sandboxData || loading ? (
-            <div className="text-center">
-              <div className="w-32 h-32 border-2 border-[#e2ddf0] border-t-[#6147D4] rounded-full animate-spin mx-auto mb-12" />
-              <p className="text-[14px] text-[#8b8798]">
-                {sandboxData ? 'Loading preview…' : 'Setting up your workspace…'}
-              </p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <p className="text-[19px] font-semibold text-[#191622]">Your app will live here</p>
-              <p className="mt-6 text-[14px] text-[#8b8798]">Ask Etlaq to build it</p>
-            </div>
-          )}
+          </div>
+        );
+      }
+      if (sandboxData || loading) {
+        return (
+          <PreviewSkeleton
+            label={sandboxData ? 'Loading preview…' : 'Setting up your workspace…'}
+          />
+        );
+      }
+      return (
+        <div className="flex items-center justify-center h-full bg-white text-[#6b6577]">
+          <div className="text-center">
+            <p className="text-[19px] font-semibold text-[#191622]">Your app will live here</p>
+            <p className="mt-6 text-[14px] text-[#8b8798]">Ask Etlaq to build it</p>
+          </div>
         </div>
       );
     }
@@ -4200,6 +4211,10 @@ Focus on the key sections and content, making it clean and modern.`;
       }
     }, 500);
   };
+
+  // Redirecting a promptless direct visit away — render nothing rather than
+  // flashing the builder chrome before the replace lands.
+  if (!arrivedWithBuildIntentRef.current) return null;
 
   return (
     <HeaderProvider>
