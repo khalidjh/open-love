@@ -26,6 +26,7 @@ import {
 } from '@/lib/icons';
 import { motion } from 'framer-motion';
 import CodeApplicationProgress, { type CodeApplicationState } from '@/components/CodeApplicationProgress';
+import DeployStatus, { type DeployState } from '@/components/DeployStatus';
 
 interface SandboxData {
   sandboxId: string;
@@ -196,7 +197,9 @@ function AISandboxPage() {
   const [codeApplicationState, setCodeApplicationState] = useState<CodeApplicationState>({
     stage: null
   });
-  
+
+  const [deployStatus, setDeployStatus] = useState<DeployState | null>(null);
+
   const [generationProgress, setGenerationProgress] = useState<{
     isGenerating: boolean;
     status: string;
@@ -351,9 +354,13 @@ function AISandboxPage() {
         setAutoBuildPrompt(storedBuildPrompt);
       } else if (searchParams.get('project') || searchParams.get('sandbox')) {
         // Opening a saved project or existing sandbox directly — skip the home screen
+        // and go straight to the split view (chat left, preview right). The preview
+        // shows its own loading state while the sandbox restores, instead of leaving
+        // the user staring at a full-width chat until the URL is ready.
         setHasInitialSubmission(true);
         setShowHomeScreen(false);
         setHomeScreenFading(false);
+        setChatFullscreen(false);
       }
 
       // Clear old conversation
@@ -1197,11 +1204,19 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         // Set applying code state for edits to show loading overlay
         // Removed overlay - changes apply directly
         
-        if (results.filesCreated?.length > 0) {
+        // Treat updated files the same as created ones: an edit that only
+        // MODIFIES existing files still needs the sandbox manifest refreshed
+        // (fetchSandboxFiles) and the snapshot persisted — otherwise the next
+        // edit is applied to pre-edit content and this change is lost.
+        const changedFiles = [
+          ...(results.filesCreated || []),
+          ...(results.filesUpdated || []),
+        ];
+        if (changedFiles.length > 0) {
           setConversationContext(prev => ({
             ...prev,
             appliedCode: [...prev.appliedCode, {
-              files: results.filesCreated,
+              files: changedFiles,
               timestamp: new Date()
             }]
           }));
@@ -1558,6 +1573,13 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       if (data.project?.name) {
         setProjectName(data.project.name);
         firstPromptRef.current = data.project.name;
+      }
+
+      // Rehydrate the "Published" card from the durably-saved deploy URL (the
+      // source of truth on the project row), so the live URL + its copy/open
+      // actions survive a page reload instead of vanishing with local state.
+      if (data.project?.deployUrl) {
+        setDeployStatus({ stage: 'published', url: data.project.deployUrl });
       }
 
       // Rehydrate chat history
@@ -2349,10 +2371,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               <p className="mb-8 text-[15px] text-[#191622]">Failed to capture screenshot</p>
               <p className="text-[13px] text-[#8b8798]">{screenshotError}</p>
             </div>
-          ) : sandboxData ? (
+          ) : sandboxData || loading ? (
             <div className="text-center">
               <div className="w-32 h-32 border-2 border-[#e2ddf0] border-t-[#6147D4] rounded-full animate-spin mx-auto mb-12" />
-              <p className="text-[14px] text-[#8b8798]">Loading preview…</p>
+              <p className="text-[14px] text-[#8b8798]">
+                {sandboxData ? 'Loading preview…' : 'Setting up your workspace…'}
+              </p>
             </div>
           ) : (
             <div className="text-center">
@@ -2907,7 +2931,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
     setLoading(true);
     log('Publishing app...');
-    addChatMessage('Publishing your app... This can take a minute.', 'system');
+    setDeployStatus({ stage: 'publishing' });
 
     try {
       // Persist a project first so the deploy target is remembered on the project
@@ -2924,21 +2948,17 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
       if (data.success) {
         log(`Published: ${data.url}`);
-        addChatMessage(
-          `✅ ${data.message}!\n\nLive URL: ${data.url}` +
-          (data.state && data.state !== 'ready' && data.state !== 'READY'
-            ? '\n\nStill finishing processing — the URL will be live shortly.' : ''),
-          'system'
-        );
-        if (data.url) {
-          window.open(data.url, '_blank');
-        }
+        setDeployStatus({
+          stage: 'published',
+          url: data.url,
+          processing: !!(data.state && data.state !== 'ready' && data.state !== 'READY'),
+        });
       } else {
         throw new Error(data.error);
       }
     } catch (error: any) {
       log(`Failed to publish: ${error.message}`, 'error');
-      addChatMessage(`Failed to publish: ${error.message}`, 'system');
+      setDeployStatus({ stage: 'error', message: error.message });
     } finally {
       setLoading(false);
     }
@@ -4054,7 +4074,9 @@ Focus on the key sections and content, making it clean and modern.`;
         <button
           onClick={() => setMobileView((v) => (v === 'chat' ? 'panel' : 'chat'))}
           aria-label={mobileView === 'chat' ? 'Show preview' : 'Show chat'}
-          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+          disabled={mobileView === 'chat' && !sandboxData}
+          title={mobileView === 'chat' && !sandboxData ? 'Preview not ready yet' : undefined}
+          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
         >
           {mobileView === 'chat' ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -4806,7 +4828,10 @@ Focus on the key sections and content, making it clean and modern.`;
             {codeApplicationState.stage && (
               <CodeApplicationProgress state={codeApplicationState} />
             )}
-            
+
+            {/* Deploy / publish status — tags + live URL actions */}
+            {deployStatus && <DeployStatus state={deployStatus} />}
+
             {/* Setting up the workspace (sandbox provisioning) before the build starts */}
             {preparingBuild && !generationProgress.isGenerating && (
               <div className="anim-fade-up flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
@@ -4826,6 +4851,11 @@ Focus on the key sections and content, making it clean and modern.`;
                   <span className="etlaq-shimmer flex-1 text-[14px] font-medium">
                     {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
                   </span>
+                  {generationProgress.currentFile?.path && (
+                    <span className="min-w-0 shrink truncate font-mono text-[12px] text-[#a29db0]">
+                      {generationProgress.currentFile.path.split('/').pop()}
+                    </span>
+                  )}
                   {(generationProgress.files.length > 0 || generationProgress.streamedCode) && (
                     <svg
                       width="16"
@@ -5080,6 +5110,21 @@ Focus on the key sections and content, making it clean and modern.`;
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
+              <button
+                onClick={deployProject}
+                disabled={!sandboxData || loading || deployStatus?.stage === 'publishing'}
+                aria-label="Publish your app"
+                className="flex h-40 items-center gap-6 rounded-full bg-[#6147D4] px-16 text-[14px] font-semibold text-white shadow-[0_2px_8px_rgba(97,71,212,0.28)] transition-colors hover:bg-[#5238c0] disabled:opacity-40"
+              >
+                {deployStatus?.stage === 'publishing' ? (
+                  <span className="h-15 w-15 animate-spin rounded-full border-[1.6px] border-white/40 border-t-white" />
+                ) : (
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  </svg>
+                )}
+                Publish
+              </button>
             </div>
           </div>
         </div>
