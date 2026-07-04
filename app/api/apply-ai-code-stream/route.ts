@@ -34,6 +34,47 @@ function syncFileToCache(session: SandboxSession, normalizedPath: string, conten
   }
 }
 
+// The sandboxes are plain-JavaScript projects (.jsx/.js, no TypeScript toolchain).
+// Models sometimes emit TS syntax anyway — e.g. `import type { Metadata } from 'next'`
+// and `export const metadata: Metadata = {...}` in app/layout.jsx — which the bundler
+// can't parse, producing "Failed to compile / Expected ',', got '{'". When we detect
+// TS-only syntax in a file destined for a .jsx/.js path, transpile the types away with
+// the TypeScript compiler so it becomes valid JS. Only runs when TS syntax is actually
+// present, and falls back to the original content if transpilation throws.
+const TS_SYNTAX_MARKERS: RegExp[] = [
+  /(^|\n)\s*import\s+type\b/,
+  /(^|\n)\s*export\s+type\b/,
+  /(^|\n)\s*(export\s+)?(abstract\s+)?(interface|enum)\s+[A-Za-z_$]/,
+  /(^|\n)\s*(export\s+)?type\s+[A-Za-z_$][\w$]*\s*[=<]/,
+  /\b(const|let|var)\s+[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$]/,
+  /\)\s*:\s*[A-Za-z_$][\w$.[\]<> ]*\s*(=>|\{)/,
+  /function\s+[A-Za-z_$][\w$]*\s*\([^)]*:\s*[A-Za-z_$]/,
+  /\bReact\.(FC|ReactNode|ReactElement)\b/,
+  /\b(useState|useRef|useReducer|useCallback|useMemo|useContext)\s*<[^>]+>\s*\(/,
+];
+
+async function stripTypeScriptSyntax(filePath: string, content: string): Promise<string> {
+  if (!/\.(jsx|js)$/.test(filePath)) return content; // only plain-JS targets
+  if (!TS_SYNTAX_MARKERS.some((re) => re.test(content))) return content;
+  try {
+    const ts = (await import('typescript')).default;
+    const out = ts.transpileModule(content, {
+      compilerOptions: {
+        jsx: ts.JsxEmit.Preserve,
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        removeComments: false,
+        isolatedModules: true,
+      },
+      // Give it a .tsx/.ts filename so the compiler parses (and strips) the types.
+      fileName: filePath.replace(/\.jsx$/, '.tsx').replace(/\.js$/, '.ts'),
+    }).outputText;
+    return out && out.trim() ? out : content;
+  } catch {
+    return content;
+  }
+}
+
 interface ParsedResponse {
   explanation: string;
   template: string;
@@ -615,6 +656,9 @@ export async function POST(request: NextRequest) {
               (file.path.endsWith('.jsx') || file.path.endsWith('.js') || file.path.endsWith('.tsx') || file.path.endsWith('.ts'))) {
               fileContent = fileContent.replace(/import\s+['"]\.\/[^'"]+\.css['"];?\s*\n?/g, '');
             }
+
+            // Strip stray TypeScript syntax from plain-JS files so it compiles.
+            fileContent = await stripTypeScriptSyntax(normalizedPath, fileContent);
 
             // Fix common Tailwind CSS errors in CSS files
             if (file.path.endsWith('.css')) {
