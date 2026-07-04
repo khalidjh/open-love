@@ -1584,10 +1584,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
-  // Does a generated response need saved data? (AI declared tables, or used the client)
+  // Does a generated response need saved data? (AI declared tables, or imported the
+  // auto-provided Supabase client — match its path/factory plus legacy signals)
   const responseNeedsDatabase = (generated: string): boolean =>
     /<tables>[\s\S]*?<\/tables>/i.test(generated) ||
-    /@supabase\/supabase-js|VITE_SUPABASE_/.test(generated);
+    /supabaseClient|@supabase\/supabase-js|(VITE_|NEXT_PUBLIC_)SUPABASE_/.test(generated);
 
   // Silently ensure this project has AI enabled. Called automatically when a
   // generated app wires up the built-in AI — the user never asks for an "API key".

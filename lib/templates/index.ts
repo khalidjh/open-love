@@ -219,6 +219,7 @@ This is a full-stack Next.js 14 App Router app, NOT Vite. Follow these rules:
 - Pages live under app/. The home page is app/page.jsx. Nested routes are app/<route>/page.jsx.
 - The root layout app/layout.jsx already exists and imports app/globals.css — put global styles there.
 - There is NO index.html and NO src/ directory. Never create src/main.jsx, index.html, or a React Router setup — routing is file-based via the app/ directory.
+- Import YOUR OWN files with the '@/' path alias, which is rooted at the project (already configured in jsconfig.json): e.g. import Header from '@/components/Header' or import { supabase } from '@/lib/supabaseClient'. A correct relative path ('./', '../') also works. NEVER use a bare specifier like 'lib/supabase' or 'components/Header' — Next.js resolves those as npm packages and the build fails with "Module not found: Can't resolve 'lib/...'".
 - Components are React Server Components by default. Add "use client" as the FIRST line of any file that uses hooks (useState/useEffect), browser APIs, or event handlers.
 - Backend logic goes in Route Handlers: app/api/<name>/route.js exporting async GET/POST/etc. Use these for anything that must run on the server or hold secrets.
 - Read public config via process.env.NEXT_PUBLIC_* (e.g. process.env.NEXT_PUBLIC_SUPABASE_URL). Server-only secrets use process.env.* (no NEXT_PUBLIC_ prefix) and must only be read inside Route Handlers / server components.

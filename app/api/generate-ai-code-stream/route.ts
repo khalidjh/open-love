@@ -1053,13 +1053,11 @@ You must decide — the user is non-technical and will NOT ask for a "database".
   with no saved scores, a static dashboard), do NOT use a database at all.
 
 WHEN YOU USE THE DATABASE:
-- Client: import { createClient } from '@supabase/supabase-js' (auto-installed).
-- Create the client ONCE from env vars (auto-provided; never hardcode):
-    export const supabase = createClient(
-      ${template.env.read(template.env.supabaseUrl)},
-      ${template.env.read(template.env.supabaseAnonKey)},
-      { db: { schema: ${template.env.read(template.env.supabaseSchema)} } }
-    )
+- The Supabase client is AUTO-PROVIDED for you at ${framework === 'nextjs' ? 'lib/supabaseClient.js' : 'src/lib/supabaseClient.js'} (already
+  configured for this app's private schema). Do NOT create it yourself and do NOT
+  import '@supabase/supabase-js' directly — just import the provided client:
+    import { supabase } from '${framework === 'nextjs' ? '@/lib/supabaseClient' : './lib/supabaseClient'}';${framework === 'nextjs' ? '' : `
+  (from a nested folder use the correct relative path, e.g. '../lib/supabaseClient')`}
 - Read/write via supabase.from('table_name')... (schema applied automatically).
 - Declare any tables you need with a <tables> block (in ADDITION to code files);
   the platform creates them before the app runs:
@@ -1109,8 +1107,10 @@ WHEN YOU USE AUTH:
 - The env vars ${template.env.authIssuer} / ${template.env.authClientId} are auto-provided; never hardcode them.
 - Do NOT create your own login/password form or store users yourself — etlaqAuth hosts
   the sign-up and login pages. Your UI just calls signIn()/signUp() and reads getUser().
-- To scope database rows to the logged-in user, pass etlaqAuth.getAccessToken() to
-  supabase-js as the access token so RLS filters data by that user.
+- To scope database rows to the logged-in user, build a per-user client with the
+  provided factory so RLS filters data by that user:
+    import { createSupabaseClient } from '${framework === 'nextjs' ? '@/lib/supabaseClient' : './lib/supabaseClient'}';
+    const supabase = createSupabaseClient(await etlaqAuth.getAccessToken());
 `;
         }
 
