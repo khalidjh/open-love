@@ -13,6 +13,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { buildEnv } from './env';
 import { APPS_DOMAIN, APPS_DIR, RUNTIME_IMAGE, resolveSlug, safeJoin, writeCaddyVhost, waitForTls } from './ksa-shared';
+import { withBuildSlot } from './build-gate';
 import {
   ensureImage, createAndStart, removeContainer, inspectContainer,
   runToCompletion, probeContainerHttp, usedHostPorts, containerLogs,
@@ -102,8 +103,10 @@ export async function runKsaDeploy(opts: {
   await ensureImage(RUNTIME_IMAGE);
 
   // Build in a throwaway container. The app dir is bind-mounted, so node_modules
-  // and .next land on the host and are reused by the runtime container.
-  const build = await runToCompletion(
+  // and .next land on the host and are reused by the runtime container. Each
+  // build claims up to 2 GB, so gate concurrency to keep parallel deploys from
+  // OOM-ing the shared VM — excess builds queue rather than all run at once.
+  const build = await withBuildSlot(() => runToCompletion(
     `etlaq-build-${slug}`,
     {
       Image: RUNTIME_IMAGE,
@@ -120,7 +123,7 @@ export async function runKsaDeploy(opts: {
       },
     },
     BUILD_TIMEOUT_MS
-  );
+  ));
   if (build.exitCode !== 0) {
     throw new Error(`App build failed (exit ${build.exitCode}):\n${build.logs.slice(-2000)}`);
   }
