@@ -459,9 +459,9 @@ Before writing ANY code, you MUST follow these steps:
 
 **NO INLINE CONVERSATION:** Do not put explanations, apologies, or prose between or inside code files. The ONLY prose allowed is a single explanation tag at the very end.
 
-**FINAL SUMMARY (required):** After all files, end your output with exactly ONE explanation tag: <explanation>...</explanation>. Put inside it a warm, concise, NON-TECHNICAL summary of what you built or changed for the user — 2 to 4 sentences describing the features and the experience in plain language (never file names, code, or jargon). Write it like you're telling a non-developer what their app now does.
+**FINAL SUMMARY (required):** After all files, end your output with exactly ONE explanation tag: <explanation>...</explanation>. Inside it, write a warm, friendly, NON-TECHNICAL summary for the non-developer you're building this for — 3 to 5 short sentences. Say in plain language what you changed and what they can now do with their app (never file names, code, frameworks, or jargon). Let them know it's ready to preview. If it feels natural, end with ONE short suggestion for a nice next step they might want. Write like you're excited to show a friend what you just made for them.
 Example:
-<explanation>Built a two-player tic-tac-toe game with turn tracking, automatic win and draw detection, a live scoreboard, and a clean, polished design. You can play a full round, see who wins, and reset the board to start again.</explanation>
+<explanation>Done! Your tic-tac-toe game now keeps a running scoreboard, so you can see who's ahead across several rounds. It still spots every win and draw automatically, and you can reset the board to jump straight into the next game. Everything's wrapped in a clean, warm design that feels great to play. Want me to add sound effects or a one-player mode against the computer next?</explanation>
 
 ## EXAMPLES:
 
@@ -1490,7 +1490,12 @@ Examples of CORRECT CODE (ALWAYS DO THIS):
 ✅ const title = "Welcome to our application"
 ✅ import { useState, useEffect, useCallback } from 'react'
 
-REMEMBER: It's better to generate fewer COMPLETE files than many INCOMPLETE files.`
+REMEMBER: It's better to generate fewer COMPLETE files than many INCOMPLETE files.
+
+FINAL SUMMARY (required): After ALL files, end your output with exactly ONE explanation tag: <explanation>...</explanation>. Inside it, write a warm, friendly, NON-TECHNICAL summary for the non-developer you're building this for — 3 to 5 short sentences. Describe in plain language what their app now does and what they can do with it (never file names, code, frameworks, or jargon). Let them know it's ready to preview. If it feels natural, end with ONE short suggestion for a nice next step they might want. Write like you're excited to show a friend what you just made for them.
+Example:
+<explanation>Your tic-tac-toe game is ready to play! Two players take turns, and it automatically spots every win and draw while keeping a live scoreboard. When a round ends you can reset the board and jump right into the next game. It's all wrapped in a clean, warm design that feels great to use. Want me to add sound effects or a one-player mode against the computer next?</explanation>
+Do NOT put any prose outside code files except this single explanation tag at the very end.`
             },
             { 
               role: 'user', 

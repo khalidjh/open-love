@@ -99,6 +99,9 @@ function AISandboxPage() {
   const DEFAULT_FOLLOWUPS = ['Make it responsive', 'Add a dark mode toggle', 'Improve the styling', 'Add animations'];
   const [followupSuggestions, setFollowupSuggestions] = useState<string[]>(DEFAULT_FOLLOWUPS);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  // True while the conversational assistant is composing a text reply (a question
+  // answered in chat, not a build) — drives the "typing…" indicator.
+  const [chatTyping, setChatTyping] = useState(false);
   const [aiEnabled] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -2535,6 +2538,83 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     return null;
   };
 
+  // Decide whether a message is a plain QUESTION we should answer in chat, or a
+  // BUILD request that should run the code generator. When it's a question, this
+  // streams the assistant's reply straight into the chat and returns 'chat'.
+  // Returns 'build' otherwise. Fails open to 'build' on any error so the user is
+  // never stranded — the worst case is the existing build behaviour.
+  const respondConversationally = async (message: string): Promise<'build' | 'chat'> => {
+    setChatTyping(true);
+    let placeholderAdded = false;
+    let acc = '';
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: message,
+          model: aiModel,
+          hasApp: conversationContext.appliedCode.length > 0,
+          firstPrompt: firstPromptRef.current || undefined,
+          recentMessages: chatMessagesDataRef.current
+            .slice(-8)
+            .map((m) => ({ type: m.type, content: (m.content || '').slice(0, 800) })),
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        setChatTyping(false);
+        return 'build';
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let data: any;
+          try { data = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (data.type === 'route' && data.mode === 'build') {
+            // The builder takes over — this always arrives before any delta.
+            setChatTyping(false);
+            return 'build';
+          } else if (data.type === 'delta') {
+            acc += data.text || '';
+            if (!placeholderAdded) {
+              placeholderAdded = true;
+              setChatTyping(false);
+              setChatMessages((prev) => [...prev, { content: acc, type: 'ai', timestamp: new Date() }]);
+            } else {
+              // Nothing else appends while we stream, so the last message is ours.
+              setChatMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
+                return copy;
+              });
+            }
+          } else if (data.type === 'error' && !placeholderAdded) {
+            setChatTyping(false);
+            return 'build';
+          }
+        }
+      }
+
+      setChatTyping(false);
+      return placeholderAdded ? 'chat' : 'build';
+    } catch {
+      setChatTyping(false);
+      return 'build';
+    }
+  };
+
   const sendChatMessage = async (overrideMessage?: string, extraContext?: string, skipEcho?: boolean) => {
     const message = (overrideMessage ?? aiChatInput).trim();
     if (!message) return;
@@ -2582,7 +2662,15 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       await checkAndInstallPackages();
       return;
     }
-    
+
+    // Route the message: genuine questions get answered in chat (no build), while
+    // build/edit instructions fall through to the code generator below. The
+    // auto-build path (skipEcho) is always a build, so skip the round-trip there.
+    if (!skipEcho) {
+      const decision = await respondConversationally(message);
+      if (decision === 'chat') return;
+    }
+
     // Start sandbox creation in parallel if needed
     let sandboxPromise: Promise<void> | null = null;
     let sandboxCreating = false;
@@ -4992,7 +5080,18 @@ Focus on the key sections and content, making it clean and modern.`;
                 </div>
               );
             })}
-            
+
+            {/* Assistant is composing a conversational reply (a question, not a build) */}
+            {chatTyping && (
+              <div className="anim-fade-up flex items-center gap-6 rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+                <span className="flex items-center gap-3" aria-label="Assistant is typing">
+                  <span className="h-6 w-6 rounded-full bg-[#6147D4] opacity-70 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="h-6 w-6 rounded-full bg-[#6147D4] opacity-70 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="h-6 w-6 rounded-full bg-[#6147D4] opacity-70 animate-bounce" />
+                </span>
+              </div>
+            )}
+
             {/* Code application progress */}
             {codeApplicationState.stage && (
               <CodeApplicationProgress state={codeApplicationState} />
