@@ -93,6 +93,15 @@ function AISandboxPage() {
   const [aiEnabled] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
+  // Are we landing straight in the builder (restoring a project/sandbox, opening a
+  // ?url= target, or arriving from a home-page hand-off) rather than on the empty
+  // home screen? Computing this synchronously lets the builder-chrome state below
+  // seed correctly on the very first render, avoiding a one-frame flash of the empty
+  // "New project" home screen when refreshing a page that already has an active project.
+  const enteringBuilderDirectly =
+    !!(searchParams.get('project') || searchParams.get('sandbox') || searchParams.get('url')) ||
+    (typeof window !== 'undefined' &&
+      !!(sessionStorage.getItem('targetUrl') || sessionStorage.getItem('initialBuildPrompt')));
   const [aiModel, setAiModel] = useState(() => {
     const modelParam = searchParams.get('model');
     return appConfig.ai.availableModels.includes(modelParam || '') ? modelParam! : appConfig.ai.defaultModel;
@@ -110,7 +119,7 @@ function AISandboxPage() {
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
-  const [showHomeScreen, setShowHomeScreen] = useState(true);
+  const [showHomeScreen, setShowHomeScreen] = useState(() => !enteringBuilderDirectly);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['app', 'src', 'src/components']));
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [homeScreenFading, setHomeScreenFading] = useState(false);
@@ -120,7 +129,11 @@ function AISandboxPage() {
   const [autoBuildPrompt, setAutoBuildPrompt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
   // Builder chrome (Etlaq-style): fullscreen chat vs split view, and the project title.
-  const [chatFullscreen, setChatFullscreen] = useState(true);
+  // Restoring a saved project/sandbox opens straight into split view, so seed it
+  // synchronously to avoid a flash of full-width chat before the mount effect runs.
+  const [chatFullscreen, setChatFullscreen] = useState(
+    () => !(searchParams.get('project') || searchParams.get('sandbox'))
+  );
   // Mobile single-panel chrome: which panel is showing, and the header menu.
   const [mobileView, setMobileView] = useState<'chat' | 'panel'>('chat');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -156,7 +169,9 @@ function AISandboxPage() {
   const [loadingStage, setLoadingStage] = useState<'gathering' | 'planning' | 'generating' | null>(null);
   const [isStartingNewGeneration, setIsStartingNewGeneration] = useState(false);
   const [sandboxFiles, setSandboxFiles] = useState<Record<string, string>>({});
-  const [hasInitialSubmission, setHasInitialSubmission] = useState<boolean>(false);
+  // Seeded synchronously so the empty "Generate a new website" input never paints
+  // for a frame when we're entering the builder directly (e.g. refreshing a project).
+  const [hasInitialSubmission, setHasInitialSubmission] = useState<boolean>(() => enteringBuilderDirectly);
   const [fileStructure, setFileStructure] = useState<string>('');
   
   const [conversationContext, setConversationContext] = useState<{
