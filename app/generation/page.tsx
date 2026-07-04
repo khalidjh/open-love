@@ -1551,6 +1551,35 @@ Tip: I automatically detect and install npm packages from your code imports (lik
   // Did the generated app wire up the built-in AI? (references the injected env vars)
   const responseNeedsAi = (generated: string): boolean => /ETLAQ_AI_(URL|KEY)/.test(generated);
 
+  // Silently ensure this project has isolated per-app auth provisioned. Called
+  // automatically when a generated app wires up sign-up/login via the injected
+  // etlaqAuth client. Degrades gracefully (returns false) when the auth backend
+  // isn't configured — the POST returns 501 and we just skip it.
+  const authEnabledRef = useRef(false);
+  const ensureAuth = async (): Promise<boolean> => {
+    if (authEnabledRef.current) return true;
+    const projectId = await ensureProjectId();
+    if (!projectId) return false;
+    addChatMessage('Setting up private sign-in for your app…', 'system');
+    try {
+      const res = await fetch(`/api/projects/${projectId}/auth`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.auth?.status === 'ready') {
+        authEnabledRef.current = true;
+        return true;
+      }
+      throw new Error(data.error || 'Auth setup failed');
+    } catch (e: any) {
+      console.error('[ensureAuth] failed:', e);
+      return false;
+    }
+  };
+
+  // Did the generated app wire up the built-in isolated auth? (references the
+  // injected client or auth env vars — both frameworks)
+  const responseNeedsAuth = (generated: string): boolean =>
+    /etlaqAuth|(VITE_|NEXT_PUBLIC_)AUTH_(ISSUER|CLIENT_ID)/.test(generated);
+
   // Create any tables the response declared, inside the project's storage.
   const createTablesFromResponse = async (generated: string, db: DbInfo | null) => {
     const projectId = currentProjectIdRef.current;
@@ -1667,6 +1696,23 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       const db = await loadDbInfo(projectId);
       if (db) {
         await fetch(`/api/projects/${projectId}/database`, { method: 'POST' });
+      }
+
+      // Re-inject AI + auth creds too, but only for projects that provisioned them
+      // (a bare POST would otherwise mint auth/AI for an app that never used it).
+      try {
+        const [aiStatus, authStatus] = await Promise.all([
+          fetch(`/api/projects/${projectId}/ai`).then((r) => r.json()).catch(() => null),
+          fetch(`/api/projects/${projectId}/auth`).then((r) => r.json()).catch(() => null),
+        ]);
+        if (aiStatus?.ai?.status === 'ready') {
+          await fetch(`/api/projects/${projectId}/ai`, { method: 'POST' });
+        }
+        if (authStatus?.auth?.status === 'ready') {
+          await fetch(`/api/projects/${projectId}/auth`, { method: 'POST' });
+        }
+      } catch (e) {
+        console.error('[restoreProject] AI/auth re-injection failed:', e);
       }
 
       // Nudge the preview to reload now that files are in place
@@ -2880,6 +2926,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           // per-project token + inject it into the sandbox before applying code.
           if (responseNeedsAi(generatedCode)) {
             await ensureAi();
+          }
+
+          // And if the app has its own sign-up/login, provision isolated per-app
+          // auth (its own Zitadel org) + inject the etlaqAuth client before apply.
+          if (responseNeedsAuth(generatedCode)) {
+            await ensureAuth();
           }
 
           // Use isEdit flag that was determined at the start

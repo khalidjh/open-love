@@ -8,9 +8,21 @@
 // Not exercised until a live Zitadel instance is configured; every call throws a
 // clear error if the env is missing so the caller can degrade gracefully.
 
+// `.env.example` ships placeholders (ZITADEL_URL=https://auth.your-ksa-domain,
+// ZITADEL_TOKEN=your_zitadel_service_user_pat). A bare presence check treats those
+// as "configured", so the platform steers apps to isolated auth and provisioning
+// then fails against a fake endpoint. Reject empty/placeholder values so auth stays
+// honestly dormant until a real Zitadel is hosted.
+function realValue(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  const t = v.trim();
+  if (!t || /your[-_]|changeme|placeholder|example\.com|your-ksa-domain/i.test(t)) return undefined;
+  return t;
+}
+
 function config() {
-  const url = process.env.ZITADEL_URL;
-  const token = process.env.ZITADEL_TOKEN;
+  const url = realValue(process.env.ZITADEL_URL);
+  const token = realValue(process.env.ZITADEL_TOKEN);
   if (!url || !token) {
     throw new Error(
       'Zitadel is not configured. Set ZITADEL_URL and ZITADEL_TOKEN to enable per-project auth.'
@@ -20,7 +32,7 @@ function config() {
 }
 
 export function isZitadelConfigured() {
-  return !!(process.env.ZITADEL_URL && process.env.ZITADEL_TOKEN);
+  return !!(realValue(process.env.ZITADEL_URL) && realValue(process.env.ZITADEL_TOKEN));
 }
 
 export function zitadelIssuer() {

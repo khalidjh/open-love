@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
-import { getProject, getProjectAuth, upsertProjectAuth, getProjectDatabase } from '@/lib/db/repos';
+import { getProject, getProjectAuth, upsertProjectAuth } from '@/lib/db/repos';
 import { provisionProjectAuth } from '@/lib/auth/provision-auth';
 import { isZitadelConfigured } from '@/lib/auth/zitadel';
-import { encrypt, decrypt } from '@/lib/crypto';
+import { encrypt } from '@/lib/crypto';
 import { getTemplate, type Framework, type Template } from '@/lib/templates';
+import { writeSandboxEnv } from '@/lib/sandbox/write-sandbox-env';
 import { getSession } from '@/lib/sandbox/session-store';
 
 // The tiny client the generated app uses: OIDC (PKCE) login against the project's
@@ -36,30 +37,16 @@ export const etlaqAuth = {
 `;
 }
 
-async function injectIntoSandbox(opts: {
-  projectId: string;
-  issuer: string;
-  clientId: string;
-  supabase?: { url: string; anonKey: string; schema: string };
-  framework: Framework;
-}) {
+async function injectIntoSandbox(opts: { projectId: string; framework: Framework }) {
   const provider = getSession(opts.projectId)?.provider;
   if (!provider) return;
   try {
+    // Compose the COMPLETE .env (db + auth + AI) from the DB records so provisioning
+    // auth never clobbers an already-injected database or AI proxy token.
+    await writeSandboxEnv(opts.projectId, opts.framework);
     const t = getTemplate(opts.framework).env;
-    // Write a complete .env (include Supabase data vars if the DB was provisioned,
-    // so we don't clobber them — the app needs both).
-    let env = '';
-    if (opts.supabase) {
-      env += `${t.supabaseUrl}=${opts.supabase.url}\n`;
-      env += `${t.supabaseAnonKey}=${opts.supabase.anonKey}\n`;
-      env += `${t.supabaseSchema}=${opts.supabase.schema}\n`;
-    }
-    env += `${t.authIssuer}=${opts.issuer}\n`;
-    env += `${t.authClientId}=${opts.clientId}\n`;
     // Next.js App Router has no src/ dir; put the client under lib/.
     const authClientPath = opts.framework === 'nextjs' ? 'lib/etlaqAuth.js' : 'src/lib/etlaqAuth.js';
-    await provider.writeFile('.env', env);
     await provider.writeFile(authClientPath, etlaqAuthClientSource(t));
     await provider.runShell('npm install oidc-client-ts @supabase/supabase-js');
     if (opts.framework === 'nextjs') await provider.restartNextServer();
@@ -122,14 +109,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       encryptedCredentials: encrypt(JSON.stringify({ orgId, clientId, issuer })),
     });
 
-    // Pull the project's Supabase data creds (if any) so injection keeps a complete .env.
-    let supabase: { url: string; anonKey: string; schema: string } | undefined;
-    const dbRec = await getProjectDatabase(id);
-    if (dbRec?.encryptedCredentials) {
-      try { supabase = JSON.parse(decrypt(dbRec.encryptedCredentials)); } catch {}
-    }
-
-    await injectIntoSandbox({ projectId: id, issuer, clientId, supabase, framework: (project.framework as Framework) || 'vite' });
+    await injectIntoSandbox({ projectId: id, framework: (project.framework as Framework) || 'vite' });
 
     return NextResponse.json({ success: true, auth: { status: 'ready', issuer, clientId } });
   } catch (error) {

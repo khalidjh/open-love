@@ -11,6 +11,7 @@ import { FileManifest } from '@/types/file-manifest';
 import type { ConversationState, ConversationMessage, ConversationEdit } from '@/types/conversation';
 import { appConfig } from '@/config/app.config';
 import { getTemplate, type Framework } from '@/lib/templates';
+import { isZitadelConfigured } from '@/lib/auth/zitadel';
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -1074,6 +1075,44 @@ WHEN YOU USE THE DATABASE:
 ]
 </tables>
 `;
+
+        // Decide automatically whether this app needs end-user accounts. Only
+        // steer to the isolated auth client when a real Zitadel is configured —
+        // otherwise this app has no auth backend and we must NOT emit references
+        // to a dead one (nor fall back to shared supabase.auth). Auth works on
+        // both frameworks: the OIDC client runs in the browser and needs only the
+        // public issuer/client-id (no server), unlike the AI proxy.
+        if (isZitadelConfigured()) {
+          const authClientPath = framework === 'nextjs' ? 'lib/etlaqAuth.js' : 'src/lib/etlaqAuth.js';
+          systemPrompt += `
+
+DECIDE IF THIS APP NEEDS END-USER ACCOUNTS (sign up / log in / "my account"):
+The user is non-technical and will NOT ask for "OAuth", an "auth provider", or an "API".
+- If the app has its OWN users who sign up, log in, or have a private profile/account,
+  use the BUILT-IN isolated auth. Each app gets its OWN separate user list — a person
+  who signs up here is NOT a user of any other app.
+- NEVER use supabase.auth (signUp / signInWithPassword / getUser) for end-user login:
+  that shares one global user pool across every app and leaks identities between them.
+- If the app is public/anonymous (no accounts), ignore this section.
+
+WHEN YOU USE AUTH:
+- The client is auto-provided at ${authClientPath} — import { etlaqAuth } and call:
+    etlaqAuth.signUp()          // begin sign-up (redirects to the login page)
+    etlaqAuth.signIn()          // begin login (redirects)
+    etlaqAuth.signOut()
+    etlaqAuth.getUser()         // -> the logged-in user, or null
+    etlaqAuth.getAccessToken()  // -> bearer token for authorized data calls
+- Add a callback route at /auth/callback that calls etlaqAuth.handleCallback() then
+  redirects home — the login flow returns the user there. ${framework === 'nextjs'
+    ? "In Next.js make it a client component at app/auth/callback/page.jsx ('use client')."
+    : "In Vite add a client-side route for /auth/callback that runs handleCallback() on mount."}
+- The env vars ${template.env.authIssuer} / ${template.env.authClientId} are auto-provided; never hardcode them.
+- Do NOT create your own login/password form or store users yourself — etlaqAuth hosts
+  the sign-up and login pages. Your UI just calls signIn()/signUp() and reads getUser().
+- To scope database rows to the logged-in user, pass etlaqAuth.getAccessToken() to
+  supabase-js as the access token so RLS filters data by that user.
+`;
+        }
 
         // Decide automatically whether this app needs to call an AI model at
         // runtime (chatbot, assistant, "ask AI", summarize, generate text...).
