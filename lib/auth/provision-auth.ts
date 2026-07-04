@@ -16,13 +16,36 @@ export interface ProvisionedAuth {
   issuer: string;
 }
 
-// Redirect URIs the SPA will use. The live sandbox origin isn't stable, so we
-// register the common local + a placeholder; the Netlify domain is added at deploy.
-function defaultRedirects(): string[] {
+// Origins a generated app is served from. The live sandbox origin is EPHEMERAL
+// (a fresh E2B/Vercel-sandbox subdomain per session) and, once deployed, lives on
+// the KSA/Netlify/Vercel domains — none known at provisioning time. Zitadel accepts
+// glob wildcards in redirect URIs *only when the app is in devMode* (which our OIDC
+// apps are), so we register a wildcard per host family instead of a fixed origin.
+// A single `*` matches one URL segment (the sandbox subdomain), e.g.
+// `https://*.e2b.app/auth/callback` matches `https://5173-abc123.e2b.app/auth/callback`.
+export function appOriginGlobs(): string[] {
+  const ksaApps = process.env.KSA_APPS_DOMAIN || 'apps.etlaq.sa';
   return [
-    'http://localhost:5173/auth/callback',
-    'http://localhost:3000/auth/callback',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://*.e2b.app', // E2B sandbox preview
+    'https://*.e2b.dev', // E2B sandbox preview (legacy)
+    'https://*.vercel.run', // Vercel sandbox preview
+    `https://*.${ksaApps}`, // KSA deploy (*.apps.etlaq.sa)
+    'https://*.netlify.app', // Netlify deploy
+    'https://*.vercel.app', // Vercel deploy
   ];
+}
+
+// The OIDC login callback registered on the app (origin + /auth/callback).
+export function defaultRedirects(): string[] {
+  return appOriginGlobs().map((o) => `${o}/auth/callback`);
+}
+
+// post_logout_redirect_uri is the bare app origin (no path), so it needs its own
+// wildcard list — reusing the /auth/callback list would make sign-out mismatch.
+export function defaultPostLogout(): string[] {
+  return appOriginGlobs();
 }
 
 export async function provisionProjectAuth(projectId: string): Promise<ProvisionedAuth> {
@@ -48,6 +71,7 @@ export async function provisionProjectAuth(projectId: string): Promise<Provision
   const { clientId } = await createOidcApp(orgId, zProjectId, {
     name: 'web',
     redirectUris: defaultRedirects(),
+    postLogoutUris: defaultPostLogout(),
   });
 
   return { orgId, clientId, issuer: zitadelIssuer() };

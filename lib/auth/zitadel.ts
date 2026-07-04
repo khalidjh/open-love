@@ -111,19 +111,24 @@ export async function updateOidcRedirects(
   orgId: string,
   zProjectId: string,
   appId: string,
-  redirectUris: string[]
+  redirectUris: string[],
+  postLogoutRedirectUris: string[] = redirectUris
 ) {
   await zfetch(`/management/v1/projects/${zProjectId}/apps/${appId}/oidc_config`, {
     method: 'PUT',
     orgId,
     body: JSON.stringify({
       redirectUris,
-      postLogoutRedirectUris: redirectUris,
+      postLogoutRedirectUris,
       responseTypes: ['OIDC_RESPONSE_TYPE_CODE'],
       grantTypes: ['OIDC_GRANT_TYPE_AUTHORIZATION_CODE', 'OIDC_GRANT_TYPE_REFRESH_TOKEN'],
       appType: 'OIDC_APP_TYPE_USER_AGENT',
       authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
       accessTokenType: 'OIDC_TOKEN_TYPE_JWT',
+      // CRITICAL: the redirect URIs above are glob wildcards, which Zitadel only
+      // honors while the app is in devMode. Omitting this flips devMode off and
+      // every real (sandbox/deploy) login starts failing with a redirect mismatch.
+      devMode: true,
     }),
   });
 }
