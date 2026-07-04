@@ -52,6 +52,21 @@ const zai = createOpenAI({
   baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
 });
 
+// Control tags that carry structured output (never meant for the chat bubble).
+const CONTROL_TAGS = 'explanation|file|package|packages|command|structure|template|edit|tables';
+
+// Strip any structured-output tags (and their contents / stray fragments) from text
+// destined for the conversational chat bubble, so leaked bits like "</explanation>"
+// never reach the user.
+function stripControlTags(s: string): string {
+  return s
+    // Whole tagged blocks that slipped through.
+    .replace(new RegExp(`<(${CONTROL_TAGS})\\b[\\s\\S]*?</\\1>`, 'g'), '')
+    // Dangling open/close tags or fragments (e.g. a lone "</explanation>").
+    .replace(new RegExp(`</?(?:${CONTROL_TAGS})\\b[^>]*>?`, 'g'), '')
+    .trim();
+}
+
 // Models that can read images. GLM (zai) and Kimi (groq) are text-only, so a request
 // with attached reference images must be routed to one of these instead.
 function isVisionCapableModel(m: string): boolean {
@@ -1689,21 +1704,24 @@ Do NOT put any prose outside code files except this single explanation tag at th
           if (hasOpenTag) {
             // Send any buffered conversational text before the tag
             if (conversationalBuffer.trim() && !isInTag) {
-              await sendProgress({ 
-                type: 'conversation', 
-                text: conversationalBuffer.trim()
-              });
+              const clean = stripControlTags(conversationalBuffer);
+              if (clean) {
+                await sendProgress({ type: 'conversation', text: clean });
+              }
               conversationalBuffer = '';
             }
             isInTag = true;
           }
-          
+
           if (hasCloseTag) {
             isInTag = false;
           }
-          
-          // If we're not in a tag, buffer as conversational text
-          if (!isInTag && !hasOpenTag) {
+
+          // Buffer as conversational text ONLY when this chunk is entirely outside any
+          // structured tag. A chunk carrying a close tag (e.g. "...button!</explanation>")
+          // must NOT be buffered — hasCloseTag flips isInTag above, which would otherwise
+          // leak the tag fragment into the chat bubble.
+          if (!isInTag && !hasOpenTag && !hasCloseTag) {
             conversationalBuffer += text;
           }
           
@@ -1782,12 +1800,13 @@ Do NOT put any prose outside code files except this single explanation tag at th
         
         console.log('\n\n[generate-ai-code-stream] Streaming complete.');
         
-        // Send any remaining conversational text
+        // Send any remaining conversational text (sanitized: the tail of the stream is
+        // the <explanation> block, which is surfaced separately and must not leak here).
         if (conversationalBuffer.trim()) {
-          await sendProgress({ 
-            type: 'conversation', 
-            text: conversationalBuffer.trim()
-          });
+          const clean = stripControlTags(conversationalBuffer);
+          if (clean) {
+            await sendProgress({ type: 'conversation', text: clean });
+          }
         }
         
         // Also parse <packages> tag for multiple packages - ONLY for edits

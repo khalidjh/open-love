@@ -2814,13 +2814,21 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                 } else if (data.type === 'conversation') {
                   // Add conversational text to chat only if it's not code
                   let text = data.text || '';
-                  
-                  // Remove package tags from the text
-                  text = text.replace(/<package>[^<]*<\/package>/g, '');
-                  text = text.replace(/<packages>[^<]*<\/packages>/g, '');
-                  
+
+                  // Strip any structured-output tags (and their contents / stray fragments)
+                  // that slipped through — e.g. a leaked "</explanation>" tail. The
+                  // <explanation> summary is surfaced separately at the end of the build.
+                  text = text.replace(
+                    /<(explanation|file|package|packages|command|structure|template|edit|tables)\b[\s\S]*?<\/\1>/g,
+                    ''
+                  );
+                  text = text.replace(
+                    /<\/?(?:explanation|file|package|packages|command|structure|template|edit|tables)\b[^>]*>?/g,
+                    ''
+                  );
+
                   // Filter out any XML tags and file content that slipped through
-                  if (!text.includes('<file') && !text.includes('import React') && 
+                  if (!text.includes('<file') && !text.includes('import React') &&
                       !text.includes('export default') && !text.includes('className=') &&
                       text.trim().length > 0) {
                     addChatMessage(text.trim(), 'ai');
@@ -4118,13 +4126,21 @@ Focus on the key sections and content, making it clean and modern.`;
                 } else if (data.type === 'conversation') {
                   // Add conversational text to chat only if it's not code
                   let text = data.text || '';
-                  
-                  // Remove package tags from the text
-                  text = text.replace(/<package>[^<]*<\/package>/g, '');
-                  text = text.replace(/<packages>[^<]*<\/packages>/g, '');
-                  
+
+                  // Strip any structured-output tags (and their contents / stray fragments)
+                  // that slipped through — e.g. a leaked "</explanation>" tail. The
+                  // <explanation> summary is surfaced separately at the end of the build.
+                  text = text.replace(
+                    /<(explanation|file|package|packages|command|structure|template|edit|tables)\b[\s\S]*?<\/\1>/g,
+                    ''
+                  );
+                  text = text.replace(
+                    /<\/?(?:explanation|file|package|packages|command|structure|template|edit|tables)\b[^>]*>?/g,
+                    ''
+                  );
+
                   // Filter out any XML tags and file content that slipped through
-                  if (!text.includes('<file') && !text.includes('import React') && 
+                  if (!text.includes('<file') && !text.includes('import React') &&
                       !text.includes('export default') && !text.includes('className=') &&
                       text.trim().length > 0) {
                     addChatMessage(text.trim(), 'ai');
