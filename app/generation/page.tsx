@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { appConfig } from '@/config/app.config';
 import { detectFramework } from '@/lib/templates';
 import HeroInput from '@/components/HeroInput';
+import { useSpeechDictation } from '@/hooks/useSpeechDictation';
+import VoiceWaveform from '@/components/shared/VoiceWaveform';
 import SidebarInput from '@/components/app/generation/SidebarInput';
 import HeaderBrandKit from '@/components/shared/header/BrandKit/BrandKit';
 import { HeaderProvider } from '@/components/shared/header/HeaderContext';
@@ -116,6 +118,10 @@ function AISandboxPage() {
   const firstPromptRef = useRef<string | null>(null);
   // Extra context (attached file contents) to feed the auto-build from the home/dashboard box.
   const autoBuildContextRef = useRef<string | null>(null);
+  // In-flight guard so concurrent callers (mount createSandbox + the generation
+  // path) share a single project-creation request instead of each POSTing a new
+  // project row and splitting the session's data across duplicates.
+  const ensureProjectIdPromiseRef = useRef<Promise<string | null> | null>(null);
   const [urlOverlayVisible, setUrlOverlayVisible] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlStatus, setUrlStatus] = useState<string[]>([]);
@@ -152,6 +158,12 @@ function AISandboxPage() {
   const [restartingSandbox, setRestartingSandbox] = useState(false);
   // Chat attachments (files fed to the AI as context; images are preview-only for now).
   const [attachments, setAttachments] = useState<Array<{ id: string; name: string; kind: 'image' | 'file'; text?: string; dataUrl?: string }>>([]);
+  // Voice dictation: append transcribed speech to the composer, spacing it out.
+  const { isSupported: micSupported, isListening: micListening, audioLevel: micLevel, toggle: toggleMic, stop: stopMic } = useSpeechDictation({
+    onTranscript: (text) => {
+      setAiChatInput((prev) => (prev ? `${prev.replace(/\s+$/, '')} ${text}` : text));
+    },
+  });
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
@@ -888,11 +900,16 @@ function AISandboxPage() {
         log(`Sandbox ID: ${data.sandboxId}`);
         log(`URL: ${data.url}`);
         
-        // Update URL with sandbox ID
+        // Update URL with sandbox ID. Build the params from scratch and re-assert
+        // the current project id from the ref — `searchParams` here is a stale
+        // closure that predates the `?project=` that ensureProjectId just wrote via
+        // router.replace, so relying on it would silently drop the project id and
+        // leave the reloaded page unable to restore the saved app.
         const newParams = new URLSearchParams(searchParams.toString());
+        if (currentProjectIdRef.current) newParams.set('project', currentProjectIdRef.current);
         newParams.set('sandbox', data.sandboxId);
         newParams.set('model', aiModel);
-        router.push(`/generation?${newParams.toString()}`, { scroll: false });
+        router.replace(`/generation?${newParams.toString()}`, { scroll: false });
         
         // Fade out loading background after sandbox loads
         setTimeout(() => {
@@ -1418,31 +1435,39 @@ Tip: I automatically detect and install npm packages from your code imports (lik
   // Uses a ref so it stays correct across awaits within a single generation.
   const ensureProjectId = async (): Promise<string | null> => {
     if (currentProjectIdRef.current) return currentProjectIdRef.current;
-    try {
-      const firstUserMsg =
-        firstPromptRef.current || chatMessages.find(m => m.type === 'user')?.content;
-      const name = deriveProjectName(firstUserMsg);
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Send the raw prompt so the server auto-detects the framework consistently.
-        body: JSON.stringify({ name, model: aiModel, prompt: firstUserMsg }),
-      });
-      const data = await res.json();
-      if (data.success && data.project?.id) {
-        const id = data.project.id;
-        currentProjectIdRef.current = id;
-        setCurrentProjectId(id);
-        // reflect the project in the URL without a navigation
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('project', id);
-        router.replace(`/generation?${params.toString()}`);
-        return id;
+    // Coalesce concurrent callers onto one in-flight creation request.
+    if (ensureProjectIdPromiseRef.current) return ensureProjectIdPromiseRef.current;
+    ensureProjectIdPromiseRef.current = (async () => {
+      try {
+        const firstUserMsg =
+          firstPromptRef.current || chatMessages.find(m => m.type === 'user')?.content;
+        const name = deriveProjectName(firstUserMsg);
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // Send the raw prompt so the server auto-detects the framework consistently.
+          body: JSON.stringify({ name, model: aiModel, prompt: firstUserMsg }),
+        });
+        const data = await res.json();
+        if (data.success && data.project?.id) {
+          const id = data.project.id;
+          currentProjectIdRef.current = id;
+          setCurrentProjectId(id);
+          // reflect the project in the URL without a navigation
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('project', id);
+          router.replace(`/generation?${params.toString()}`);
+          return id;
+        }
+      } catch (error) {
+        console.error('[ensureProjectId] Failed to create project:', error);
+      } finally {
+        // Clear the guard so a failed attempt can be retried later.
+        ensureProjectIdPromiseRef.current = null;
       }
-    } catch (error) {
-      console.error('[ensureProjectId] Failed to create project:', error);
-    }
-    return null;
+      return null;
+    })();
+    return ensureProjectIdPromiseRef.current;
   };
 
   // Persist the current app state (code snapshot + chat) to the DB.
@@ -2424,7 +2449,21 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     // Remember the first prompt so the project gets a meaningful name.
     if (!firstPromptRef.current) {
       firstPromptRef.current = message;
-      setProjectName(deriveProjectName(message));
+      const derivedName = deriveProjectName(message);
+      setProjectName(derivedName);
+      // The project row is usually created at mount (before any prompt) and is
+      // therefore named "Untitled app". Now that we know the user's first request,
+      // rename it in the DB so a reload shows the real name. Resolve the id first
+      // (single-flight, so no duplicate project) to stay robust even if creation
+      // is still in flight when the user submits.
+      ensureProjectId().then((pid) => {
+        if (!pid) return;
+        fetch(`/api/projects/${pid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: derivedName }),
+        }).catch(() => { /* non-critical: the header already shows the name */ });
+      });
     }
 
     // Check for special commands
@@ -5039,8 +5078,49 @@ Focus on the key sections and content, making it clean and modern.`;
                   )}
                 </div>
 
-                <button
-                  onClick={handleComposerSend}
+                <div className="flex items-center gap-4">
+                  {/* Live waveform while dictating */}
+                  {micListening && (
+                    <div className="anim-scale-in mr-2 flex items-center gap-8 rounded-full bg-[#f3f0fa] px-10 py-5">
+                      <VoiceWaveform level={micLevel} />
+                      <span className="text-[11px] font-medium text-[#6147D4]">Listening…</span>
+                    </div>
+                  )}
+                  {/* Voice dictation */}
+                  {micSupported && (
+                    <button
+                      onClick={toggleMic}
+                      disabled={generationProgress.isGenerating || preparingBuild}
+                      aria-label={micListening ? 'Stop dictation' : 'Dictate with microphone'}
+                      aria-pressed={micListening}
+                      title={micListening ? 'Stop dictation' : 'Dictate'}
+                      className={`relative flex h-36 w-36 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        micListening
+                          ? 'bg-[#6147D4] text-white'
+                          : 'text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]'
+                      }`}
+                    >
+                      {micListening ? (
+                        <>
+                          <span
+                            className="absolute inset-0 rounded-full bg-[#6147D4]/25"
+                            style={{ transform: `scale(${1 + micLevel * 0.5})`, transition: 'transform 100ms ease-out' }}
+                            aria-hidden
+                          />
+                          <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="relative">
+                            <rect x="5" y="5" width="10" height="10" rx="2.5" />
+                          </svg>
+                        </>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="relative">
+                          <rect x="7.25" y="2.5" width="5.5" height="9" rx="2.75" strokeWidth="1.5" />
+                          <path d="M4.5 9a5.5 5.5 0 0011 0M10 14.5v3M7 17.5h6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  <button
+                  onClick={() => { stopMic(); handleComposerSend(); }}
                   disabled={
                     generationProgress.isGenerating ||
                     preparingBuild ||
@@ -5057,6 +5137,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     </svg>
                   )}
                 </button>
+                </div>
               </div>
             </div>
           </div>

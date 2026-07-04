@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appConfig } from "@/config/app.config";
+import { useSpeechDictation } from "@/hooks/useSpeechDictation";
+import VoiceWaveform from "@/components/shared/VoiceWaveform";
 import { toast } from "sonner";
 
 const PRODUCT_NAME = "Etlaq";
@@ -38,6 +40,12 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
+  // Voice dictation: append transcribed speech to the prompt, spacing it out.
+  const { isSupported: micSupported, isListening: micListening, audioLevel, toggle: toggleMic, stop: stopMic } = useSpeechDictation({
+    onTranscript: (text) => {
+      setPrompt((prev) => (prev ? `${prev.replace(/\s+$/, "")} ${text}` : text));
+    },
+  });
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -234,15 +242,51 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!prompt.trim() && attachments.length === 0}
-          aria-label="Build"
-          className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
-        >
-          <ArrowUp />
-        </button>
+        <div className="flex items-center gap-6">
+          {/* Live waveform while dictating */}
+          {micListening && (
+            <div className="anim-scale-in mr-2 flex items-center gap-8 rounded-full bg-[#f3f0fa] px-12 py-6">
+              <VoiceWaveform level={audioLevel} />
+              <span className="text-[12px] font-medium text-[#6147D4]">Listening…</span>
+            </div>
+          )}
+          {/* Voice dictation */}
+          {micSupported && (
+            <button
+              type="button"
+              onClick={toggleMic}
+              aria-label={micListening ? "Stop dictation" : "Dictate with microphone"}
+              aria-pressed={micListening}
+              title={micListening ? "Stop dictation" : "Dictate"}
+              className={`relative flex h-44 w-44 items-center justify-center rounded-full transition-colors ${
+                micListening
+                  ? "bg-[#6147D4] text-white"
+                  : "text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]"
+              }`}
+            >
+              {micListening && (
+                <span
+                  className="absolute inset-0 rounded-full bg-[#6147D4]/25"
+                  style={{ transform: `scale(${1 + audioLevel * 0.5})`, transition: "transform 100ms ease-out" }}
+                  aria-hidden
+                />
+              )}
+              {micListening ? <StopIcon /> : <MicIcon />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              stopMic();
+              handleSubmit();
+            }}
+            disabled={!prompt.trim() && attachments.length === 0}
+            aria-label="Build"
+            className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
+          >
+            <ArrowUp />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -258,6 +302,28 @@ function ArrowUp() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="relative">
+      <rect x="7.25" y="2.5" width="5.5" height="9" rx="2.75" strokeWidth="1.5" />
+      <path
+        d="M4.5 9a5.5 5.5 0 0011 0M10 14.5v3M7 17.5h6"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="relative">
+      <rect x="5" y="5" width="10" height="10" rx="2.5" />
     </svg>
   );
 }
