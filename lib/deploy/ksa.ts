@@ -12,7 +12,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { buildEnv } from './env';
-import { APPS_DOMAIN, APPS_DIR, RUNTIME_IMAGE, resolveSlug, safeJoin, writeCaddyVhost } from './ksa-shared';
+import { APPS_DOMAIN, APPS_DIR, RUNTIME_IMAGE, resolveSlug, safeJoin, writeCaddyVhost, waitForTls } from './ksa-shared';
 import {
   ensureImage, createAndStart, removeContainer, inspectContainer,
   runToCompletion, probeContainerHttp, usedHostPorts, containerLogs,
@@ -71,8 +71,17 @@ async function allocatePort(slug: string, containerName: string): Promise<number
   throw new Error('No free port in the KSA app range.');
 }
 
+// Full-stack apps need a per-slug vhost (each runs on its own port), so unlike
+// static they can't ride the shared `*.apps.etlaq.sa` wildcard block. Issuing
+// their cert via DNS-01 (same token as the wildcard) avoids the HTTP-01 race —
+// the cert is provisioned out-of-band instead of on the first TLS handshake, so
+// the URL doesn't greet the user with ERR_SSL_PROTOCOL_ERROR. (Caddy needs
+// DO_API_TOKEN in its environment; the host's caddy.env provides it.)
 function writeCaddyRoute(slug: string, port: number) {
-  return writeCaddyVhost(slug, `\tencode gzip\n\treverse_proxy 127.0.0.1:${port}`);
+  return writeCaddyVhost(
+    slug,
+    `\ttls {\n\t\tdns digitalocean {env.DO_API_TOKEN}\n\t}\n\tencode gzip\n\treverse_proxy 127.0.0.1:${port}`
+  );
 }
 
 export async function runKsaDeploy(opts: {
@@ -142,5 +151,10 @@ export async function runKsaDeploy(opts: {
 
   await writeCaddyRoute(slug, port);
 
-  return { url: `https://${slug}.${APPS_DOMAIN}`, slug, state: 'READY' };
+  // Wait for the subdomain to serve over TLS before reporting READY — see
+  // waitForTls: Caddy issues the per-subdomain cert in the background, and an
+  // early success sends the user to an ERR_SSL_PROTOCOL_ERROR page.
+  const url = `https://${slug}.${APPS_DOMAIN}`;
+  const tlsReady = await waitForTls(url);
+  return { url, slug, state: tlsReady ? 'READY' : 'provisioning' };
 }

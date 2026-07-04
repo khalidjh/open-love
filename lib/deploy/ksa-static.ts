@@ -15,7 +15,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { APPS_DOMAIN, APPS_DIR, RUNTIME_IMAGE, resolveSlug, writeCaddyVhost } from './ksa-shared';
+import { APPS_DOMAIN, APPS_DIR, CADDY_APPS_DIR, RUNTIME_IMAGE, resolveSlug, waitForTls } from './ksa-shared';
 import { ensureImage, runToCompletion } from './docker';
 
 const EXTRACT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -26,15 +26,16 @@ export interface KsaStaticDeployResult {
   state: string;
 }
 
-// Caddy serves the built files with an SPA fallback (client-side routing) —
-// this replaces the Netlify `_redirects` rule. `publicDir` is a host path;
-// APPS_DIR is bind-mounted at the same path in and out of the control container,
-// so what the code writes is what Caddy reads.
-function writeStaticRoute(slug: string, publicDir: string) {
-  return writeCaddyVhost(
-    slug,
-    `\tencode gzip\n\troot * ${publicDir}\n\ttry_files {path} /index.html\n\tfile_server`
-  );
+// Static apps no longer get a per-slug Caddy vhost. A single wildcard site block
+// on the host — `*.apps.etlaq.sa { root * /opt/etlaq-apps/{labels.3}/public; … }`,
+// served under one wildcard TLS cert (DNS-01) — routes every slug by its
+// subdomain label. That means a new app is served over HTTPS the instant its
+// files land (the wildcard cert already exists): no per-subdomain ACME issuance,
+// no TLS handshake race, no Let's Encrypt rate limits. See
+// docs/static-deploy-via-caddy.md. We only clean up a stale per-slug file left
+// by the old model, so a redeploy of a pre-wildcard project stops double-serving.
+async function removeLegacyStaticRoute(slug: string): Promise<void> {
+  await fs.rm(path.join(CADDY_APPS_DIR, `${slug}.caddy`), { force: true });
 }
 
 export async function runKsaStaticDeploy(
@@ -97,8 +98,15 @@ export async function runKsaStaticDeploy(
     throw new Error(`Failed to unpack static build (exit ${extract.exitCode}):\n${extract.logs.slice(-2000)}`);
   }
 
-  // 5. Route it through Caddy.
-  await writeStaticRoute(slug, publicDir);
+  // 5. Routing is handled by the host's wildcard vhost (see above); just clear
+  //    any legacy per-slug file so an old project stops being double-served.
+  await removeLegacyStaticRoute(slug);
 
-  return { url: `https://${slug}.${APPS_DOMAIN}`, slug, state: 'READY' };
+  // 6. Confirm the URL actually serves over TLS before reporting READY. With the
+  //    wildcard cert this passes on the first poll (cert already exists); the
+  //    poll is the safety net if that ever isn't true, so we never hand the user
+  //    a link that greets them with ERR_SSL_PROTOCOL_ERROR.
+  const url = `https://${slug}.${APPS_DOMAIN}`;
+  const tlsReady = await waitForTls(url);
+  return { url, slug, state: tlsReady ? 'READY' : 'provisioning' };
 }

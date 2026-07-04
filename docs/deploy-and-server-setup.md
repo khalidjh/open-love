@@ -217,8 +217,11 @@ configure in a pipeline.
    `127.0.0.1:<port>` (stable per app, range 34000–34999, reused on redeploy),
    `--restart unless-stopped`, 1 GB cap. Health = in-container HTTP probe.
 4. **Route**: writes `/etc/caddy/apps.d/<slug>.caddy`
-   (`<slug>.apps.etlaq.sa → 127.0.0.1:<port>`); the `caddy-apps.path` systemd
-   unit watches that dir and reloads Caddy, which issues the cert via HTTP-01.
+   (`<slug>.apps.etlaq.sa → 127.0.0.1:<port>`, with `tls { dns digitalocean }`);
+   the `caddy-apps.path` systemd unit watches that dir and reloads Caddy. TLS is
+   covered by the `*.apps.etlaq.sa` **wildcard cert** (DNS-01); the per-vhost
+   `dns` directive keeps issuance off the HTTP-01 path (no handshake race).
+   *(Static apps skip this step entirely — see the wildcard vhost below.)*
 
 The control app drives all of this through the **Docker Engine API over the
 mounted socket** (`lib/deploy/docker.ts`) — no docker CLI in the image, no new
@@ -227,6 +230,11 @@ from `projects.deploy_url` on redeploy, so no schema change was needed.
 
 **Host prerequisites (all in place on this server):**
 - wildcard DNS `*.apps.etlaq.sa` → the server *(the one manual step)*
+- **wildcard TLS**: Caddy built with `caddy-dns/digitalocean` (`caddy add-package`),
+  a DO API token at `/etc/caddy/caddy.env` (`chmod 600`, wired via a
+  `caddy.service.d` drop-in that also drops `--environ` so the token never hits
+  the journal), and a `*.apps.etlaq.sa` wildcard vhost that serves static slugs
+  (`root * /opt/etlaq-apps/{labels.3}/public`) under one DNS-01 cert
 - `/opt/etlaq-apps` and `/etc/caddy/apps.d` owned by uid 1001;
   `import /etc/caddy/apps.d/*.caddy` in the Caddyfile (with a `_keep.caddy`
   placeholder so the glob always matches)

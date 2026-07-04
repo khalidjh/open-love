@@ -45,3 +45,34 @@ ${body}
 `;
   await fs.writeFile(path.join(CADDY_APPS_DIR, `${slug}.caddy`), vhost, 'utf8');
 }
+
+// After a vhost is written, Caddy issues that subdomain's TLS cert in the
+// background — a Let's Encrypt HTTP-01 round-trip of a few seconds. Until it
+// lands, HTTPS requests fail the handshake (the browser shows
+// ERR_SSL_PROTOCOL_ERROR). Poll the URL so a deploy only reports READY once it
+// actually serves over TLS; otherwise a user who opens the link immediately
+// hits an SSL error that fixes itself a few seconds later.
+//
+// A wildcard cert (DNS-01) makes this a no-op — the handshake succeeds on the
+// first poll — so this stays cheap once that's in place.
+export async function waitForTls(url: string, timeoutMs = 45_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt++;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      // Any HTTP response proves the TLS handshake completed — the status code
+      // is irrelevant (a 404 still means the cert is live).
+      await fetch(url, { method: 'HEAD', redirect: 'manual', signal: controller.signal });
+      return true;
+    } catch {
+      // Handshake failed / connection refused / aborted — not ready yet.
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise((r) => setTimeout(r, Math.min(1_500 + attempt * 250, 3_500)));
+  }
+  return false;
+}

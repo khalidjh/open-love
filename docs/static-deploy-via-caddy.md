@@ -117,10 +117,32 @@ Most of this already exists from the full-stack runtime. Deltas:
   read `/opt/etlaq-apps/<slug>/public` (files are uid 1001). If Caddy runs as a
   different user, make the tree group- or world-readable (`0755` dirs / `0644`
   files — the writer should set these).
-- **Caddy import** — `import /etc/caddy/apps.d/*.caddy` + the `caddy-apps.path`
-  systemd watcher **already exist** (full-stack uses them). Static `.caddy` files
-  drop into the same dir and reload the same way. ✅
-- **TLS** — per-subdomain HTTP-01, already automatic for `*.apps.etlaq.sa`. ✅
+- **Routing** — static apps do **not** write a per-slug `.caddy` file anymore. A
+  single wildcard vhost on the host serves every slug by its subdomain label:
+  ```
+  *.apps.etlaq.sa {
+      tls { dns digitalocean {env.DO_API_TOKEN} }
+      encode gzip
+      root * /opt/etlaq-apps/{labels.3}/public
+      try_files {path} /index.html
+      file_server
+  }
+  ```
+  So a new static app is served the instant its files land in
+  `/opt/etlaq-apps/<slug>/public` — no vhost write, no Caddy reload. The
+  `apps.d` import + `caddy-apps.path` watcher still exist for **full-stack**
+  apps (which need a per-slug `reverse_proxy` block).
+- **TLS** — one **wildcard cert** `*.apps.etlaq.sa`, obtained once via **DNS-01**
+  (Caddy `caddy-dns/digitalocean` plugin + a DO API token in `/etc/caddy/caddy.env`,
+  wired in through a `caddy.service.d` drop-in). Every subdomain is covered
+  immediately: no per-subdomain issuance, **no TLS handshake race** (the old
+  `ERR_SSL_PROTOCOL_ERROR`-on-fresh-deploy bug), and no Let's Encrypt rate
+  limits. Full-stack per-slug vhosts also use DNS-01 (`tls { dns digitalocean }`)
+  to avoid the HTTP-01 race. ✅
+  - Known minor quirk: the `caddy-dns/digitalocean` cleanup step can fail to
+    delete the temporary `_acme-challenge.apps` TXT record after each
+    issuance/renewal (`strconv.Atoi` error). Harmless — the cert still issues —
+    but stale TXT records may accumulate; prune occasionally via the DO API.
 
 No new ports, no new services, no Coolify.
 
