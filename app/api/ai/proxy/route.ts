@@ -5,7 +5,7 @@ import { createGroq } from '@ai-sdk/groq';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, type LanguageModel } from 'ai';
 import { getProjectAiByTokenHash } from '@/lib/db/repos';
-import { hashToken, DEFAULT_AI_MODEL } from '@/lib/ai/provision-ai';
+import { hashToken, servableModel } from '@/lib/ai/provision-ai';
 
 // Public AI proxy for generated tenant apps.
 //
@@ -76,8 +76,11 @@ export async function POST(request: NextRequest) {
     return new Response('Body must include a non-empty messages array', { status: 400 });
   }
 
-  const modelSlug = record.model || DEFAULT_AI_MODEL;
-  console.log(`[ai-proxy] project=${record.projectId} model=${modelSlug} messages=${messages.length}`);
+  // Route to the pinned model only when its provider key is real; otherwise fall
+  // back to a configured default so a stale/placeholder pin never 401s upstream
+  // and silently returns an empty stream to the generated chatbot.
+  const modelSlug = servableModel(record.model);
+  console.log(`[ai-proxy] project=${record.projectId} model=${modelSlug} (pinned=${record.model}) messages=${messages.length}`);
 
   const result = streamText({
     model: resolveModel(modelSlug),

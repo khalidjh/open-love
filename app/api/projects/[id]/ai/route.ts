@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { getProject, getProjectAi, upsertProjectAi, deleteProjectAi } from '@/lib/db/repos';
 import {
-  provisionProjectAi, isEtlaqAiConfigured, hashToken, DEFAULT_AI_MODEL,
+  provisionProjectAi, isEtlaqAiConfigured, hashToken, defaultModelForEnv, etlaqAiProxyUrl,
 } from '@/lib/ai/provision-ai';
 import { encrypt, decrypt } from '@/lib/crypto';
 import { writeSandboxEnv } from '@/lib/sandbox/write-sandbox-env';
@@ -15,6 +15,15 @@ import { type Framework } from '@/lib/templates';
 async function injectIntoSandbox(projectId: string, framework: Framework) {
   const provider = getSession(projectId)?.provider;
   if (!provider) return;
+  // The generated app calls ETLAQ_AI_URL from inside its sandbox/container, so a
+  // localhost proxy URL resolves to the app's OWN loopback and never reaches this
+  // platform — the chatbot then gets silence. Surface it loudly at enable time.
+  if (/localhost|127\.0\.0\.1/.test(etlaqAiProxyUrl())) {
+    console.warn(
+      `[ai] ETLAQ_AI_URL is ${etlaqAiProxyUrl()} — not reachable from the sandbox/deployed app. ` +
+      `Set ETLAQ_PUBLIC_URL to a publicly reachable platform URL for the chatbot to get responses.`
+    );
+  }
   try {
     await writeSandboxEnv(projectId, framework);
     if (framework === 'nextjs') await provider.restartNextServer();
@@ -41,7 +50,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({
       success: true,
       configured: isEtlaqAiConfigured(),
-      ai: rec ? { status: rec.status, provider: rec.provider, model: rec.model || DEFAULT_AI_MODEL } : null,
+      ai: rec ? { status: rec.status, provider: rec.provider, model: rec.model || defaultModelForEnv() } : null,
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -73,7 +82,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     let model: string;
     if (existing?.encryptedCredentials && existing.tokenHash) {
       token = decrypt(existing.encryptedCredentials);
-      model = existing.model || DEFAULT_AI_MODEL;
+      model = existing.model || defaultModelForEnv();
     } else {
       const provisioned = await provisionProjectAi();
       token = provisioned.token;

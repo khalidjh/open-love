@@ -4,8 +4,9 @@
 
 import { randomBytes, createHash } from 'crypto';
 
-// Default model the proxy serves when a project hasn't pinned its own. Fast +
-// cheap, good enough for typical chatbots. Slug is a Vercel AI Gateway model id.
+// Fallback model slug when nothing else matches. Fast + cheap; a Vercel AI
+// Gateway id. Prefer defaultModelForEnv()/servableModel() over this constant so
+// the proxy never picks a model whose provider key isn't actually configured.
 export const DEFAULT_AI_MODEL = 'anthropic/claude-haiku-4-5-20251001';
 
 export interface ProvisionedAi {
@@ -13,18 +14,61 @@ export interface ProvisionedAi {
   model: string;
 }
 
+// `.env.example` ships placeholder values like `your_anthropic_api_key`; a raw
+// truthiness check treats those as "configured" and the proxy then 401s upstream
+// on a fake key. Reject empty and obvious placeholder values so we only route to
+// a provider whose key is real.
+function realKey(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  const t = v.trim();
+  if (!t || /^your_/i.test(t) || /^(changeme|placeholder|xxx+)$/i.test(t)) return undefined;
+  return t;
+}
+
+// Provider preference order + the default model to serve for each. Mirrors the
+// house codegen default (GLM via Z.AI) so the proxy serves the same model the
+// platform is already known to reach. The AI Gateway (when present) can route to
+// any provider, so it wins and keeps the cheap Anthropic default.
+const PROVIDER_DEFAULTS: Array<{ env: string; model: string }> = [
+  { env: 'AI_GATEWAY_API_KEY', model: 'anthropic/claude-haiku-4-5-20251001' },
+  { env: 'ZAI_API_KEY', model: 'zai/glm-4.6' },
+  { env: 'ANTHROPIC_API_KEY', model: 'anthropic/claude-haiku-4-5-20251001' },
+  { env: 'OPENAI_API_KEY', model: 'openai/gpt-4o-mini' },
+  { env: 'GROQ_API_KEY', model: 'moonshotai/kimi-k2-instruct-0905' },
+  { env: 'GEMINI_API_KEY', model: 'google/gemini-2.0-flash' },
+];
+
+// Which provider prefix a `provider/model` slug routes to in the proxy.
+function providerEnvForSlug(slug: string): string {
+  if (slug.startsWith('anthropic/')) return 'ANTHROPIC_API_KEY';
+  if (slug.startsWith('openai/')) return 'OPENAI_API_KEY';
+  if (slug.startsWith('google/')) return 'GEMINI_API_KEY';
+  if (slug.startsWith('zai/')) return 'ZAI_API_KEY';
+  return 'GROQ_API_KEY'; // bare id / groq fallback
+}
+
 // AI is available whenever the platform has a usable model backend — the Vercel
-// AI Gateway, or any direct provider key the proxy can route to. (A project can
-// pin any of these via its `model` column; the default is Claude Haiku.)
+// AI Gateway, or any direct provider key the proxy can route to.
 export function isEtlaqAiConfigured(): boolean {
-  return !!(
-    process.env.AI_GATEWAY_API_KEY ||
-    process.env.ANTHROPIC_API_KEY ||
-    process.env.ZAI_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.GROQ_API_KEY ||
-    process.env.GEMINI_API_KEY
-  );
+  return PROVIDER_DEFAULTS.some(({ env }) => realKey(process.env[env]));
+}
+
+// Pick a default model whose provider key is actually configured, so the proxy
+// can serve a completion instead of 401-ing on a placeholder default. Falls back
+// to DEFAULT_AI_MODEL when nothing is configured (callers gate on isEtlaqAiConfigured).
+export function defaultModelForEnv(): string {
+  const hit = PROVIDER_DEFAULTS.find(({ env }) => realKey(process.env[env]));
+  return hit?.model || DEFAULT_AI_MODEL;
+}
+
+// Return `preferred` only if its provider key is real; otherwise the best
+// available default. The AI Gateway can serve any provider, so honour the pin
+// as-is when it's set. Keeps already-provisioned projects (whose stored model
+// may predate this fix) working instead of failing on a stale slug.
+export function servableModel(preferred: string | null | undefined): string {
+  if (realKey(process.env.AI_GATEWAY_API_KEY)) return preferred || defaultModelForEnv();
+  if (preferred && realKey(process.env[providerEnvForSlug(preferred)])) return preferred;
+  return defaultModelForEnv();
 }
 
 // The proxy authenticates a token by its sha256 hash, so we never persist the raw
@@ -51,5 +95,5 @@ export async function provisionProjectAi(): Promise<ProvisionedAi> {
     throw new Error('Etlaq AI is not configured. Set AI_GATEWAY_API_KEY to enable per-project AI.');
   }
   const token = `etlaq_ai_${randomBytes(32).toString('hex')}`;
-  return { token, model: DEFAULT_AI_MODEL };
+  return { token, model: defaultModelForEnv() };
 }
