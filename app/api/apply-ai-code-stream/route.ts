@@ -4,6 +4,35 @@ import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
 import { makeProjectFallback } from '@/lib/sandbox/db-fallback';
 import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 import { getTemplate, type Framework } from '@/lib/templates';
+import type { SandboxSession } from '@/lib/sandbox/session-store';
+
+// Keep a project's in-memory caches in sync after a file is written to the
+// sandbox. The edit path (generate-ai-code-stream) hands the AI the "current"
+// file to modify from session.fileCache.manifest — NOT from the raw sandbox —
+// so if the manifest isn't updated here, the NEXT edit is applied to the
+// pre-edit content and this change is silently lost (the classic "my previous
+// change disappeared" bug). We update both the flat files map and the manifest.
+function syncFileToCache(session: SandboxSession, normalizedPath: string, content: string): void {
+  if (!session.fileCache) return;
+  session.fileCache.files[normalizedPath] = { content, lastModified: Date.now() };
+
+  const manifest = session.fileCache.manifest;
+  if (!manifest) return;
+  const manifestKey = `/${normalizedPath}`;
+  const existing = manifest.files[manifestKey];
+  if (existing) {
+    existing.content = content;
+    existing.lastModified = Date.now();
+  } else {
+    manifest.files[manifestKey] = {
+      content,
+      type: normalizedPath.endsWith('.css') ? 'style' : 'utility',
+      path: manifestKey,
+      relativePath: normalizedPath,
+      lastModified: Date.now(),
+    };
+  }
+}
 
 interface ParsedResponse {
   explanation: string;
@@ -512,6 +541,12 @@ export async function POST(request: NextRequest) {
                 if (result.success && result.normalizedPath) {
                   console.log('[apply-ai-code-stream] Morph updated', result.normalizedPath);
                   morphUpdatedPaths.add(result.normalizedPath);
+                  // Sync caches with the merged result — Morph writes straight to
+                  // the sandbox and otherwise leaves session.fileCache.manifest
+                  // stale, so the following edit would revert this one.
+                  if (typeof result.mergedCode === 'string') {
+                    syncFileToCache(session, result.normalizedPath, result.mergedCode);
+                  }
                   if (results.filesUpdated) results.filesUpdated.push(result.normalizedPath);
                   await sendProgress({ type: 'file-complete', fileName: result.normalizedPath, action: 'morph-updated' });
                 } else {
@@ -599,13 +634,8 @@ export async function POST(request: NextRequest) {
             // Write the file using provider
             await providerInstance.writeFile(normalizedPath, fileContent);
 
-            // Update file cache
-            if (session.fileCache) {
-              session.fileCache.files[normalizedPath] = {
-                content: fileContent,
-                lastModified: Date.now()
-              };
-            }
+            // Update file + manifest caches so the next edit sees this change.
+            syncFileToCache(session, normalizedPath, fileContent);
 
             if (isUpdate) {
               if (results.filesUpdated) results.filesUpdated.push(normalizedPath);
