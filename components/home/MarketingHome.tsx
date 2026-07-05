@@ -169,7 +169,7 @@ export default function MarketingHome() {
           Create apps and websites by chatting with AI
         </p>
 
-        <div className="anim-fade-up anim-delay-4 mt-40 w-full max-w-[800px]">
+        <div className="relative z-30 anim-fade-up anim-delay-4 mt-40 w-full max-w-[800px]">
           <BuildPrompt />
         </div>
       </main>

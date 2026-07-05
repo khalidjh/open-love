@@ -219,7 +219,10 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
               Ready to build, {firstName}?
             </h1>
 
-            <div className="anim-fade-up anim-delay-2 mt-32">
+            {/* relative z-30: the anim-fade-up transform makes this wrapper a
+                stacking context, so the z-index that lifts the open theme/attach
+                dropdown above the projects list must live here, not inside BuildPrompt. */}
+            <div className="relative z-30 anim-fade-up anim-delay-2 mt-32">
               <BuildPrompt placeholder={`Ask ${PRODUCT_NAME} to build a landing page...`} />
             </div>
           </div>

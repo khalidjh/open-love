@@ -90,7 +90,7 @@ const MORE_OPTIONS: Array<{ id: string; label: string; icon: React.ReactNode; av
     icon: <><rect x="4.5" y="6" width="11" height="9" rx="2" strokeWidth="1.5" /><path d="M10 3.5v2.5M7.5 10h.01M12.5 10h.01" strokeWidth="1.6" strokeLinecap="round" /></>,
   },
   {
-    id: 'payments', label: 'Payments',
+    id: 'payments', label: 'Payments', available: true,
     icon: <><rect x="3" y="5" width="14" height="10" rx="2" strokeWidth="1.5" /><path d="M3 8.5h14" strokeWidth="1.5" /></>,
   },
   {
@@ -189,6 +189,72 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Ready-made prompt dropped into the builder chat when the user clicks
+// "Add payment integration" in the Payments section of the More panel.
+const PADDLE_INTEGRATION_PROMPT = `Add Paddle payment integration so this app can accept payments.
+
+- Load Paddle.js (Paddle Billing v2) from https://cdn.paddle.com/paddle/v2/paddle.js.
+- Initialize Paddle with a client-side token — use a placeholder \`PADDLE_CLIENT_TOKEN\` (read from an env/config value if the framework supports it) that I can replace later.
+- Use Paddle's sandbox environment for now via \`Paddle.Environment.set('sandbox')\`.
+- Add a clear "Pay" / "Buy now" call-to-action that opens Paddle's overlay checkout (\`Paddle.Checkout.open\`) for a price id placeholder \`PADDLE_PRICE_ID\`.
+- Handle the checkout success and close events, and show the user a confirmation state after a successful payment.
+- Style the payment UI to match the existing design of the app.
+
+Keep it simple and production-ready. Don't add a backend unless it's strictly required.`;
+
+// The Payments section inside the "More" panel. Mirrors the "Accept payments"
+// card from the reference design: a single CTA that drops a ready-made Paddle
+// integration prompt into the builder chat so the AI wires payments into the app.
+function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="p-24">
+      <div className="mb-20">
+        <h2 className="text-[18px] font-semibold text-[#191622]">Payments</h2>
+        <p className="mt-4 text-[13px] text-[#8b8798]">Let your app accept payments and start earning.</p>
+      </div>
+
+      <div className="rounded-16 border border-[#ece8f4] bg-[#faf9fd] p-20">
+        <div className="mb-14 flex items-center gap-10">
+          <div className="flex h-32 w-32 items-center justify-center rounded-10 bg-[#6147D4]">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="white" aria-hidden>
+              <rect x="3" y="5" width="14" height="10" rx="2" strokeWidth="1.5" />
+              <path d="M3 8.5h14" strokeWidth="1.5" />
+            </svg>
+          </div>
+          <h3 className="text-[16px] font-semibold text-[#191622]">Accept payments</h3>
+        </div>
+        <p className="mb-18 text-[14px] leading-relaxed text-[#6b6577]">
+          Add payments to your app and start earning. Etlaq sets up a secure Paddle checkout,
+          handles the payment gateway, and takes care of the billing details for you.
+        </p>
+
+        <div className="mb-18 flex gap-12 rounded-12 border border-[#ece8f4] bg-white p-14">
+          <div className="mt-1 flex h-32 w-32 shrink-0 items-center justify-center rounded-8 bg-[#f0ecfb]">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#6147D4" aria-hidden>
+              <rect x="3" y="5" width="14" height="10" rx="2" strokeWidth="1.5" />
+              <path d="M3 8.5h14" strokeWidth="1.5" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-[#191622]">Paddle checkout</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#8b8798]">
+              Seamlessly set up and manage payments in your app. We'll add a secure Paddle overlay
+              checkout so your customers can pay without ever leaving your app.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onAdd}
+          className="w-full rounded-10 bg-[#6147D4] px-16 py-12 text-[14px] font-semibold text-white transition-colors hover:bg-[#5238c4]"
+        >
+          Add payment integration
+        </button>
+      </div>
     </div>
   );
 }
@@ -2793,6 +2859,13 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           <div className="flex-1 overflow-y-auto">
             {moreSection === 'analytics' ? (
               <AnalyticsPanel analytics={analytics} loading={analyticsLoading} />
+            ) : moreSection === 'payments' ? (
+              <PaymentsPanel
+                onAdd={() => {
+                  setActiveTab('generation');
+                  sendChatMessage(PADDLE_INTEGRATION_PROMPT);
+                }}
+              />
             ) : (
               <div className="flex h-full flex-col items-center justify-center px-24 text-center">
                 <div className="mb-14 flex h-52 w-52 items-center justify-center rounded-full bg-[#f3f0fa]">

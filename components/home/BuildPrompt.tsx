@@ -256,7 +256,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         setIsDragging(false);
         handleAttachFiles(e.dataTransfer.files);
       }}
-      className={`relative rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_8px_40px_rgba(97,71,212,0.06)] backdrop-blur-xl transition-all duration-300 focus-within:border-[#c3b8ee] focus-within:shadow-[0_12px_50px_rgba(97,71,212,0.14)] ${isDragging ? "border-dashed border-[#6147D4] bg-[#f5f2fe]" : ""} ${themeMenuOpen || attachMenuOpen ? "z-50" : ""}`}
+      className={`relative rounded-28 border border-white/70 bg-white/90 p-24 text-left shadow-[0_8px_40px_rgba(97,71,212,0.06)] backdrop-blur-xl transition-all duration-300 focus-within:border-[#c3b8ee] focus-within:shadow-[0_12px_50px_rgba(97,71,212,0.14)] ${isDragging ? "border-dashed border-[#6147D4] bg-[#f5f2fe]" : ""}`}
     >
       {isDragging && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-28 bg-[#f5f2fe]/85 backdrop-blur-[2px] animate-in fade-in duration-150">
