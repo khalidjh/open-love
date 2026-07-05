@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from './index';
 import {
-  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth, tenantAi,
+  orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth, tenantAi, appVisits,
   type NewProject,
 } from './schema';
 
@@ -233,4 +233,94 @@ export async function upsertProjectAi(
 
 export async function deleteProjectAi(projectId: string) {
   await db.delete(tenantAi).where(eq(tenantAi.projectId, projectId));
+}
+
+// -----------------------------------------------------------------------------
+// Deployed-app visitor analytics
+// -----------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Record a single visit from a deployed app. Called from the PUBLIC beacon
+// collector, so the input is untrusted: a bad/spam projectId that fails the FK
+// must never throw. We only attempt an insert for a well-formed uuid and swallow
+// any error (missing project, closed pool, etc.).
+export async function recordAppVisit(data: {
+  projectId: string;
+  visitorId?: string | null;
+  path?: string | null;
+  referrer?: string | null;
+}): Promise<void> {
+  if (!data.projectId || !UUID_RE.test(data.projectId)) return;
+  try {
+    await db.insert(appVisits).values({
+      projectId: data.projectId,
+      visitorId: data.visitorId ?? null,
+      path: data.path ?? null,
+      referrer: data.referrer ?? null,
+    });
+  } catch (e) {
+    console.error('[analytics] recordAppVisit failed:', e);
+  }
+}
+
+// Aggregate the last 14 days of visits for a project. Returns zeros/empties on
+// any error so the dashboard endpoint can stay frontend-friendly.
+export async function getAppAnalytics(projectId: string): Promise<{
+  totals: { views: number; visitors: number };
+  daily: Array<{ day: string; views: number; visitors: number }>;
+  topPaths: Array<{ path: string; views: number }>;
+}> {
+  const empty = { totals: { views: 0, visitors: 0 }, daily: [], topPaths: [] };
+  if (!projectId || !UUID_RE.test(projectId)) return empty;
+  try {
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    const [totalsRows, dailyRows, pathRows] = await Promise.all([
+      db.select({
+        views: sql<number>`count(*)::int`,
+        visitors: sql<number>`count(distinct ${appVisits.visitorId})::int`,
+      })
+        .from(appVisits)
+        .where(and(eq(appVisits.projectId, projectId), sql`${appVisits.createdAt} >= ${since}`)),
+
+      db.select({
+        day: sql<string>`to_char(date_trunc('day', ${appVisits.createdAt}), 'YYYY-MM-DD')`,
+        views: sql<number>`count(*)::int`,
+        visitors: sql<number>`count(distinct ${appVisits.visitorId})::int`,
+      })
+        .from(appVisits)
+        .where(and(eq(appVisits.projectId, projectId), sql`${appVisits.createdAt} >= ${since}`))
+        .groupBy(sql`date_trunc('day', ${appVisits.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${appVisits.createdAt}) asc`),
+
+      db.select({
+        path: sql<string>`coalesce(${appVisits.path}, '')`,
+        views: sql<number>`count(*)::int`,
+      })
+        .from(appVisits)
+        .where(and(eq(appVisits.projectId, projectId), sql`${appVisits.createdAt} >= ${since}`))
+        .groupBy(appVisits.path)
+        .orderBy(sql`count(*) desc`)
+        .limit(6),
+    ]);
+
+    const totals = {
+      views: Number(totalsRows[0]?.views ?? 0),
+      visitors: Number(totalsRows[0]?.visitors ?? 0),
+    };
+    const daily = dailyRows.map((r) => ({
+      day: String(r.day),
+      views: Number(r.views ?? 0),
+      visitors: Number(r.visitors ?? 0),
+    }));
+    const topPaths = pathRows.map((r) => ({
+      path: String(r.path ?? ''),
+      views: Number(r.views ?? 0),
+    }));
+    return { totals, daily, topPaths };
+  } catch (e) {
+    console.error('[analytics] getAppAnalytics failed:', e);
+    return empty;
+  }
 }

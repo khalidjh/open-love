@@ -132,8 +132,25 @@ export const tenantAi = pgTable('tenant_ai', {
   tokenHashIdx: index('tenant_ai_token_hash_idx').on(t.tokenHash),
 }));
 
+// Visitor analytics for deployed (published) apps. Rows are written by a public
+// beacon collector that the deployed app calls cross-origin; there is no auth, so
+// treat every field as untrusted (the FK to projects guards against spam ids).
+export const appVisits = pgTable('app_visits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  visitorId: text('visitor_id'),  // random id from visitor localStorage; unique-visitor proxy
+  path: text('path'),
+  referrer: text('referrer'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  projectIdx: index('app_visits_project_idx').on(t.projectId),
+  projectCreatedIdx: index('app_visits_project_created_idx').on(t.projectId, t.createdAt),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type TenantAi = typeof tenantAi.$inferSelect;
+export type AppVisit = typeof appVisits.$inferSelect;
+export type NewAppVisit = typeof appVisits.$inferInsert;

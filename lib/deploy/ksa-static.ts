@@ -17,6 +17,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { APPS_DOMAIN, APPS_DIR, CADDY_APPS_DIR, RUNTIME_IMAGE, resolveSlug, waitForTls } from './ksa-shared';
 import { ensureImage, runToCompletion } from './docker';
+import { injectAnalyticsBeacon } from '@/lib/analytics/beacon';
 
 const EXTRACT_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -55,6 +56,23 @@ export async function runKsaStaticDeploy(
   const check = await provider.runShell('test -d dist && echo __ok__');
   if (!/__ok__/.test(check.stdout)) {
     throw new Error('Build succeeded but produced no dist/ directory. Is this a Vite app?');
+  }
+
+  // Inject the visitor-analytics beacon into the BUILT index.html only. We touch
+  // dist/ (never src/), so the live site is counted but the sandbox preview —
+  // which serves src/ via Vite dev — stays out of the numbers.
+  const collectBase = process.env.ETLAQ_PUBLIC_URL;
+  if (collectBase && opts.projectId) {
+    try {
+      const read = await provider.runShell('cat dist/index.html');
+      const html: string = read?.stdout || '';
+      if (html) {
+        const injected = injectAnalyticsBeacon({ 'index.html': html }, opts.projectId, collectBase)['index.html'];
+        if (injected !== html) await provider.writeFile('dist/index.html', injected);
+      }
+    } catch (e) {
+      console.error('[ksa-static] analytics beacon injection failed (non-fatal):', e);
+    }
   }
 
   // 2. Archive dist/ and read it out as base64 — a tarball round-trips binary

@@ -65,6 +65,134 @@ interface ScrapeData {
   error?: string;
 }
 
+// Deployed-app visitor analytics (matches GET /api/projects/[id]/analytics).
+interface AppAnalytics {
+  published: boolean;
+  url: string | null;
+  totals: { views: number; visitors: number };
+  daily: Array<{ day: string; views: number; visitors: number }>;
+  topPaths: Array<{ path: string; views: number }>;
+}
+
+// The "More" panel's capability list. Only `analytics` is wired up today; the rest
+// are placeholders so the shape of the product is visible.
+const MORE_OPTIONS: Array<{ id: string; label: string; icon: React.ReactNode; available?: boolean }> = [
+  {
+    id: 'analytics', label: 'Analytics', available: true,
+    icon: <path d="M3 3v14h14M7 13l3-4 3 3 4-6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />,
+  },
+  {
+    id: 'cloud', label: 'Cloud',
+    icon: <path d="M6.5 15a3.5 3.5 0 01-.3-6.98A4.5 4.5 0 0114.9 8.6 3.2 3.2 0 0114.5 15h-8z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />,
+  },
+  {
+    id: 'agents', label: 'Agent integrations',
+    icon: <><rect x="4.5" y="6" width="11" height="9" rx="2" strokeWidth="1.5" /><path d="M10 3.5v2.5M7.5 10h.01M12.5 10h.01" strokeWidth="1.6" strokeLinecap="round" /></>,
+  },
+  {
+    id: 'payments', label: 'Payments',
+    icon: <><rect x="3" y="5" width="14" height="10" rx="2" strokeWidth="1.5" /><path d="M3 8.5h14" strokeWidth="1.5" /></>,
+  },
+  {
+    id: 'connectors', label: 'Connectors',
+    icon: <path d="M7 13l6-6M8.5 5.5l1-1a3 3 0 014 4l-1 1M11.5 14.5l-1 1a3 3 0 01-4-4l1-1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />,
+  },
+  {
+    id: 'security', label: 'Security',
+    icon: <path d="M10 3l6 2.5v4c0 4-2.6 6.4-6 7.5-3.4-1.1-6-3.5-6-7.5v-4L10 3z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />,
+  },
+  {
+    id: 'seo', label: 'SEO & AI search',
+    icon: <><circle cx="9" cy="9" r="5" strokeWidth="1.5" /><path d="M13 13l3.5 3.5" strokeWidth="1.6" strokeLinecap="round" /></>,
+  },
+];
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-14 border border-[#ece8f4] bg-[#faf9fd] p-16">
+      <p className="text-[12px] font-medium text-[#8b8798]">{label}</p>
+      <p className="mt-4 text-[26px] font-semibold text-[#191622]">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+// The Analytics section inside the "More" panel. Shows a publish-first empty state
+// until the project is deployed, then simple visitor counts for the live app.
+function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null; loading: boolean }) {
+  if (loading && !analytics) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-24 w-24 animate-spin rounded-full border-2 border-[#6147D4] border-t-transparent" />
+      </div>
+    );
+  }
+  if (!analytics || !analytics.published) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-24 text-center">
+        <svg width="30" height="30" viewBox="0 0 20 20" fill="none" stroke="#b7b2c4" aria-hidden className="mb-14">
+          <path d="M3 3v14h14M7 13l3-4 3 3 4-6" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <p className="text-[15px] text-[#6b6577]">To view analytics, you first need to publish your project.</p>
+      </div>
+    );
+  }
+  const { totals, daily, topPaths, url } = analytics;
+  const maxDaily = Math.max(1, ...daily.map((d) => d.views));
+  return (
+    <div className="p-24">
+      <div className="mb-20">
+        <h2 className="text-[18px] font-semibold text-[#191622]">Visitors</h2>
+        {url && (
+          <a href={url} target="_blank" rel="noreferrer" className="text-[13px] text-[#6147D4] hover:underline">
+            {url.replace(/^https?:\/\//, '')}
+          </a>
+        )}
+      </div>
+
+      <div className="mb-24 grid grid-cols-2 gap-12">
+        <StatCard label="Total views" value={totals.views} />
+        <StatCard label="Unique visitors" value={totals.visitors} />
+      </div>
+
+      <div className="mb-24 rounded-14 border border-[#ece8f4] p-16">
+        <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#8b8798]">Last 14 days</p>
+        {daily.length === 0 ? (
+          <p className="text-[13px] text-[#a29db0]">No visits yet — share your live link to start seeing traffic.</p>
+        ) : (
+          <div className="flex h-[120px] items-end gap-4">
+            {daily.map((d) => (
+              <div
+                key={d.day}
+                className="group flex flex-1 flex-col items-center justify-end"
+                title={`${d.day}: ${d.views} views`}
+              >
+                <div
+                  className="w-full rounded-t-4 bg-[#c9bdf3] transition-colors group-hover:bg-[#6147D4]"
+                  style={{ height: `${Math.max(2, (d.views / maxDaily) * 100)}%` }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {topPaths.length > 0 && (
+        <div className="rounded-14 border border-[#ece8f4] p-16">
+          <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#8b8798]">Top pages</p>
+          <div className="flex flex-col gap-8">
+            {topPaths.map((p) => (
+              <div key={p.path} className="flex items-center justify-between text-[13px]">
+                <span className="truncate text-[#4b4560]">{p.path || '/'}</span>
+                <span className="font-semibold text-[#191622]">{p.views.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Turn the user's first prompt into a concise, human-friendly project name.
 function deriveProjectName(prompt?: string | null): string {
   if (!prompt) return 'Untitled app';
@@ -156,7 +284,13 @@ function AISandboxPage() {
   const [homeContextInput, setHomeContextInput] = useState('');
   // Free-text "build from description" prompt handed off from the home page
   const [autoBuildPrompt, setAutoBuildPrompt] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'generation' | 'preview'>('preview');
+  const [activeTab, setActiveTab] = useState<'generation' | 'preview' | 'more'>('preview');
+  // "More" panel: which capability is selected in the left list (analytics is the
+  // only one wired up so far; the rest are placeholders).
+  const [moreSection, setMoreSection] = useState<string>('analytics');
+  // Deployed-app visitor analytics, fetched when the Analytics section is opened.
+  const [analytics, setAnalytics] = useState<AppAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   // Builder chrome (Etlaq-style): fullscreen chat vs split view, and the project title.
   // Restoring a saved project/sandbox opens straight into split view, so seed it
   // synchronously to avoid a flash of full-width chat before the mount effect runs.
@@ -522,6 +656,38 @@ function AISandboxPage() {
   useEffect(() => {
     chatMessagesDataRef.current = chatMessages;
   }, [chatMessages]);
+
+  // Load deployed-app visitor analytics whenever the Analytics section is opened.
+  useEffect(() => {
+    if (activeTab !== 'more' || moreSection !== 'analytics') return;
+    const pid = currentProjectIdRef.current;
+    if (!pid) {
+      setAnalytics({ published: false, url: null, totals: { views: 0, visitors: 0 }, daily: [], topPaths: [] });
+      return;
+    }
+    let cancelled = false;
+    setAnalyticsLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${pid}/analytics`);
+        const data = await res.json();
+        if (!cancelled) {
+          setAnalytics({
+            published: !!data.published,
+            url: data.url ?? null,
+            totals: data.totals ?? { views: 0, visitors: 0 },
+            daily: Array.isArray(data.daily) ? data.daily : [],
+            topPaths: Array.isArray(data.topPaths) ? data.topPaths : [],
+          });
+        }
+      } catch {
+        if (!cancelled) setAnalytics({ published: false, url: null, totals: { views: 0, visitors: 0 }, daily: [], topPaths: [] });
+      } finally {
+        if (!cancelled) setAnalyticsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, moreSection]);
 
   // After each successful build/edit, fetch context-aware follow-up suggestions
   // tailored to what this specific app now contains (falls back gracefully).
@@ -2585,6 +2751,64 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           </div>
         </div>
       );
+    } else if (activeTab === 'more') {
+      const active = MORE_OPTIONS.find((o) => o.id === moreSection) || MORE_OPTIONS[0];
+      return (
+        <div className="absolute inset-0 flex overflow-hidden bg-white">
+          {/* Capability list */}
+          <div className="w-[264px] shrink-0 overflow-y-auto border-r border-[#ece8f4] bg-[#faf9fd] p-12">
+            {MORE_OPTIONS.map((opt) => {
+              const isActive = opt.id === moreSection;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => opt.available && setMoreSection(opt.id)}
+                  disabled={!opt.available}
+                  className={`mb-2 flex w-full items-center gap-10 rounded-10 px-12 py-10 text-left text-[14px] font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#f0ecfb] text-[#191622]'
+                      : opt.available
+                      ? 'text-[#4b4560] hover:bg-[#f3f0fa]'
+                      : 'cursor-default text-[#b7b2c4]'
+                  }`}
+                >
+                  <svg
+                    width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden
+                    className={isActive ? 'text-[#6147D4]' : opt.available ? 'text-[#8b8798]' : 'text-[#c9c4d6]'}
+                  >
+                    {opt.icon}
+                  </svg>
+                  <span className="flex-1">{opt.label}</span>
+                  {!opt.available && (
+                    <span className="rounded-4 bg-[#eee9f5] px-6 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#8b8798]">
+                      Soon
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            {moreSection === 'analytics' ? (
+              <AnalyticsPanel analytics={analytics} loading={analyticsLoading} />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center px-24 text-center">
+                <div className="mb-14 flex h-52 w-52 items-center justify-center rounded-full bg-[#f3f0fa]">
+                  <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="#6147D4" aria-hidden>
+                    {active.icon}
+                  </svg>
+                </div>
+                <p className="text-[17px] font-semibold text-[#191622]">{active.label}</p>
+                <p className="mt-6 max-w-[320px] text-[14px] text-[#8b8798]">
+                  This is coming soon — we're building it as part of Etlaq.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
     }
     return null;
   };
@@ -4579,6 +4803,29 @@ Focus on the key sections and content, making it clean and modern.`;
                     <path d="M7 6L3 10l4 4M13 6l4 4-4 4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Code
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('more')}
+                className={`relative flex items-center gap-6 rounded-10 px-12 py-7 text-[13px] font-medium transition-colors ${
+                  activeTab === 'more'
+                    ? 'text-[#6147D4]'
+                    : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
+                }`}
+              >
+                {activeTab === 'more' && (
+                  <motion.span
+                    layoutId="panelTabPill"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 z-0 rounded-10 bg-[#f0ecfb]"
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-6">
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
+                    <path d="M10 2.5l6.5 3.2-6.5 3.2-6.5-3.2L10 2.5z" strokeWidth="1.4" strokeLinejoin="round" />
+                    <path d="M3.5 10L10 13.2 16.5 10M3.5 13.7L10 16.9l6.5-3.2" strokeWidth="1.4" strokeLinejoin="round" />
+                  </svg>
+                  More
                 </span>
               </button>
             </div>
