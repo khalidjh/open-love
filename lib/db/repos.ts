@@ -69,6 +69,17 @@ export async function updateProject(orgId: string, projectId: string, patch: Par
   return updated;
 }
 
+// Hard-delete a project (only if the org owns it). FK cascades take out its
+// versions, messages, tenant_* rows and app_visits. Returns the deleted row, or
+// undefined if nothing matched. Callers should tear down any live deployment
+// first (see runKsaTeardown) — the DB has no knowledge of the VM's containers.
+export async function deleteProject(orgId: string, projectId: string) {
+  const [deleted] = await db.delete(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.orgId, orgId)))
+    .returning();
+  return deleted;
+}
+
 // -----------------------------------------------------------------------------
 // Versions (code snapshots) & chat
 // -----------------------------------------------------------------------------

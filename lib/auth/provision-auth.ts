@@ -5,6 +5,7 @@ import {
   createOrg,
   createProject,
   createOidcApp,
+  deleteOrg,
   isZitadelConfigured,
   zitadelIssuer,
 } from './zitadel';
@@ -75,4 +76,14 @@ export async function provisionProjectAuth(projectId: string): Promise<Provision
   });
 
   return { orgId, clientId, issuer: zitadelIssuer() };
+}
+
+// Tear down a project's isolated auth: delete its Zitadel org, which cascades to
+// the org's project, OIDC app and any users. Idempotent no-op when Zitadel isn't
+// configured or the project never provisioned auth. Mirrors deprovisionProjectSchema.
+export async function deprovisionProjectAuth(projectId: string): Promise<void> {
+  if (!isZitadelConfigured()) return;
+  const existing = await getProjectAuth(projectId);
+  if (!existing?.orgId) return;
+  await deleteOrg(existing.orgId);
 }

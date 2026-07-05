@@ -65,6 +65,13 @@ export async function createOrg(name: string): Promise<{ orgId: string }> {
   return { orgId: body.id };
 }
 
+/** Delete an isolated organization (the project's tenant), which also removes its
+ *  projects, OIDC apps and users. `orgId` selects the target org via the
+ *  x-zitadel-orgid header (`orgs/me` acts on the org in request context). */
+export async function deleteOrg(orgId: string): Promise<void> {
+  await zfetch('/management/v1/orgs/me', { method: 'DELETE', orgId });
+}
+
 /** Create a project container inside the org. */
 export async function createProject(orgId: string, name: string): Promise<{ projectId: string }> {
   const body = await zfetch('/management/v1/projects', {

@@ -242,36 +242,56 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             ) : (
               <div className="grid grid-cols-1 gap-16 sm:grid-cols-2 lg:grid-cols-3">
                 {projects.map((p, index) => (
-                  <Link
+                  <div
                     key={p.id}
-                    href={`/generation?project=${p.id}`}
                     style={{ animationDelay: `${Math.min(index * 45, 400)}ms` }}
-                    className="group anim-fade-up hover-lift flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_12px_40px_rgba(97,71,212,0.12)]"
+                    className="group anim-fade-up hover-lift relative flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_12px_40px_rgba(97,71,212,0.12)]"
                   >
-                    <div className="flex items-start justify-between gap-8">
-                      <h3 className="truncate text-[15px] font-medium text-[#191622]">
-                        {p.name}
-                      </h3>
-                      {p.deployUrl && (
-                        <span className="shrink-0 rounded-6 bg-[#e7f7ee] px-8 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#1a7f4b]">
-                          live
-                        </span>
+                    {/* Full-card link to the editor; interactive controls sit above it. */}
+                    <Link
+                      href={`/generation?project=${p.id}`}
+                      aria-label={`Open ${p.name}`}
+                      className="absolute inset-0 z-0 rounded-16"
+                    />
+                    <div className="pointer-events-none relative z-10 flex flex-1 flex-col">
+                      <div className="flex items-start justify-between gap-8">
+                        <h3 className="truncate text-[15px] font-medium text-[#191622]">
+                          {p.name}
+                        </h3>
+                        <div className="flex shrink-0 items-center gap-6">
+                          {p.deployUrl && (
+                            <span className="rounded-6 bg-[#e7f7ee] px-8 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#1a7f4b]">
+                              live
+                            </span>
+                          )}
+                          <Link
+                            href={`/dashboard/projects/${p.id}`}
+                            aria-label={`Manage ${p.name}`}
+                            title="Manage"
+                            className="pointer-events-auto grid h-24 w-24 place-items-center rounded-8 text-[#a29db0] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <circle cx="12" cy="12" r="3" />
+                              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg>
+                          </Link>
+                        </div>
+                      </div>
+                      {p.sourceUrl && (
+                        <p className="mt-4 truncate text-[13px] text-[#a29db0]">{p.sourceUrl}</p>
                       )}
-                    </div>
-                    {p.sourceUrl && (
-                      <p className="mt-4 truncate text-[13px] text-[#a29db0]">{p.sourceUrl}</p>
-                    )}
-                    <div className="mt-20 flex items-center justify-between text-[12px] text-[#a29db0]">
-                      <span className="truncate">{p.model || "app"}</span>
-                      <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
-                    </div>
-                    <span className="mt-12 flex items-center gap-4 self-end text-[13px] font-medium text-[#6147D4] opacity-0 translate-x-[-4px] transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
-                      Open
-                      <span aria-hidden className="transition-transform group-hover:translate-x-1">
-                        &rarr;
+                      <div className="mt-20 flex items-center justify-between text-[12px] text-[#a29db0]">
+                        <span className="truncate">{p.model || "app"}</span>
+                        <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
+                      </div>
+                      <span className="mt-12 flex items-center gap-4 self-end text-[13px] font-medium text-[#6147D4] opacity-0 translate-x-[-4px] transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
+                        Open
+                        <span aria-hidden className="transition-transform group-hover:translate-x-1">
+                          &rarr;
+                        </span>
                       </span>
-                    </span>
-                  </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
