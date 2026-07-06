@@ -1,7 +1,7 @@
 import { getSession } from './session-store';
 import { getProjectDatabase, getProjectAuth, getProjectAi } from '@/lib/db/repos';
 import { decrypt } from '@/lib/crypto';
-import { etlaqAiProxyUrl } from '@/lib/ai/provision-ai';
+import { etlaqAiProxyUrl, etlaqTranscribeUrl } from '@/lib/ai/provision-ai';
 import { getTemplate, type Framework } from '@/lib/templates';
 
 // Compose the COMPLETE .env for a project's live sandbox from every provisioned
@@ -43,6 +43,8 @@ export async function writeSandboxEnv(projectId: string, framework: Framework): 
       const token = decrypt(aiRec.encryptedCredentials);
       lines.push(`${t.aiProxyUrl}=${etlaqAiProxyUrl()}`);
       lines.push(`${t.aiProxyKey}=${token}`);
+      // Speech-to-text shares the AI token; expose its endpoint for voice apps.
+      lines.push(`${t.transcribeUrl}=${etlaqTranscribeUrl()}`);
     } catch { /* ignore malformed token */ }
   }
 

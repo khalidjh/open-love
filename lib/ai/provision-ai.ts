@@ -82,9 +82,29 @@ export function hashToken(token: string): string {
 // public URL in any non-local environment. Single source for both the sandbox
 // injector and the deploy env builder.
 export function etlaqAiProxyUrl(): string {
+  return `${etlaqPublicBase()}/api/ai/proxy`;
+}
+
+// Public URL of the Etlaq speech-to-text endpoint. A generated voice app posts its
+// recorded audio here (through its own server route, using the same per-project AI
+// token) and gets back transcribed text. Same reachability requirements as the proxy.
+export function etlaqTranscribeUrl(): string {
+  return `${etlaqPublicBase()}/api/ai/transcribe`;
+}
+
+function etlaqPublicBase(): string {
   const base =
     process.env.ETLAQ_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return `${base.replace(/\/$/, '')}/api/ai/proxy`;
+  return base.replace(/\/$/, '');
+}
+
+// Speech-to-text is available when a Whisper-capable provider key is real. We use
+// Groq's whisper-large-v3 first (fast + cheap), falling back to OpenAI whisper-1.
+// Returns the provider to use, or null when neither key is configured.
+export function transcribeProvider(): 'groq' | 'openai' | null {
+  if (realKey(process.env.GROQ_API_KEY)) return 'groq';
+  if (realKey(process.env.OPENAI_API_KEY)) return 'openai';
+  return null;
 }
 
 // Mint a fresh per-project token. Idempotency (reuse an already-issued token) is

@@ -1205,6 +1205,34 @@ WHEN YOU USE AI:
 - The client component posts { messages: [{ role, content }] } to its OWN '/api/chat'
   and reads the streamed text from the response body. Do NOT call the proxy from the
   browser — always go through app/api/chat so the token stays on the server.
+
+WHEN THE APP TRANSCRIBES VOICE / AUDIO (speech-to-text):
+- Use the BUILT-IN transcription — never call Whisper/OpenAI directly and never hardcode a key.
+- Create a server Route Handler at app/api/transcribe/route.js that forwards the uploaded
+  audio to the platform endpoint (auto-provided; server-only, same token as chat):
+    ${template.env.read(template.env.transcribeUrl)}   // transcription endpoint
+    ${template.env.read(template.env.aiProxyKey)}      // per-project bearer token
+  Canonical handler (forward the multipart audio, return { text }):
+    // app/api/transcribe/route.js
+    export async function POST(req) {
+      const form = await req.formData();
+      const audio = form.get('file') || form.get('audio');
+      const upstream = new FormData();
+      upstream.append('file', audio, 'audio.webm');
+      const res = await fetch(${template.env.read(template.env.transcribeUrl)}, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + ${template.env.read(template.env.aiProxyKey)} },
+        body: upstream,
+      });
+      const data = await res.json();
+      return Response.json(data); // { text: "..." }
+    }
+- The client records with the MediaRecorder API (navigator.mediaDevices.getUserMedia({ audio: true })),
+  collects the chunks into a Blob, and POSTs it as multipart FormData (field name "file") to its
+  OWN '/api/transcribe'. Read \`data.text\` from the JSON response. Do NOT call the transcription
+  endpoint from the browser directly — always go through app/api/transcribe so the token stays on the server.
+- Always handle the error case: if the response is not ok or text is empty, show the user a friendly
+  "Couldn't transcribe that — try again" message rather than failing silently.
 `;
         }
 

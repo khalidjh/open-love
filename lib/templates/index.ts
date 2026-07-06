@@ -37,6 +37,8 @@ export interface Template {
     // only read inside a server route). Same names on both frameworks.
     aiProxyUrl: string;
     aiProxyKey: string;
+    // Server-only speech-to-text endpoint (authed with aiProxyKey). Same name on both.
+    transcribeUrl: string;
     // How the generated app reads a public var, e.g. `import.meta.env.X` — used
     // only to phrase the prompt.
     read: (name: string) => string;
@@ -76,6 +78,7 @@ const VITE: Template = {
     authClientId: 'VITE_AUTH_CLIENT_ID',
     aiProxyUrl: 'ETLAQ_AI_URL',
     aiProxyKey: 'ETLAQ_AI_KEY',
+    transcribeUrl: 'ETLAQ_TRANSCRIBE_URL',
     read: (name) => `import.meta.env.${name}`,
   },
   configFiles: ['tailwind.config.js', 'vite.config.js', 'package.json', 'package-lock.json', 'tsconfig.json', 'postcss.config.js'],
@@ -99,6 +102,7 @@ const NEXTJS: Template = {
     authClientId: 'NEXT_PUBLIC_AUTH_CLIENT_ID',
     aiProxyUrl: 'ETLAQ_AI_URL',
     aiProxyKey: 'ETLAQ_AI_KEY',
+    transcribeUrl: 'ETLAQ_TRANSCRIBE_URL',
     read: (name) => `process.env.${name}`,
   },
   configFiles: ['tailwind.config.js', 'next.config.mjs', 'package.json', 'package-lock.json', 'jsconfig.json', 'postcss.config.js'],
@@ -258,6 +262,9 @@ const BACKEND_SIGNALS = [
   'upload', 'comment', 'comments', 'post', 'posts', 'message', 'chat', 'notification',
   'email', 'newsletter', 'contact form', 'submit', 'form submission',
   'todo app', 'blog', 'cms', 'inventory', 'appointment', 'multi-user', 'realtime', 'real-time',
+  // Voice / audio apps need a server route to transcribe (Whisper key stays server-side).
+  'voice', 'voice note', 'voice notes', 'audio', 'record', 'recording', 'transcribe',
+  'transcription', 'speech', 'speech-to-text', 'dictation', 'podcast',
 ];
 
 export function detectFramework(prompt: string | null | undefined): Framework {

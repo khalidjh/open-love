@@ -4,7 +4,7 @@
 
 import { getProjectDatabase, getProjectAuth, getProjectAi } from '@/lib/db/repos';
 import { decrypt } from '@/lib/crypto';
-import { etlaqAiProxyUrl } from '@/lib/ai/provision-ai';
+import { etlaqAiProxyUrl, etlaqTranscribeUrl } from '@/lib/ai/provision-ai';
 
 export async function buildEnv(projectId: string) {
   const publicEnv: Record<string, string> = {};
@@ -31,6 +31,8 @@ export async function buildEnv(projectId: string) {
     try {
       secretEnv.ETLAQ_AI_KEY = decrypt(aiRec.encryptedCredentials);
       secretEnv.ETLAQ_AI_URL = etlaqAiProxyUrl();
+      // Speech-to-text shares the AI token; expose its endpoint for voice apps.
+      secretEnv.ETLAQ_TRANSCRIBE_URL = etlaqTranscribeUrl();
     } catch { /* ignore malformed token */ }
   }
 

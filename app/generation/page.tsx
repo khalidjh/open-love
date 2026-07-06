@@ -1840,18 +1840,24 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (dbInfo) return dbInfo;
     const projectId = await ensureProjectId();
     if (!projectId) return null;
-    addChatMessage('Setting up storage so your app can save data…', 'system');
+    // Transient status bubble: shown while provisioning, then removed once done so
+    // it never strands on screen (build-complete is signaled separately).
+    const MSG = 'Setting up storage so your app can save data…';
+    addChatMessage(MSG, 'system');
+    const clearMsg = () => setChatMessages(prev => prev.filter(m => m.content !== MSG));
     try {
       const res = await fetch(`/api/projects/${projectId}/database`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.database?.status === 'ready') {
         const info: DbInfo = { schema: data.database.schema, url: data.database.url, anonKey: data.database.anonKey };
         setDbInfo(info);
+        clearMsg();
         return info;
       }
       throw new Error(data.error || 'setup failed');
     } catch (e: any) {
       console.error('[ensureDatabase] failed:', e);
+      clearMsg();
       return null;
     }
   };
@@ -1869,23 +1875,29 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (aiEnabledRef.current) return true;
     const projectId = await ensureProjectId();
     if (!projectId) return false;
-    addChatMessage('Enabling AI for your app…', 'system');
+    const MSG = 'Enabling AI for your app…';
+    addChatMessage(MSG, 'system');
+    const clearMsg = () => setChatMessages(prev => prev.filter(m => m.content !== MSG));
     try {
       const res = await fetch(`/api/projects/${projectId}/ai`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.ai?.status === 'ready') {
         aiEnabledRef.current = true;
+        clearMsg();
         return true;
       }
       throw new Error(data.error || 'AI setup failed');
     } catch (e: any) {
       console.error('[ensureAi] failed:', e);
+      clearMsg();
       return false;
     }
   };
 
-  // Did the generated app wire up the built-in AI? (references the injected env vars)
-  const responseNeedsAi = (generated: string): boolean => /ETLAQ_AI_(URL|KEY)/.test(generated);
+  // Did the generated app wire up the built-in AI? (references the injected env vars —
+  // the chat proxy or the voice-transcription endpoint, both authed by the AI token)
+  const responseNeedsAi = (generated: string): boolean =>
+    /ETLAQ_AI_(URL|KEY)|ETLAQ_TRANSCRIBE_URL/.test(generated);
 
   // Silently ensure this project has isolated per-app auth provisioned. Called
   // automatically when a generated app wires up sign-up/login via the injected
@@ -1896,17 +1908,21 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (authEnabledRef.current) return true;
     const projectId = await ensureProjectId();
     if (!projectId) return false;
-    addChatMessage('Setting up private sign-in for your app…', 'system');
+    const MSG = 'Setting up private sign-in for your app…';
+    addChatMessage(MSG, 'system');
+    const clearMsg = () => setChatMessages(prev => prev.filter(m => m.content !== MSG));
     try {
       const res = await fetch(`/api/projects/${projectId}/auth`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.auth?.status === 'ready') {
         authEnabledRef.current = true;
+        clearMsg();
         return true;
       }
       throw new Error(data.error || 'Auth setup failed');
     } catch (e: any) {
       console.error('[ensureAuth] failed:', e);
+      clearMsg();
       return false;
     }
   };
@@ -3444,6 +3460,16 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         }
       }
       
+      // Tell the user in the chat that the build finished. Completion is otherwise
+      // only signaled by auto-switching to the Preview tab — easy to miss on mobile,
+      // where the user stays on the chat and the build looks stuck.
+      addChatMessage(
+        isEdit
+          ? 'Your changes are live — open the Preview tab to see them.'
+          : 'Your app is ready! Open the Preview tab to try it.',
+        'system'
+      );
+
       // Show completion status briefly then switch to preview
       setGenerationProgress(prev => ({
         ...prev,
