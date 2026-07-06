@@ -1233,6 +1233,11 @@ WHEN THE APP TRANSCRIBES VOICE / AUDIO (speech-to-text):
   endpoint from the browser directly — always go through app/api/transcribe so the token stays on the server.
 - Always handle the error case: if the response is not ok or text is empty, show the user a friendly
   "Couldn't transcribe that — try again" message rather than failing silently.
+- NEVER upload the recorded audio to Supabase Storage / a bucket (no supabase.storage.from(...).upload(),
+  no createBucket) — object storage is NOT provisioned for this app and any upload fails with
+  "Bucket not found". Keep the recording only in memory (a Blob) long enough to POST it to
+  /api/transcribe, then discard it. If the app needs to remember the note, persist the TRANSCRIBED
+  TEXT (data.text) in a database table — never the raw audio file.
 `;
         }
 
