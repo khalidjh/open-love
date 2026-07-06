@@ -275,6 +275,29 @@ function deriveProjectName(prompt?: string | null): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+// Does this text look like leaked structured-output markup or raw file/code content
+// that escaped the stream parser? Used to keep such fragments out of the chat.
+//
+// The generation stream carries <file path="...">…</file> blocks; when a tag splits
+// across network chunks the opening marker can be stripped, orphaning the file body
+// (e.g. `app/api/transcribe/route.js">\nexport async function POST…`) into the
+// conversation channel. The old guards only recognized React component files
+// (import React / export default / className=), so server/route files leaked through
+// as chat bubbles. This catches control tags, orphaned `path">` tag tails, and common
+// JS/JSX/route signals — anything the model puts in a real chat sentence won't match.
+function looksLikeLeakedCode(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  return (
+    /<\/?(?:file|explanation|packages?|command|structure|template|edit|tables)\b/.test(t) ||
+    /[\w./-]+">/.test(t) ||                                             // orphaned <file …"> tail
+    /\bimport\s+[\w{*'"]/.test(t) ||                                    // import statements
+    /\bexport\s+(?:default|const|function|async|class|let|var|\{)/.test(t) ||
+    /=>\s*[{(]/.test(t) ||                                              // arrow functions
+    /className=|NextResponse|Response\.json|req\.formData|new FormData\(/.test(t)
+  );
+}
+
 function AISandboxPage() {
   const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -3162,10 +3185,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                     ''
                   );
 
-                  // Filter out any XML tags and file content that slipped through
-                  if (!text.includes('<file') && !text.includes('import React') &&
-                      !text.includes('export default') && !text.includes('className=') &&
-                      text.trim().length > 0) {
+                  // Filter out any XML tags and file/code content that slipped through
+                  // (covers server/route files, not just React components).
+                  if (text.trim().length > 0 && !looksLikeLeakedCode(text)) {
                     addChatMessage(text.trim(), 'ai');
                   }
                 } else if (data.type === 'stream' && data.raw) {
@@ -4484,10 +4506,9 @@ Focus on the key sections and content, making it clean and modern.`;
                     ''
                   );
 
-                  // Filter out any XML tags and file content that slipped through
-                  if (!text.includes('<file') && !text.includes('import React') &&
-                      !text.includes('export default') && !text.includes('className=') &&
-                      text.trim().length > 0) {
+                  // Filter out any XML tags and file/code content that slipped through
+                  // (covers server/route files, not just React components).
+                  if (text.trim().length > 0 && !looksLikeLeakedCode(text)) {
                     addChatMessage(text.trim(), 'ai');
                   }
                 } else if (data.type === 'stream' && data.raw) {
@@ -5168,10 +5189,12 @@ Focus on the key sections and content, making it clean and modern.`;
             ref={chatMessagesRef}>
             {chatMessages.map((msg, idx) => {
               // Skip stray code fragments that leak from the generation stream
-              // (e.g. "; </file>" or a dangling JSX tag) — not meaningful to the user.
+              // (e.g. a dangling JSX tag, or a route/server file whose <file> tag was
+              // split across chunks) — not meaningful to the user. Last line of defense
+              // even if a fragment already made it into chatMessages.
               if (msg.type === 'ai') {
                 const t = msg.content.trim();
-                if (!t || t.startsWith('<') || t.includes('</file>')) return null;
+                if (!t || looksLikeLeakedCode(t)) return null;
               }
 
               // Check if this message is from a successful generation
