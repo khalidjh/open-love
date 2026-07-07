@@ -5614,7 +5614,9 @@ Focus on the key sections and content, making it clean and modern.`;
                 </svg>
                 {suggestionsLoading ? 'Tailoring suggestions…' : 'Suggested next steps'}
               </div>
-              <div className="flex flex-nowrap gap-8 overflow-x-auto scrollbar-hide md:flex-wrap">
+              {/* py-4 gives the chips room so their shadow, hover-lift and fade-up
+                  entrance aren't clipped by the overflow-x scroll container. */}
+              <div className="flex flex-nowrap gap-8 overflow-x-auto scrollbar-hide py-4 md:flex-wrap">
                 {followupSuggestions.map((s, i) => (
                   <button
                     key={s}
@@ -5629,6 +5631,24 @@ Focus on the key sections and content, making it clean and modern.`;
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Mobile-only sticky CTA: once a sandbox exists the app is previewable, so
+              always offer a prominent jump to the live preview (the top toggle is easy
+              to miss). Desktop has the tab bar, so hide it there. */}
+          {sandboxData && (
+            <div className="md:hidden shrink-0 px-16 pb-2">
+              <button
+                onClick={() => { setActiveTab('preview'); setMobileView('panel'); }}
+                className="flex w-full items-center justify-center gap-8 rounded-full bg-[#6147D4] px-16 py-12 text-[15px] font-semibold text-white shadow-[0_4px_14px_rgba(97,71,212,0.3)] transition-all active:scale-[0.98]"
+              >
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" />
+                  <circle cx="10" cy="10" r="2.5" />
+                </svg>
+                {generationProgress.isGenerating ? 'Watch it build' : 'Open preview'}
+              </button>
             </div>
           )}
 
