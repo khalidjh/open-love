@@ -51,6 +51,8 @@ export default function KidsPage() {
   const [publishUrl, setPublishUrl] = useState<string | undefined>();
   const [creations, setCreations] = useState<KidsCreation[]>([]);
   const [confetti, setConfetti] = useState(false);
+  // On small screens we show one panel at a time (toggle in the header).
+  const [mobileView, setMobileView] = useState<'preview' | 'chat'>('preview');
 
   const creationIdRef = useRef<string>('');
   const titleRef = useRef<string>('موقعي');
@@ -121,6 +123,7 @@ export default function KidsPage() {
       setPublishState('idle');
       setPhase('building');
       setStreaming(true);
+      setMobileView('preview'); // on phones, jump to the preview to watch it build
       pushMessage('kid', prompt);
       pushMessage('bot', kidsCheers[Math.floor(Math.random() * kidsCheers.length)]);
 
@@ -227,7 +230,7 @@ export default function KidsPage() {
       {phase === 'start' ? (
         <StartScreen creations={creations} onSend={(p) => startBuild(p)} onOpen={openCreation} />
       ) : (
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[1400px] flex-col p-5 sm:p-8 lg:h-[100dvh]">
+        <div className="mx-auto flex h-[100dvh] w-full max-w-[1400px] flex-col p-5 sm:p-8">
           {/* header */}
           <header className="mb-6 flex items-center gap-3">
             <button onClick={resetToStart} className="k-chip" type="button">جديد →</button>
@@ -237,11 +240,21 @@ export default function KidsPage() {
                 {kidsBrand.name}
               </span>
             </div>
+            {/* Mobile-only: switch between the app and the chat */}
+            <button
+              onClick={() => setMobileView((v) => (v === 'chat' ? 'preview' : 'chat'))}
+              className="k-chip lg:hidden"
+              type="button"
+            >
+              {mobileView === 'chat' ? '👀 موقعي' : '💬 المحادثة'}
+            </button>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-5 lg:flex-row lg:gap-8">
+          <div className="flex min-h-0 flex-1 gap-5 lg:flex-row lg:gap-8">
             {/* Chat side (right in RTL) — messages scroll, composer pinned to bottom */}
-            <section className="order-2 flex flex-col lg:order-1 lg:h-full lg:w-[40%] lg:max-w-[480px]">
+            <section
+              className={`${mobileView === 'chat' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col lg:flex lg:h-full lg:flex-none lg:w-[40%] lg:max-w-[480px] order-2 lg:order-1`}
+            >
               <div className="flex-1 overflow-y-auto px-2 pb-2 lg:min-h-0">
                 <KidsChat messages={messages} typing={streaming} />
                 {isBusy && (
@@ -261,7 +274,9 @@ export default function KidsPage() {
             </section>
 
             {/* Preview side (left in RTL) — fills the window */}
-            <section className="order-1 min-h-[420px] flex-1 lg:order-2 lg:h-full lg:min-h-0">
+            <section
+              className={`${mobileView === 'preview' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col lg:flex lg:h-full order-1 lg:order-2`}
+            >
               <KidsPreview
                 html={previewHtml}
                 streaming={streaming}
