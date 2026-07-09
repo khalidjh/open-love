@@ -175,6 +175,17 @@ export default function KidsPage() {
         setPreviewHtml(html);
         setStreaming(false);
         setPhase('done');
+        // Save to the gallery as soon as it's built, so it's always there to
+        // reopen later — even if publishing isn't available. publish() updates
+        // this same entry (same id) with the live URL on success.
+        saveCreation({
+          id: creationIdRef.current,
+          title: titleRef.current,
+          prompt: titleRef.current,
+          html,
+          updatedAt: Date.now(),
+        });
+        setCreations(loadCreations());
         pushMessage('bot', 'اكتمل موقعك وأصبح رائعاً! ✨ دعني أنشره لك…');
         await publish(html);
       } catch {
@@ -228,7 +239,7 @@ export default function KidsPage() {
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 lg:flex-row lg:gap-10">
             {/* Chat side (right in RTL) — messages scroll, composer pinned to bottom */}
             <section className="order-2 flex flex-col lg:order-1 lg:h-full lg:w-[40%] lg:max-w-[480px]">
               <div className="flex-1 overflow-y-auto pe-1 lg:min-h-0">
