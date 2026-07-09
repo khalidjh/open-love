@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import KidsMascot from './KidsMascot';
 
 // The live app. We feed the streamed HTML straight into an iframe via srcDoc —
@@ -18,7 +18,64 @@ export default function KidsPreview({
   publishState: 'idle' | 'publishing' | 'published' | 'unavailable';
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
+
+  const hasApp = html.trim().length > 0;
+
+  // Scale the generated app to always fit the preview window: if it's taller
+  // than the available height, render it at its full height and shrink the whole
+  // iframe (centered) so nothing is clipped or needs scrolling. Apps that already
+  // fit just fill the window (scale 1).
+  const fit = useCallback(() => {
+    const iframe = iframeRef.current;
+    const screen = wrapRef.current;
+    if (!iframe || !screen) return;
+    let doc: Document | null = null;
+    try {
+      doc = iframe.contentDocument;
+    } catch {
+      return;
+    }
+    if (!doc || !doc.documentElement) return;
+    const availW = screen.clientWidth;
+    const availH = screen.clientHeight;
+    if (!availW || !availH) return;
+    // Reset, then measure the app's natural height at full width.
+    iframe.style.transform = 'none';
+    iframe.style.width = availW + 'px';
+    iframe.style.height = availH + 'px';
+    const contentH = Math.max(
+      doc.documentElement.scrollHeight,
+      doc.body ? doc.body.scrollHeight : 0,
+    );
+    if (contentH <= availH + 2) return; // fits — fill the window, no scaling
+    const scale = availH / contentH;
+    iframe.style.height = contentH + 'px';
+    iframe.style.transformOrigin = 'top center';
+    iframe.style.transform = `scale(${scale})`;
+  }, []);
+
+  // Re-fit whenever the app changes (streaming + final) — with a few passes so
+  // late layout shifts (webfonts loading) are caught.
+  useEffect(() => {
+    if (!hasApp) return;
+    const timers = [60, 350, 900].map((d) => setTimeout(fit, d));
+    return () => timers.forEach(clearTimeout);
+  }, [html, hasApp, fit]);
+
+  // Re-fit on any size change (window resize, entering/exiting fullscreen).
+  useEffect(() => {
+    const screen = wrapRef.current;
+    if (!screen) return;
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(screen);
+    window.addEventListener('resize', fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  }, [fit]);
 
   const goFullscreen = () => {
     const el = wrapRef.current;
@@ -47,8 +104,6 @@ export default function KidsPreview({
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const hasApp = html.trim().length > 0;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -80,12 +135,14 @@ export default function KidsPreview({
       >
         {hasApp ? (
           <iframe
+            ref={iframeRef}
             title="موقع الطفل"
             srcDoc={html}
+            onLoad={fit}
             // allow-same-origin is required so the generated app's localStorage
             // works — without it, storage access throws and breaks every button.
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
-            className="h-full w-full border-0 bg-white"
+            style={{ display: 'block', width: '100%', height: '100%', border: 0, background: '#fff' }}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
