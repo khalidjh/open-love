@@ -1,0 +1,242 @@
+/* Etlaq Kids theme — scoped entirely to `.kids-root` so it never leaks into the
+   adult app. Chunky "neubrutalist" look: thick borders, hard shadows, big radii,
+   bright happy colors, playful motion. RTL-first. */
+
+/* Fonts load at runtime in the browser (not via build-time next/font) so the
+   playful Arabic type works without a build-time Google Fonts fetch — same
+   approach the generated kids apps use. */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400;500;700;800&family=Tajawal:wght@400;700;800&display=swap');
+
+.kids-root {
+  /* Palette (mirrors lib/kids/brand.ts) */
+  --k-sunny: #ffd93d;
+  --k-coral: #ff6b6b;
+  --k-sky: #4d96ff;
+  --k-mint: #6bcb77;
+  --k-grape: #9b5de5;
+  --k-ink: #2b2b2b;
+  --k-cream: #fff9f0;
+  --k-cloud: #ffffff;
+
+  /* Playful Arabic type (loaded via @import above). Fallbacks keep things
+     readable before the webfont lands. */
+  --k-font-display: 'Baloo Bhaijaan 2', 'Tajawal', system-ui, sans-serif;
+  --k-font-body: 'Tajawal', system-ui, sans-serif;
+
+  --k-radius: 22px;
+  --k-radius-lg: 34px;
+  --k-border: 3px solid var(--k-ink);
+  --k-shadow: 6px 6px 0 0 var(--k-ink);
+  --k-shadow-sm: 4px 4px 0 0 var(--k-ink);
+
+  direction: rtl;
+  font-family: var(--k-font-body);
+  color: var(--k-ink);
+  background:
+    radial-gradient(circle at 15% 15%, rgba(255, 217, 61, 0.28), transparent 42%),
+    radial-gradient(circle at 85% 20%, rgba(77, 150, 255, 0.22), transparent 45%),
+    radial-gradient(circle at 50% 95%, rgba(155, 93, 229, 0.18), transparent 50%),
+    var(--k-cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+.kids-root h1,
+.kids-root h2,
+.kids-root h3,
+.kids-root .k-display {
+  font-family: var(--k-font-display);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* ---- Building blocks ------------------------------------------------------ */
+
+.k-card {
+  background: var(--k-cloud);
+  border: var(--k-border);
+  border-radius: var(--k-radius);
+  box-shadow: var(--k-shadow);
+}
+
+.k-shadow {
+  box-shadow: var(--k-shadow);
+}
+.k-shadow-sm {
+  box-shadow: var(--k-shadow-sm);
+}
+.k-border {
+  border: var(--k-border);
+}
+
+/* Chunky button — bright fill, thick border, pressable hard shadow. */
+.k-btn {
+  font-family: var(--k-font-display);
+  font-weight: 800;
+  border: var(--k-border);
+  border-radius: 999px;
+  box-shadow: var(--k-shadow-sm);
+  background: var(--k-cloud);
+  color: var(--k-ink);
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.k-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 0 var(--k-ink);
+}
+.k-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 0 var(--k-ink);
+}
+.k-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--k-shadow-sm);
+}
+.k-btn--sunny {
+  background: var(--k-sunny);
+}
+.k-btn--coral {
+  background: var(--k-coral);
+  color: var(--k-cloud);
+}
+.k-btn--sky {
+  background: var(--k-sky);
+  color: var(--k-cloud);
+}
+.k-btn--mint {
+  background: var(--k-mint);
+  color: var(--k-cloud);
+}
+.k-btn--grape {
+  background: var(--k-grape);
+  color: var(--k-cloud);
+}
+
+/* Idea / suggestion chip */
+.k-chip {
+  font-family: var(--k-font-display);
+  font-weight: 700;
+  border: var(--k-border);
+  border-radius: 999px;
+  background: var(--k-cloud);
+  box-shadow: var(--k-shadow-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.k-chip:hover {
+  transform: translate(-1px, -2px) rotate(-1deg);
+  box-shadow: 5px 6px 0 0 var(--k-ink);
+}
+.k-chip:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 0 var(--k-ink);
+}
+
+/* Speech bubbles */
+.k-bubble {
+  border: var(--k-border);
+  border-radius: var(--k-radius);
+  box-shadow: var(--k-shadow-sm);
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 88%;
+}
+.k-bubble--kid {
+  background: var(--k-sky);
+  color: var(--k-cloud);
+  border-bottom-right-radius: 6px;
+  margin-inline-start: auto;
+}
+.k-bubble--bot {
+  background: var(--k-cloud);
+  border-bottom-left-radius: 6px;
+  margin-inline-end: auto;
+}
+
+/* ---- Motion --------------------------------------------------------------- */
+
+@keyframes k-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes k-wobble {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes k-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes k-bounce-dot {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-9px); }
+}
+@keyframes k-rainbow {
+  0% { color: var(--k-coral); }
+  33% { color: var(--k-sky); }
+  66% { color: var(--k-mint); }
+  100% { color: var(--k-grape); }
+}
+@keyframes k-confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
+}
+
+.k-float { animation: k-float 3s ease-in-out infinite; }
+.k-wobble { animation: k-wobble 2.4s ease-in-out infinite; transform-origin: center; }
+.k-pop { animation: k-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.k-rainbow { animation: k-rainbow 3s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .k-float, .k-wobble, .k-rainbow { animation: none; }
+}
+
+/* Typing dots */
+.k-dots span {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--k-grape);
+  animation: k-bounce-dot 1.2s infinite ease-in-out both;
+}
+.k-dots span:nth-child(2) { animation-delay: 0.15s; background: var(--k-coral); }
+.k-dots span:nth-child(3) { animation-delay: 0.3s; background: var(--k-mint); }
+
+/* Confetti pieces (rendered on publish) */
+.k-confetti {
+  position: fixed;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  pointer-events: none;
+  animation: k-confetti-fall linear forwards;
+  z-index: 60;
+}
+
+/* Custom scrollbar to stay on-theme */
+.kids-root ::-webkit-scrollbar { width: 12px; height: 12px; }
+.kids-root ::-webkit-scrollbar-thumb {
+  background: var(--k-grape);
+  border: 2px solid var(--k-ink);
+  border-radius: 999px;
+}
+.kids-root ::-webkit-scrollbar-track { background: transparent; }

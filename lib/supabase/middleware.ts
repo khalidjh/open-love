@@ -3,6 +3,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Refreshes the Supabase auth session on every request and (optionally) guards routes.
 export async function updateSession(request: NextRequest) {
+  // Etlaq Kids is a no-login playground — skip the Supabase session refresh
+  // entirely for it, so a kid never triggers an auth network call (and the
+  // page still works if Supabase is unreachable/unconfigured).
+  const p = request.nextUrl.pathname;
+  if (p.startsWith('/kids') || p.startsWith('/api/kids')) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
