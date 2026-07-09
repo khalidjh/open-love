@@ -227,7 +227,7 @@ export default function KidsPage() {
       {phase === 'start' ? (
         <StartScreen creations={creations} onSend={(p) => startBuild(p)} onOpen={openCreation} />
       ) : (
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[1400px] flex-col p-4 sm:p-6 lg:h-[100dvh]">
+        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[1400px] flex-col p-5 sm:p-8 lg:h-[100dvh]">
           {/* header */}
           <header className="mb-6 flex items-center gap-3">
             <button onClick={resetToStart} className="k-chip" type="button">جديد →</button>
@@ -239,10 +239,10 @@ export default function KidsPage() {
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-5 lg:flex-row lg:gap-10">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 lg:flex-row lg:gap-8">
             {/* Chat side (right in RTL) — messages scroll, composer pinned to bottom */}
             <section className="order-2 flex flex-col lg:order-1 lg:h-full lg:w-[40%] lg:max-w-[480px]">
-              <div className="flex-1 overflow-y-auto pe-1 lg:min-h-0">
+              <div className="flex-1 overflow-y-auto px-2 pb-2 lg:min-h-0">
                 <KidsChat messages={messages} typing={streaming} />
                 {isBusy && (
                   <div className="mt-5">
@@ -250,7 +250,7 @@ export default function KidsPage() {
                   </div>
                 )}
               </div>
-              <div className="mt-4 shrink-0">
+              <div className="mt-4 shrink-0 px-2">
                 <KidsComposer
                   variant="chat"
                   disabled={isBusy}
