@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@/styles/kids.css';
-import { kidsBrand, kidsIdeas, kidsCheers } from '@/lib/kids/brand';
+import { kidsBrand, kidsIdeas, kidsCheers, kidsColors } from '@/lib/kids/brand';
 import {
   KidsCreation,
   loadCreations,
@@ -15,7 +15,7 @@ import KidsChat, { KidsMessage } from '@/components/kids/KidsChat';
 import KidsProgress from '@/components/kids/KidsProgress';
 import KidsPreview from '@/components/kids/KidsPreview';
 
-type Phase = 'start' | 'building' | 'done';
+type Phase = 'start' | 'personalize' | 'building' | 'done';
 type PublishState = 'idle' | 'publishing' | 'published' | 'unavailable';
 
 // Strip any stray markdown fence the model might prepend while streaming, so the
@@ -51,8 +51,10 @@ export default function KidsPage() {
   const [publishUrl, setPublishUrl] = useState<string | undefined>();
   const [creations, setCreations] = useState<KidsCreation[]>([]);
   const [confetti, setConfetti] = useState(false);
-  // On small screens we show one panel at a time (toggle in the header).
+  // On small screens we show one panel at a time (tabs).
   const [mobileView, setMobileView] = useState<'preview' | 'chat'>('preview');
+  // Idea captured on the start screen, awaiting the "add your touch" step.
+  const [pendingPrompt, setPendingPrompt] = useState('');
 
   const creationIdRef = useRef<string>('');
   const titleRef = useRef<string>('موقعي');
@@ -111,7 +113,7 @@ export default function KidsPage() {
   }, [pushMessage]);
 
   const startBuild = useCallback(
-    async (prompt: string, opts: { isEdit?: boolean } = {}) => {
+    async (prompt: string, opts: { isEdit?: boolean; touch?: string } = {}) => {
       const isEdit = !!opts.isEdit;
       if (!isEdit) {
         creationIdRef.current = newCreationId();
@@ -127,12 +129,16 @@ export default function KidsPage() {
       pushMessage('kid', prompt);
       pushMessage('bot', kidsCheers[Math.floor(Math.random() * kidsCheers.length)]);
 
+      // The kid's personal touch (name/color) rides along to the model but isn't
+      // shown as part of their chat message.
+      const apiPrompt = opts.touch ? `${prompt}\n\n${opts.touch}` : prompt;
+
       try {
         const res = await fetch('/api/kids/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt,
+            prompt: apiPrompt,
             creationId: creationIdRef.current,
             previousHtml: isEdit ? fullRef.current : undefined,
           }),
@@ -228,11 +234,23 @@ export default function KidsPage() {
     <div dir="rtl" lang="ar" className={`${rootClass} min-h-screen w-full`}>
       {confetti && <Confetti />}
       {phase === 'start' ? (
-        <StartScreen creations={creations} onSend={(p) => startBuild(p)} onOpen={openCreation} />
+        <StartScreen
+          creations={creations}
+          onSend={(p) => {
+            setPendingPrompt(p);
+            setPhase('personalize');
+          }}
+          onOpen={openCreation}
+        />
+      ) : phase === 'personalize' ? (
+        <PersonalizeScreen
+          onBuild={(touch) => startBuild(pendingPrompt, { touch })}
+          onBack={() => setPhase('start')}
+        />
       ) : (
         <div className="mx-auto flex h-[100dvh] w-full max-w-[1400px] flex-col p-5 sm:p-8">
           {/* header */}
-          <header className="mb-6 flex items-center gap-3">
+          <header className="mb-4 flex items-center gap-3">
             <button onClick={resetToStart} className="k-chip" type="button">جديد →</button>
             <div className="me-auto flex items-center gap-2">
               <KidsMascot size={40} />
@@ -240,15 +258,31 @@ export default function KidsPage() {
                 {kidsBrand.name}
               </span>
             </div>
-            {/* Mobile-only: switch between the app and the chat */}
-            <button
-              onClick={() => setMobileView((v) => (v === 'chat' ? 'preview' : 'chat'))}
-              className="k-chip lg:hidden"
-              type="button"
-            >
-              {mobileView === 'chat' ? '👀 موقعي' : '💬 المحادثة'}
-            </button>
           </header>
+
+          {/* Mobile-only tabs: switch between the app and the chat */}
+          <div
+            className="mb-4 flex gap-1 rounded-full k-border k-shadow-sm p-1 lg:hidden"
+            style={{ background: '#fff' }}
+          >
+            {(['preview', 'chat'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setMobileView(v)}
+                className="flex-1 rounded-full py-2 text-center"
+                style={{
+                  fontFamily: 'var(--k-font-display)',
+                  fontWeight: 800,
+                  fontSize: 16,
+                  background: mobileView === v ? 'var(--k-grape)' : 'transparent',
+                  color: mobileView === v ? '#fff' : 'var(--k-ink)',
+                }}
+              >
+                {v === 'preview' ? '👀 موقعي' : '💬 المحادثة'}
+              </button>
+            ))}
+          </div>
 
           <div className="flex min-h-0 flex-1 gap-5 lg:flex-row lg:gap-8">
             {/* Chat side (right in RTL) — messages scroll, composer pinned to bottom */}
@@ -287,6 +321,106 @@ export default function KidsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// A quick, playful "add your touch" step between the idea and the build. Lets
+// each child personalize their app (name + favorite color) — both optional. The
+// choices are turned into a short instruction handed to the model.
+function PersonalizeScreen({
+  onBuild,
+  onBack,
+}: {
+  onBuild: (touch: string) => void;
+  onBack: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState<string>('');
+
+  const build = () => {
+    const parts: string[] = [];
+    if (name.trim()) parts.push(`اسم الطفل هو "${name.trim()}" — رحّب به في الموقع إن كان مناسباً`);
+    const c = kidsColors.find((k) => k.hex === color);
+    if (c) parts.push(`لونه المفضل هو ${c.name} (${c.hex}) — اجعله لوناً أساسياً في التصميم`);
+    onBuild(parts.length ? `لمسة الطفل الخاصة: ${parts.join('، ')}.` : '');
+  };
+
+  return (
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-[620px] flex-col items-center justify-center px-4 py-14">
+      <div className="mb-6">
+        <KidsMascot size={92} />
+      </div>
+      <h1 className="text-center leading-[1.3]" style={{ fontSize: 'clamp(26px, 5vw, 42px)' }}>
+        أضِف لمستك السحرية! ✨
+      </h1>
+      <p
+        className="mb-9 mt-3 text-center"
+        style={{ fontFamily: 'var(--k-font-body)', fontWeight: 700, fontSize: 'clamp(15px, 2.4vw, 19px)' }}
+      >
+        هذا يجعل موقعك مميّزاً مثلك تماماً (اختياري)
+      </p>
+
+      <div className="k-card w-full" style={{ padding: 22, borderRadius: 28 }}>
+        {/* Name */}
+        <label style={{ fontFamily: 'var(--k-font-display)', fontWeight: 800, fontSize: 18 }}>
+          ما اسمك؟ 🙂
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="اكتب اسمك هنا…"
+          dir="rtl"
+          maxLength={20}
+          className="mt-2 mb-6 w-full k-border"
+          style={{
+            fontFamily: 'var(--k-font-body)',
+            fontWeight: 700,
+            fontSize: 18,
+            borderRadius: 16,
+            padding: '12px 16px',
+            outline: 'none',
+            background: 'var(--k-cream)',
+          }}
+        />
+
+        {/* Color */}
+        <label style={{ fontFamily: 'var(--k-font-display)', fontWeight: 800, fontSize: 18 }}>
+          ما لونك المفضل؟ 🎨
+        </label>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {kidsColors.map((c) => (
+            <button
+              key={c.hex}
+              type="button"
+              onClick={() => setColor((v) => (v === c.hex ? '' : c.hex))}
+              aria-label={c.name}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 999,
+                background: c.hex,
+                border: color === c.hex ? '4px solid var(--k-ink)' : '3px solid var(--k-ink)',
+                boxShadow: color === c.hex ? '0 0 0 3px #fff, 4px 4px 0 var(--k-ink)' : '3px 3px 0 var(--k-ink)',
+                transform: color === c.hex ? 'translateY(-2px)' : 'none',
+                cursor: 'pointer',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8 flex w-full items-center justify-center gap-3">
+        <button className="k-btn k-btn--grape" style={{ fontSize: 20, padding: '14px 30px' }} onClick={build} type="button">
+          يلا نبني! 🚀
+        </button>
+        <button className="k-chip" onClick={() => onBuild('')} type="button">
+          تخطّي
+        </button>
+      </div>
+      <button className="mt-5 k-chip" onClick={onBack} type="button" style={{ opacity: 0.85 }}>
+        → رجوع
+      </button>
     </div>
   );
 }

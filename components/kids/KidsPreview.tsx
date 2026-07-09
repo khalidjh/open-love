@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import KidsMascot from './KidsMascot';
+import KidsBuildingScene from './KidsBuildingScene';
 
 // The live app. We feed the streamed HTML straight into an iframe via srcDoc —
 // no sandbox, no server. Includes a fullscreen button and, once published, a
@@ -22,6 +23,9 @@ export default function KidsPreview({
   const [copied, setCopied] = useState(false);
 
   const hasApp = html.trim().length > 0;
+  // Only switch from the building scene to the iframe once real body content has
+  // arrived — the head/meta stream first and would flash a blank iframe.
+  const bodyPainted = /<body[^>]*>[\s\S]*?\S/i.test(html);
 
   // Scale the generated app to always fit the preview window: if it's taller
   // than the available height, render it at its full height and shrink the whole
@@ -133,7 +137,7 @@ export default function KidsPreview({
         className="k-card relative flex-1 overflow-hidden bg-white"
         style={{ borderRadius: 26, minHeight: 320 }}
       >
-        {hasApp ? (
+        {bodyPainted ? (
           <iframe
             ref={iframeRef}
             title="موقع الطفل"
@@ -144,13 +148,15 @@ export default function KidsPreview({
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
             style={{ display: 'block', width: '100%', height: '100%', border: 0, background: '#fff' }}
           />
+        ) : streaming ? (
+          <KidsBuildingScene />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
             <div>
               <KidsMascot size={92} />
             </div>
             <p style={{ fontFamily: 'var(--k-font-display)', fontWeight: 800, fontSize: 20 }}>
-              {streaming ? 'نبدأ السحر الآن… ✨' : 'موقعك سيظهر هنا! 🎨'}
+              موقعك سيظهر هنا! 🎨
             </p>
           </div>
         )}

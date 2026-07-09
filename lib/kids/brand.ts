@@ -58,6 +58,16 @@ export const kidsIdeas: { emoji: string; label: string; prompt: string }[] = [
   },
 ];
 
+// Favorite-color choices for the "add your touch" step (Arabic names + hex).
+export const kidsColors: { name: string; hex: string }[] = [
+  { name: 'أصفر مشمس', hex: '#FFD93D' },
+  { name: 'مرجاني', hex: '#FF6B6B' },
+  { name: 'سماوي', hex: '#4D96FF' },
+  { name: 'نعناعي', hex: '#6BCB77' },
+  { name: 'عنبي', hex: '#9B5DE5' },
+  { name: 'وردي', hex: '#FF87C3' },
+];
+
 // Playful build-stage copy. The generation UI cycles through these while the app
 // is being written so kids see friendly progress instead of technical logs.
 export const kidsStages: { key: string; emoji: string; message: string }[] = [
