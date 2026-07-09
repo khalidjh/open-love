@@ -26,10 +26,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, reason: 'missing-fields' }, { status: 400 });
   }
 
-  // Only the KSA runtime host has the apps dir + Caddy. Everywhere else (local
-  // dev, previews) we can't publish — say so clearly so the UI keeps the live
-  // preview and offers a download instead of hard-failing.
-  if (!process.env.KSA_APPS_DIR) {
+  // Only the KSA runtime host has the apps dir + Caddy mounted. Detect it by
+  // checking the apps dir actually exists — not by an env var, since the deploy
+  // relies on APPS_DIR's default (/opt/etlaq-apps) rather than KSA_APPS_DIR
+  // being set. Everywhere else (local dev, previews) we can't publish, so we say
+  // so clearly and the UI keeps the live preview + offers a download.
+  let hostReady = false;
+  try {
+    hostReady = (await fs.stat(APPS_DIR)).isDirectory();
+  } catch {
+    hostReady = false;
+  }
+  if (!hostReady) {
     return NextResponse.json({ success: false, reason: 'not-configured' }, { status: 200 });
   }
 
