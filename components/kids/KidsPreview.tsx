@@ -10,11 +10,13 @@ import KidsBuildingScene from './KidsBuildingScene';
 export default function KidsPreview({
   html,
   streaming,
+  prompt,
   publishUrl,
   publishState,
 }: {
   html: string;
   streaming: boolean;
+  prompt?: string;
   publishUrl?: string;
   publishState: 'idle' | 'publishing' | 'published' | 'unavailable';
 }) {
@@ -117,9 +119,10 @@ export default function KidsPreview({
           style={{ fontFamily: 'var(--k-font-display)', fontWeight: 800, fontSize: 18 }}
           className="me-auto flex items-center gap-2"
         >
-          <span>👀</span> شاهد موقعك وهو يُبنى!
+          <span>{streaming ? '👀' : '🎉'}</span>
+          {streaming ? 'شاهد موقعك وهو يُبنى!' : hasApp ? 'موقعك جاهز — العب فيه!' : 'شاهد موقعك وهو يُبنى!'}
         </span>
-        {hasApp && (
+        {hasApp && !streaming && (
           <>
             <button className="k-chip" onClick={download} type="button">
               ⬇️ حفظ
@@ -146,10 +149,18 @@ export default function KidsPreview({
             // allow-same-origin is required so the generated app's localStorage
             // works — without it, storage access throws and breaks every button.
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
-            style={{ display: 'block', width: '100%', height: '100%', border: 0, background: '#fff' }}
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              border: 0,
+              background: '#fff',
+              // The kid only watches while it builds — no clicks until it's done.
+              pointerEvents: streaming ? 'none' : 'auto',
+            }}
           />
         ) : streaming ? (
-          <KidsBuildingScene />
+          <KidsBuildingScene prompt={prompt} />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
             <div>
@@ -162,19 +173,54 @@ export default function KidsPreview({
         )}
 
         {streaming && hasApp && (
+          // Full overlay while streaming: the kid watches the app paint but
+          // can't click anything until it's fully built — half-wired buttons
+          // would otherwise make them think it's done (and broken).
           <div
-            className="absolute top-3 left-3 k-shadow-sm k-border"
-            style={{
-              background: 'var(--k-mint)',
-              color: '#fff',
-              borderRadius: 999,
-              padding: '4px 12px',
-              fontFamily: 'var(--k-font-display)',
-              fontWeight: 800,
-              fontSize: 13,
-            }}
+            className="absolute inset-0 z-10 flex flex-col items-center justify-end"
+            style={{ cursor: 'wait' }}
+            aria-live="polite"
           >
-            ✍️ يُبنى الآن…
+            <div
+              className="k-card mx-4 mb-4 flex w-[min(460px,calc(100%-32px))] flex-col items-center gap-2 text-center"
+              style={{ padding: '14px 18px', background: '#fff' }}
+            >
+              <div style={{ fontFamily: 'var(--k-font-display)', fontWeight: 800, fontSize: 18 }}>
+                🏗️ ما زلنا نبني… موقعك ليس جاهزاً بعد!
+              </div>
+              {prompt && (
+                <div
+                  className="truncate w-full"
+                  style={{ fontFamily: 'var(--k-font-body)', fontWeight: 700, fontSize: 14, opacity: 0.75 }}
+                >
+                  💭 «{prompt}»
+                </div>
+              )}
+              <div
+                style={{
+                  width: '100%',
+                  height: 12,
+                  borderRadius: 999,
+                  border: '3px solid var(--k-ink)',
+                  background: '#fff',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    background:
+                      'repeating-linear-gradient(45deg, var(--k-coral) 0 16px, var(--k-sunny) 16px 32px, var(--k-sky) 32px 48px, var(--k-mint) 48px 64px)',
+                    animation: 'k-slide-stripes 1s linear infinite',
+                  }}
+                />
+              </div>
+              <div style={{ fontFamily: 'var(--k-font-body)', fontWeight: 700, fontSize: 13, opacity: 0.75 }}>
+                ستتمكن من اللعب فيه عندما يكتمل ✨
+              </div>
+            </div>
+            <style>{`@keyframes k-slide-stripes { from { background-position: 0 0; } to { background-position: 64px 0; } }`}</style>
           </div>
         )}
       </div>

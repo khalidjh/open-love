@@ -55,6 +55,9 @@ export default function KidsPage() {
   const [mobileView, setMobileView] = useState<'preview' | 'chat'>('preview');
   // Idea captured on the start screen, awaiting the "add your touch" step.
   const [pendingPrompt, setPendingPrompt] = useState('');
+  // What the kid asked for in the build that's currently running/last ran —
+  // echoed inside the preview so they see their own words while it builds.
+  const [buildPrompt, setBuildPrompt] = useState('');
 
   const creationIdRef = useRef<string>('');
   const titleRef = useRef<string>('موقعي');
@@ -124,6 +127,7 @@ export default function KidsPage() {
       }
       setPublishState('idle');
       setPhase('building');
+      setBuildPrompt(prompt);
       setStreaming(true);
       setMobileView('preview'); // on phones, jump to the preview to watch it build
       pushMessage('kid', prompt);
@@ -314,6 +318,7 @@ export default function KidsPage() {
               <KidsPreview
                 html={previewHtml}
                 streaming={streaming}
+                prompt={buildPrompt}
                 publishUrl={publishUrl}
                 publishState={publishState}
               />

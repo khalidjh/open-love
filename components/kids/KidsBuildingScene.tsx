@@ -10,7 +10,7 @@ import KidsMascot from './KidsMascot';
 const STAGES = kidsStages.filter((s) => s.key !== 'publish');
 const BLOCKS = ['#FFD93D', '#FF6B6B', '#4D96FF', '#6BCB77', '#9B5DE5'];
 
-export default function KidsBuildingScene() {
+export default function KidsBuildingScene({ prompt }: { prompt?: string }) {
   const [i, setI] = useState(0);
 
   useEffect(() => {
@@ -20,6 +20,23 @@ export default function KidsBuildingScene() {
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-7 p-8 text-center">
+      {/* The kid's own words come first, like their message kicking things off */}
+      {prompt && (
+        <div
+          className="k-border k-shadow-sm"
+          style={{
+            background: 'var(--k-sunny)',
+            borderRadius: 22,
+            padding: '10px 18px',
+            maxWidth: 'min(440px, 100%)',
+            fontFamily: 'var(--k-font-body)',
+            fontWeight: 700,
+            fontSize: 16,
+          }}
+        >
+          💭 طلبت: «{prompt}»
+        </div>
+      )}
       {/* stacking / bouncing blocks */}
       <div className="flex items-end gap-2" aria-hidden>
         {BLOCKS.map((c, k) => (
