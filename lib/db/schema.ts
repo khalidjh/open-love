@@ -132,6 +132,32 @@ export const tenantAi = pgTable('tenant_ai', {
   tokenHashIdx: index('tenant_ai_token_hash_idx').on(t.tokenHash),
 }));
 
+// A background build: one AI generation + apply + snapshot, orchestrated fully
+// server-side so it survives the browser tab closing. The live event stream is
+// held in memory (lib/generation/job-events); this row is the durable record the
+// client uses to discover/resume a build after a reload, and to detect builds
+// orphaned by a server restart (status still 'running' but heartbeat stale).
+export const generationJobs = pgTable('generation_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('running'), // running | completed | failed
+  phase: text('phase').notNull().default('generating'), // generating | provisioning | applying | finalizing | done
+  prompt: text('prompt').notNull(),
+  isEdit: integer('is_edit').notNull().default(0), // 0 | 1 (boolean)
+  model: text('model'),
+  explanation: text('explanation'),                 // AI's plain-language summary (on success)
+  filesChanged: jsonb('files_changed').$type<string[]>().default([]),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  // Heartbeat: the runner touches this periodically; a 'running' job whose
+  // heartbeat is old was orphaned by a process restart and is reported failed.
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (t) => ({
+  projectIdx: index('generation_jobs_project_idx').on(t.projectId),
+  projectCreatedIdx: index('generation_jobs_project_created_idx').on(t.projectId, t.createdAt),
+}));
+
 // Visitor analytics for deployed (published) apps. Rows are written by a public
 // beacon collector that the deployed app calls cross-origin; there is no auth, so
 // treat every field as untrusted (the FK to projects guards against spam ids).
@@ -152,5 +178,6 @@ export type NewProject = typeof projects.$inferInsert;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type TenantAi = typeof tenantAi.$inferSelect;
+export type GenerationJob = typeof generationJobs.$inferSelect;
 export type AppVisit = typeof appVisits.$inferSelect;
 export type NewAppVisit = typeof appVisits.$inferInsert;

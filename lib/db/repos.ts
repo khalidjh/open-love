@@ -2,7 +2,8 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from './index';
 import {
   orgs, orgMembers, profiles, projects, projectVersions, messages, tenantDatabases, tenantAuth, tenantAi, appVisits,
-  type NewProject,
+  generationJobs,
+  type NewProject, type GenerationJob,
 } from './schema';
 
 // -----------------------------------------------------------------------------
@@ -121,6 +122,79 @@ export async function getMessages(projectId: string) {
   return db.select().from(messages)
     .where(eq(messages.projectId, projectId))
     .orderBy(messages.seq);
+}
+
+// Append messages to the end of a project's chat history without touching the
+// existing rows. Used by the background build runner, which doesn't hold the
+// client's full message list (replaceMessages is the client's sync path).
+export async function appendMessages(projectId: string, items: { role: string; content: string }[]) {
+  if (items.length === 0) return;
+  const [last] = await db.select({ maxSeq: sql<number>`coalesce(max(${messages.seq}), -1)::int` })
+    .from(messages)
+    .where(eq(messages.projectId, projectId));
+  const base = Number(last?.maxSeq ?? -1) + 1;
+  await db.insert(messages).values(
+    items.map((m, i) => ({ projectId, role: m.role, content: m.content, seq: base + i }))
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Background generation jobs
+// -----------------------------------------------------------------------------
+
+// A 'running' job whose heartbeat is older than this was orphaned by a process
+// restart (the in-memory runner died with it) and is reported as failed.
+export const JOB_STALE_MS = 2 * 60 * 1000;
+
+export function isJobStale(job: GenerationJob): boolean {
+  return job.status === 'running' && Date.now() - job.updatedAt.getTime() > JOB_STALE_MS;
+}
+
+export async function createGenerationJob(
+  projectId: string,
+  data: { prompt: string; isEdit: boolean; model?: string | null }
+) {
+  const [job] = await db.insert(generationJobs)
+    .values({ projectId, prompt: data.prompt, isEdit: data.isEdit ? 1 : 0, model: data.model ?? null })
+    .returning();
+  return job;
+}
+
+export async function getGenerationJob(projectId: string, jobId: string) {
+  return db.query.generationJobs.findFirst({
+    where: and(eq(generationJobs.id, jobId), eq(generationJobs.projectId, projectId)),
+  });
+}
+
+// Latest job for a project (running or not) — the reload/resume discovery path.
+export async function getLatestGenerationJob(projectId: string) {
+  return db.query.generationJobs.findFirst({
+    where: eq(generationJobs.projectId, projectId),
+    orderBy: desc(generationJobs.createdAt),
+  });
+}
+
+export async function updateGenerationJob(
+  jobId: string,
+  patch: Partial<{
+    status: string;
+    phase: string;
+    explanation: string | null;
+    filesChanged: string[];
+    error: string | null;
+    finishedAt: Date;
+  }>
+) {
+  await db.update(generationJobs)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(generationJobs.id, jobId));
+}
+
+// Heartbeat only — proves the runner is still alive without changing state.
+export async function touchGenerationJob(jobId: string) {
+  await db.update(generationJobs)
+    .set({ updatedAt: new Date() })
+    .where(eq(generationJobs.id, jobId));
 }
 
 // -----------------------------------------------------------------------------

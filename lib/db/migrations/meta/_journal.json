@@ -50,6 +50,13 @@
       "when": 1783188435473,
       "tag": "0006_app_visits",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784021556635,
+      "tag": "0007_slim_vulture",
+      "breakpoints": true
     }
   ]
 }
