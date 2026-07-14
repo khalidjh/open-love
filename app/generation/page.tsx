@@ -698,7 +698,30 @@ function AISandboxPage() {
         if (projectParam) {
           console.log('[home] Restoring saved project:', projectParam);
           sandboxCreated = true;
-          await restoreProject(projectParam);
+          // If a background build is still running for this project, don't
+          // recreate the sandbox out from under it — rehydrate the chat only
+          // and re-attach to the running build's stream.
+          let activeJob: { id: string; prompt: string; isEdit: boolean } | null = null;
+          try {
+            const jobRes = await fetch(`/api/projects/${projectParam}/generate`);
+            const jobData = await jobRes.json();
+            if (jobData?.job?.status === 'running') {
+              activeJob = {
+                id: jobData.job.id,
+                prompt: jobData.job.prompt,
+                isEdit: Boolean(jobData.job.isEdit),
+              };
+            }
+          } catch {
+            // No job info — fall through to the normal restore.
+          }
+          if (activeJob) {
+            console.log('[home] Re-attaching to running build:', activeJob.id);
+            await restoreProject(projectParam, { skipSandbox: true });
+            if (isMounted) void resumeRunningBuild(projectParam, activeJob);
+          } else {
+            await restoreProject(projectParam);
+          }
         } else if (sandboxIdParam) {
           console.log('[home] Attempting to restore sandbox:', sandboxIdParam);
           // Sandbox reconnection isn't supported yet — create a fresh one
@@ -1855,6 +1878,417 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     }
   };
 
+  // Sync ONLY the chat history to the DB (files unchanged). Used after a
+  // background build completes: the server already saved the code snapshot and
+  // appended its own minimal chat records — this replaces them with the client's
+  // full, correctly-ordered history.
+  const persistMessagesOnly = async () => {
+    const projectId = currentProjectIdRef.current;
+    if (!projectId) return;
+    try {
+      await fetch(`/api/projects/${projectId}/snapshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: {},
+          messages: chatMessagesDataRef.current
+            .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'system' || m.type === 'build')
+            .map(m => m.type === 'build'
+              ? { role: 'build', content: JSON.stringify(m.metadata?.appliedFiles || []) }
+              : { role: m.type, content: m.content }),
+        }),
+      });
+    } catch (error) {
+      console.error('[persistMessagesOnly] Failed to sync chat:', error);
+    }
+  };
+
+  // Follow a background build job's SSE feed and drive the same UI the old
+  // client-orchestrated flow did. The build itself runs entirely server-side
+  // (see lib/generation/job-runner.ts) — this function only renders progress,
+  // so closing the tab never interrupts the build, and a reloaded page can
+  // re-attach mid-build (resume) by calling this again with the job id.
+  const followBuildJob = async (projectId: string, jobId: string, isEdit: boolean): Promise<'done' | 'failed'> => {
+    let lastSeq = -1;
+    let generatedCode = '';
+    let explanation = '';
+    let terminal: 'done' | 'failed' | null = null;
+
+    // Runs when the job reports success: emit the completion chat messages,
+    // point the preview at the (possibly server-created) sandbox, and sync state.
+    const handleDone = async (data: any) => {
+      const files: string[] = Array.isArray(data.filesChanged) ? data.filesChanged : [];
+      const explanationText = (typeof data.explanation === 'string' && data.explanation) || explanation || '';
+
+      if (files.length > 0) {
+        addChatMessage('', 'build', { appliedFiles: files });
+        if (isEdit) {
+          const editedFileNames = files.map(f => f.split('/').pop()).join(', ');
+          addChatMessage(explanationText || `Updated ${editedFileNames}`, 'ai', { appliedFiles: [files[0]] });
+        } else {
+          addChatMessage(explanationText || 'Code generated!', 'ai', { appliedFiles: files });
+        }
+        setConversationContext(prev => ({
+          ...prev,
+          appliedCode: [...prev.appliedCode, { files, timestamp: new Date() }]
+        }));
+      } else if (explanationText) {
+        addChatMessage(explanationText, 'ai');
+      }
+      addChatMessage(
+        isEdit
+          ? 'Your changes are live — open the Preview tab to see them.'
+          : 'Your app is ready! Open the Preview tab to try it.',
+        'system'
+      );
+
+      setGenerationProgress(prev => ({
+        ...prev,
+        isGenerating: false,
+        isStreaming: false,
+        status: 'Generation complete!',
+        isEdit: prev.isEdit,
+        isThinking: false,
+        thinkingText: undefined,
+        thinkingDuration: undefined
+      }));
+      setCodeApplicationState({ stage: null });
+      setLoading(false);
+
+      // The sandbox may have been created server-side (tab was closed / reloaded
+      // during the build) — discover it so the preview has something to show.
+      let sb = sandboxDataRef.current;
+      if (!sb?.url) {
+        try {
+          const st = await fetch(`/api/sandbox-status?projectId=${encodeURIComponent(projectId)}`).then(r => r.json());
+          if (st?.active && st?.sandboxData?.url) {
+            sb = { sandboxId: st.sandboxData.sandboxId, url: st.sandboxData.url } as SandboxData;
+            setSandboxData(sb);
+          }
+        } catch {
+          // Preview will attach on the next status poll.
+        }
+      }
+      if (sb?.url && iframeRef.current) {
+        setTimeout(() => {
+          if (iframeRef.current && sb?.url) {
+            iframeRef.current.src = `${sb.url}?t=${Date.now()}&applied=true`;
+          }
+        }, appConfig.codeApplication.defaultRefreshDelay);
+      }
+
+      fetchSandboxFiles().catch(() => {});
+      // Replace the server's minimal appended chat records with the full history.
+      void persistMessagesOnly();
+
+      setTimeout(() => setActiveTab('preview'), 1000);
+    };
+
+    const handleJobEvent = async (data: any) => {
+      if (data.type === 'phase') {
+        if (data.phase === 'finalizing') {
+          setGenerationProgress(prev => ({ ...prev, status: 'Finishing up...' }));
+        }
+      } else if (data.type === 'provisioning-start' && data.message) {
+        addChatMessage(data.message, 'system');
+      } else if (data.type === 'provisioning-end' && data.message !== undefined) {
+        // no-op: removal below matches by the start message content
+      } else if (data.type === 'warning' && data.message) {
+        addChatMessage(data.message, 'system');
+      } else if (data.type === 'done') {
+        terminal = 'done';
+        await handleDone(data);
+      } else if (data.type === 'failed') {
+        terminal = 'failed';
+        addChatMessage(`Error: ${data.error || 'Build failed'}`, 'system');
+        setGenerationProgress({
+          isGenerating: false,
+          status: '',
+          components: [],
+          currentComponent: 0,
+          streamedCode: '',
+          isStreaming: false,
+          isThinking: false,
+          thinkingText: undefined,
+          thinkingDuration: undefined,
+          files: [],
+          currentFile: undefined,
+          lastProcessedPosition: 0
+        });
+        setCodeApplicationState({ stage: null });
+        setLoading(false);
+        setActiveTab('preview');
+      }
+      // Provisioning bubbles are transient: drop them once their step ends.
+      if (data.type === 'provisioning-end') {
+        const MSGS = [
+          'Setting up storage so your app can save data…',
+          'Enabling AI for your app…',
+          'Setting up private sign-in for your app…',
+        ];
+        setChatMessages(prev => prev.filter(m => !MSGS.includes(m.content)));
+      }
+    };
+
+    const handleGenerateEvent = (data: any) => {
+      if (data.type === 'status') {
+        setGenerationProgress(prev => ({ ...prev, status: data.message }));
+      } else if (data.type === 'thinking') {
+        setGenerationProgress(prev => ({
+          ...prev,
+          isThinking: true,
+          thinkingText: (prev.thinkingText || '') + data.text
+        }));
+      } else if (data.type === 'thinking_complete') {
+        setGenerationProgress(prev => ({
+          ...prev,
+          isThinking: false,
+          thinkingDuration: data.duration
+        }));
+      } else if (data.type === 'conversation') {
+        let text = data.text || '';
+        text = text.replace(
+          /<(explanation|file|package|packages|command|structure|template|edit|tables)\b[\s\S]*?<\/\1>/g,
+          ''
+        );
+        text = text.replace(
+          /<\/?(?:explanation|file|package|packages|command|structure|template|edit|tables)\b[^>]*>?/g,
+          ''
+        );
+        if (text.trim().length > 0 && !looksLikeLeakedCode(text)) {
+          addChatMessage(text.trim(), 'ai');
+        }
+      } else if (data.type === 'stream' && data.raw) {
+        setGenerationProgress(prev => {
+          const newStreamedCode = prev.streamedCode + data.text;
+          const updatedState = {
+            ...prev,
+            streamedCode: newStreamedCode,
+            isStreaming: true,
+            isThinking: false,
+            status: 'Generating code...'
+          };
+
+          // Process complete files from the accumulated stream
+          const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
+          let match;
+          const processedFiles = new Set(prev.files.map(f => f.path));
+
+          while ((match = fileRegex.exec(newStreamedCode)) !== null) {
+            const filePath = match[1];
+            const fileContent = match[2];
+            if (!processedFiles.has(filePath)) {
+              const fileExt = filePath.split('.').pop() || '';
+              const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
+                              fileExt === 'css' ? 'css' :
+                              fileExt === 'json' ? 'json' :
+                              fileExt === 'html' ? 'html' : 'text';
+              const existingFileIndex = updatedState.files.findIndex(f => f.path === filePath);
+              if (existingFileIndex >= 0) {
+                updatedState.files = [
+                  ...updatedState.files.slice(0, existingFileIndex),
+                  {
+                    ...updatedState.files[existingFileIndex],
+                    content: fileContent.trim(),
+                    type: fileType,
+                    completed: true,
+                    edited: true
+                  },
+                  ...updatedState.files.slice(existingFileIndex + 1)
+                ];
+              } else {
+                updatedState.files = [...updatedState.files, {
+                  path: filePath,
+                  content: fileContent.trim(),
+                  type: fileType,
+                  completed: true,
+                  edited: false
+                }];
+              }
+              if (!prev.isEdit) {
+                updatedState.status = `Completed ${filePath}`;
+              }
+              processedFiles.add(filePath);
+            }
+          }
+
+          // Current file being generated (incomplete tail)
+          const lastFileMatch = newStreamedCode.match(/<file path="([^"]+)">([^]*?)$/);
+          if (lastFileMatch && !lastFileMatch[0].includes('</file>')) {
+            const filePath = lastFileMatch[1];
+            const partialContent = lastFileMatch[2];
+            if (!processedFiles.has(filePath)) {
+              const fileExt = filePath.split('.').pop() || '';
+              const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
+                              fileExt === 'css' ? 'css' :
+                              fileExt === 'json' ? 'json' :
+                              fileExt === 'html' ? 'html' : 'text';
+              updatedState.currentFile = { path: filePath, content: partialContent, type: fileType };
+              if (!prev.isEdit) {
+                updatedState.status = `Generating ${filePath}`;
+              }
+            }
+          } else {
+            updatedState.currentFile = undefined;
+          }
+
+          return updatedState;
+        });
+      } else if (data.type === 'component') {
+        setGenerationProgress(prev => ({
+          ...prev,
+          status: `Generated ${data.name}`,
+          components: [...prev.components, { name: data.name, path: data.path, completed: true }],
+          currentComponent: data.index
+        }));
+      } else if (data.type === 'package') {
+        setGenerationProgress(prev => ({
+          ...prev,
+          status: data.message || `Installing ${data.name}`
+        }));
+      } else if (data.type === 'complete') {
+        generatedCode = data.generatedCode || '';
+        explanation = data.explanation || '';
+        if (generatedCode) {
+          setConversationContext(prev => ({ ...prev, lastGeneratedCode: generatedCode }));
+          setPromptInput(generatedCode);
+        }
+        setGenerationProgress(prev => {
+          const fileCount = prev.files.length;
+          return {
+            ...prev,
+            status: `Generated ${fileCount} file${fileCount !== 1 ? 's' : ''}!`,
+            isStreaming: false,
+            isThinking: false,
+            thinkingText: undefined,
+            thinkingDuration: undefined
+          };
+        });
+      }
+      // 'error' is surfaced by the runner as a terminal job 'failed' event.
+    };
+
+    const handleApplyEvent = (data: any) => {
+      switch (data.type) {
+        case 'start':
+          setCodeApplicationState({ stage: 'analyzing' });
+          break;
+        case 'step':
+          if (data.message?.includes('Installing') && data.packages) {
+            setCodeApplicationState({ stage: 'installing', packages: data.packages });
+          } else if (data.message?.includes('Creating') || data.message?.includes('Applying')) {
+            setCodeApplicationState({ stage: 'applying', filesGenerated: [] });
+          }
+          break;
+        case 'package-progress':
+          if (data.installedPackages) {
+            setCodeApplicationState(prev => ({ ...prev, installedPackages: data.installedPackages }));
+          }
+          break;
+        case 'command':
+          if (data.command && !data.command.includes('npm install')) {
+            addChatMessage(data.command, 'command', { commandType: 'input' });
+          }
+          break;
+        case 'success':
+          if (data.installedPackages) {
+            setCodeApplicationState(prev => ({ ...prev, installedPackages: data.installedPackages }));
+          }
+          break;
+        case 'command-progress':
+          addChatMessage(`${data.action} command: ${data.command}`, 'command', { commandType: 'input' });
+          break;
+        case 'command-output':
+          addChatMessage(data.output, 'command', {
+            commandType: data.stream === 'stderr' ? 'error' : 'output'
+          });
+          break;
+        case 'command-complete':
+          addChatMessage(
+            data.success ? 'Command completed successfully' : `Command failed with exit code ${data.exitCode}`,
+            'system'
+          );
+          break;
+        case 'complete':
+          setCodeApplicationState({ stage: 'complete' });
+          setTimeout(() => setCodeApplicationState({ stage: null }), 3000);
+          break;
+        case 'warning':
+        case 'info':
+          if (data.message) addChatMessage(data.message, 'system');
+          break;
+        // 'error' is surfaced by the runner as a terminal job 'failed' event.
+      }
+    };
+
+    // Consume the SSE feed; on a dropped connection, reconnect with ?since= so
+    // nothing is missed (the server replays the backlog).
+    while (!terminal) {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/projects/${projectId}/generate/${jobId}/stream?since=${lastSeq}`
+        );
+      } catch {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      if (response.status === 404) {
+        await handleJobEvent({ type: 'failed', error: 'Build not found' });
+        break;
+      }
+      if (!response.ok || !response.body) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let data: any;
+          try { data = JSON.parse(line.slice(6)); } catch { continue; }
+          if (typeof data.seq === 'number' && data.seq >= 0) lastSeq = data.seq;
+          if (data.stage === 'generate') handleGenerateEvent(data);
+          else if (data.stage === 'apply') handleApplyEvent(data);
+          else if (data.stage === 'job') await handleJobEvent(data);
+        }
+        if (terminal) break;
+      }
+      // Stream ended without a terminal event (deploy restart / proxy hiccup):
+      // loop and re-attach; the server reports the job's durable state.
+      if (!terminal) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    return terminal ?? 'failed';
+  };
+
+  // Re-attach to a build that kept running while the page was closed/reloaded.
+  const resumeRunningBuild = async (projectId: string, job: { id: string; prompt: string; isEdit: boolean }) => {
+    // Show the in-flight prompt: the server only appends it to the saved chat
+    // when the build finishes, so the restored history won't have it yet.
+    const lastUser = [...chatMessagesDataRef.current].reverse().find(m => m.type === 'user');
+    if (!lastUser || lastUser.content !== job.prompt) {
+      addChatMessage(job.prompt, 'user');
+    }
+    addChatMessage('Reconnected — your build kept running in the background. Catching up…', 'system');
+    setGenerationProgress(prev => ({
+      ...prev,
+      isGenerating: true,
+      isEdit: job.isEdit,
+      status: 'Reconnecting to your build...',
+    }));
+    setActiveTab('generation');
+    await followBuildJob(projectId, job.id, job.isEdit);
+  };
+
   type DbInfo = { schema: string; url: string; anonKey: string };
 
   // Silently ensure this project has data storage. Called automatically when a
@@ -2003,7 +2437,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
   // Restore a saved project: rehydrate chat, create a fresh sandbox, and write
   // the last saved files back into it so the preview shows the real app.
-  const restoreProject = async (projectId: string): Promise<boolean> => {
+  // skipSandbox restores chat/metadata only — used when a background build is
+  // still running, whose sandbox a recreation would terminate out from under it.
+  const restoreProject = async (projectId: string, opts?: { skipSandbox?: boolean }): Promise<boolean> => {
     try {
       setLoading(true);
       const res = await fetch(`/api/projects/${projectId}`);
@@ -2047,6 +2483,10 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           };
         }));
       }
+
+      // A running background build owns the current server-side sandbox — don't
+      // create (and thereby terminate) anything; the caller re-attaches instead.
+      if (opts?.skipSandbox) return true;
 
       // Always need a fresh sandbox
       await createSandbox(true);
@@ -3058,16 +3498,16 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       if (decision === 'chat') return;
     }
 
-    // Start sandbox creation in parallel if needed
-    let sandboxPromise: Promise<void> | null = null;
+    // Kick off sandbox creation in parallel so the preview has somewhere to
+    // attach. The build itself no longer depends on it: the server-side apply
+    // step guarantees a sandbox (ensureActiveSandbox) even if this fails or the
+    // tab closes mid-build.
     let sandboxCreating = false;
-    
     if (!sandboxData) {
       sandboxCreating = true;
       addChatMessage('Creating sandbox while I plan your app...', 'system');
-      sandboxPromise = createSandbox(true).catch((error: any) => {
+      void createSandbox(true).catch((error: any) => {
         addChatMessage(`Failed to create sandbox: ${error.message}`, 'system');
-        throw error;
       });
     }
     
@@ -3114,401 +3554,42 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       console.log('[chat] - isEdit:', conversationContext.appliedCode.length > 0);
       
       const genProjectId = currentProjectIdRef.current || (await ensureProjectId());
-      const response = await fetch('/api/generate-ai-code-stream', {
+      if (!genProjectId) {
+        throw new Error('Could not create a project for this build. Please try again.');
+      }
+
+      // Start the build as a detached server-side job: generation, provisioning,
+      // apply and snapshot all run on the server (lib/generation/job-runner.ts),
+      // so closing this tab no longer kills the build — the page just follows
+      // the job's event stream and can re-attach after a reload.
+      const startRes = await fetch(`/api/projects/${genProjectId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: apiPrompt,
           model: aiModel,
           context: fullContext,
-          isEdit: conversationContext.appliedCode.length > 0,
-          projectId: genProjectId || undefined,
+          isEdit,
           images: images && images.length ? images : undefined
         })
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let generatedCode = '';
-      let explanation = '';
-      let buffer = ''; // Buffer for incomplete lines
-      
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('[chat] Received chunk:', chunk.length, 'bytes');
-          buffer += chunk;
-          const lines = buffer.split('\n');
-          
-          // Keep the last line in buffer if it's incomplete
-          buffer = lines.pop() || '';
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.type === 'status') {
-                  setGenerationProgress(prev => ({ ...prev, status: data.message }));
-                } else if (data.type === 'thinking') {
-                  setGenerationProgress(prev => ({ 
-                    ...prev, 
-                    isThinking: true,
-                    thinkingText: (prev.thinkingText || '') + data.text
-                  }));
-                } else if (data.type === 'thinking_complete') {
-                  setGenerationProgress(prev => ({ 
-                    ...prev, 
-                    isThinking: false,
-                    thinkingDuration: data.duration
-                  }));
-                } else if (data.type === 'conversation') {
-                  // Add conversational text to chat only if it's not code
-                  let text = data.text || '';
+      const startData = await startRes.json().catch(() => null);
 
-                  // Strip any structured-output tags (and their contents / stray fragments)
-                  // that slipped through — e.g. a leaked "</explanation>" tail. The
-                  // <explanation> summary is surfaced separately at the end of the build.
-                  text = text.replace(
-                    /<(explanation|file|package|packages|command|structure|template|edit|tables)\b[\s\S]*?<\/\1>/g,
-                    ''
-                  );
-                  text = text.replace(
-                    /<\/?(?:explanation|file|package|packages|command|structure|template|edit|tables)\b[^>]*>?/g,
-                    ''
-                  );
-
-                  // Filter out any XML tags and file/code content that slipped through
-                  // (covers server/route files, not just React components).
-                  if (text.trim().length > 0 && !looksLikeLeakedCode(text)) {
-                    addChatMessage(text.trim(), 'ai');
-                  }
-                } else if (data.type === 'stream' && data.raw) {
-                  setGenerationProgress(prev => {
-                    const newStreamedCode = prev.streamedCode + data.text;
-                    
-                    // Tab is already switched after scraping
-                    
-                    const updatedState = { 
-                      ...prev, 
-                      streamedCode: newStreamedCode,
-                      isStreaming: true,
-                      isThinking: false,
-                      status: 'Generating code...'
-                    };
-                    
-                    // Process complete files from the accumulated stream
-                    const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
-                    let match;
-                    const processedFiles = new Set(prev.files.map(f => f.path));
-                    
-                    while ((match = fileRegex.exec(newStreamedCode)) !== null) {
-                      const filePath = match[1];
-                      const fileContent = match[2];
-                      
-                      // Only add if we haven't processed this file yet
-                      if (!processedFiles.has(filePath)) {
-                        const fileExt = filePath.split('.').pop() || '';
-                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
-                                        fileExt === 'css' ? 'css' :
-                                        fileExt === 'json' ? 'json' :
-                                        fileExt === 'html' ? 'html' : 'text';
-                        
-                        // Check if file already exists
-                        const existingFileIndex = updatedState.files.findIndex(f => f.path === filePath);
-                        
-                        if (existingFileIndex >= 0) {
-                          // Update existing file and mark as edited
-                          updatedState.files = [
-                            ...updatedState.files.slice(0, existingFileIndex),
-                            {
-                              ...updatedState.files[existingFileIndex],
-                              content: fileContent.trim(),
-                              type: fileType,
-                              completed: true,
-                              edited: true
-                            },
-                            ...updatedState.files.slice(existingFileIndex + 1)
-                          ];
-                        } else {
-                          // Add new file
-                          updatedState.files = [...updatedState.files, {
-                            path: filePath,
-                            content: fileContent.trim(),
-                            type: fileType,
-                            completed: true,
-                            edited: false
-                          }];
-                        }
-                        
-                        // Only show file status if not in edit mode
-                        if (!prev.isEdit) {
-                          updatedState.status = `Completed ${filePath}`;
-                        }
-                        processedFiles.add(filePath);
-                      }
-                    }
-                    
-                    // Check for current file being generated (incomplete file at the end)
-                    const lastFileMatch = newStreamedCode.match(/<file path="([^"]+)">([^]*?)$/);
-                    if (lastFileMatch && !lastFileMatch[0].includes('</file>')) {
-                      const filePath = lastFileMatch[1];
-                      const partialContent = lastFileMatch[2];
-                      
-                      if (!processedFiles.has(filePath)) {
-                        const fileExt = filePath.split('.').pop() || '';
-                        const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
-                                        fileExt === 'css' ? 'css' :
-                                        fileExt === 'json' ? 'json' :
-                                        fileExt === 'html' ? 'html' : 'text';
-                        
-                        updatedState.currentFile = { 
-                          path: filePath, 
-                          content: partialContent, 
-                          type: fileType 
-                        };
-                        // Only show file status if not in edit mode
-                        if (!prev.isEdit) {
-                          updatedState.status = `Generating ${filePath}`;
-                        }
-                      }
-                    } else {
-                      updatedState.currentFile = undefined;
-                    }
-                    
-                    return updatedState;
-                  });
-                } else if (data.type === 'app') {
-                  setGenerationProgress(prev => ({ 
-                    ...prev, 
-                    status: 'Generated App.jsx structure'
-                  }));
-                } else if (data.type === 'component') {
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    status: `Generated ${data.name}`,
-                    components: [...prev.components, { 
-                      name: data.name, 
-                      path: data.path, 
-                      completed: true 
-                    }],
-                    currentComponent: data.index
-                  }));
-                } else if (data.type === 'package') {
-                  // Handle package installation from tool calls
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    status: data.message || `Installing ${data.name}`
-                  }));
-                } else if (data.type === 'complete') {
-                  generatedCode = data.generatedCode;
-                  explanation = data.explanation;
-                  
-                  // Save the last generated code
-                  setConversationContext(prev => ({
-                    ...prev,
-                    lastGeneratedCode: generatedCode
-                  }));
-                  
-                  // Clear thinking state when generation completes
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    isThinking: false,
-                    thinkingText: undefined,
-                    thinkingDuration: undefined
-                  }));
-                  
-                  // Store packages to install from tool calls
-                  if (data.packagesToInstall && data.packagesToInstall.length > 0) {
-                    console.log('[generate-code] Packages to install from tools:', data.packagesToInstall);
-                    // Store packages globally for later installation
-                    (window as any).pendingPackages = data.packagesToInstall;
-                  }
-                  
-                  // Parse all files from the completed code if not already done
-                  const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
-                  const parsedFiles: Array<{path: string; content: string; type: string; completed: boolean}> = [];
-                  let fileMatch;
-                  
-                  while ((fileMatch = fileRegex.exec(data.generatedCode)) !== null) {
-                    const filePath = fileMatch[1];
-                    const fileContent = fileMatch[2];
-                    const fileExt = filePath.split('.').pop() || '';
-                    const fileType = fileExt === 'jsx' || fileExt === 'js' ? 'javascript' :
-                                    fileExt === 'css' ? 'css' :
-                                    fileExt === 'json' ? 'json' :
-                                    fileExt === 'html' ? 'html' : 'text';
-                    
-                    parsedFiles.push({
-                      path: filePath,
-                      content: fileContent.trim(),
-                      type: fileType,
-                      completed: true
-                    });
-                  }
-                  
-                  setGenerationProgress(prev => ({
-                    ...prev,
-                    status: `Generated ${parsedFiles.length > 0 ? parsedFiles.length : prev.files.length} file${(parsedFiles.length > 0 ? parsedFiles.length : prev.files.length) !== 1 ? 's' : ''}!`,
-                    isGenerating: false,
-                    isStreaming: false,
-                    isEdit: prev.isEdit,
-                    // Keep the files that were already parsed during streaming
-                    files: prev.files.length > 0 ? prev.files : parsedFiles
-                  }));
-                } else if (data.type === 'error') {
-                  throw new Error(data.error);
-                }
-              } catch (e) {
-                console.error('Failed to parse SSE data:', e);
-              }
-            }
-          }
-        }
-      }
-      
-      if (generatedCode) {
-        // Parse files from generated code for metadata
-        const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
-        const generatedFiles = [];
-        let match;
-        while ((match = fileRegex.exec(generatedCode)) !== null) {
-          generatedFiles.push(match[1]);
-        }
-        
-        // Record the build as a permanent step in the conversation so the list of
-        // files stays visible after the build finishes and survives a page reload.
-        if (generatedFiles.length > 0) {
-          addChatMessage('', 'build', { appliedFiles: generatedFiles });
-        }
-
-        // Show appropriate message based on edit mode
-        if (isEdit && generatedFiles.length > 0) {
-          // For edits, show which file(s) were edited
-          const editedFileNames = generatedFiles.map(f => f.split('/').pop()).join(', ');
-          addChatMessage(
-            explanation || `Updated ${editedFileNames}`,
-            'ai',
-            {
-              appliedFiles: [generatedFiles[0]] // Only show the first edited file
-            }
-          );
+      if (startRes.status === 409) {
+        // A build is already running — re-attach to it instead of stacking.
+        addChatMessage('A build is already running for this app — reconnecting to it…', 'system');
+        if (startData?.jobId) {
+          await followBuildJob(genProjectId, startData.jobId, isEdit);
         } else {
-          // For new generation, show all files
-          addChatMessage(explanation || 'Code generated!', 'ai', {
-            appliedFiles: generatedFiles
-          });
+          setGenerationProgress(prev => ({ ...prev, isGenerating: false, isThinking: false }));
         }
-        
-        setPromptInput(generatedCode);
-        // Don't show the Generated Code panel by default
-        // setLeftPanelVisible(true);
-        
-        // Wait for sandbox creation if it's still in progress
-        let activeSandboxData = sandboxData;
-        if (sandboxPromise) {
-          addChatMessage('Waiting for sandbox to be ready...', 'system');
-          try {
-            const newSandboxData = await sandboxPromise;
-            if (newSandboxData != null) {
-              activeSandboxData = newSandboxData;
-              // Also update the state for future use
-              setSandboxData(newSandboxData);
-            }
-            // Remove the waiting message
-            setChatMessages(prev => prev.filter(msg => msg.content !== 'Waiting for sandbox to be ready...'));
-          } catch {
-            addChatMessage('Sandbox creation failed. Cannot apply code.', 'system');
-            return;
-          }
-        }
-
-        // Fallback: our own createSandbox() may have returned null because another
-        // creation (e.g. the auto-create on page load) was already in progress. In that
-        // case the real sandbox lives in the ref/state — use it so we still apply the code.
-        if (!activeSandboxData) {
-          // Give an in-flight creation a moment to settle, then read the latest value.
-          for (let i = 0; i < 30 && !sandboxDataRef.current; i++) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-          activeSandboxData = sandboxDataRef.current;
-          if (activeSandboxData) {
-            setChatMessages(prev => prev.filter(msg => msg.content !== 'Waiting for sandbox to be ready...'));
-          }
-        }
-
-        if (!activeSandboxData) {
-          addChatMessage('Sandbox was not ready in time, so the generated code was not applied. Please send your request again.', 'system');
-        }
-
-        if (activeSandboxData && generatedCode) {
-          // For new sandbox creations (especially Vercel), add a delay to ensure Vite is ready
-          if (sandboxCreating) {
-            console.log('[startGeneration] New sandbox created, waiting for services to be ready...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          
-          // Automatically decide if this app needs to save data. If so, set up
-          // storage (once) and create any tables the response declared — all
-          // before applying the code, so the app works on first load.
-          let db = dbInfo;
-          if (responseNeedsDatabase(generatedCode)) {
-            if (!db) db = await ensureDatabase();
-            await createTablesFromResponse(generatedCode, db);
-          }
-
-          // Likewise decide if the app uses the built-in AI; if so provision the
-          // per-project token + inject it into the sandbox before applying code.
-          if (responseNeedsAi(generatedCode)) {
-            await ensureAi();
-          }
-
-          // And if the app has its own sign-up/login, provision isolated per-app
-          // auth (its own Zitadel org) + inject the etlaqAuth client before apply.
-          if (responseNeedsAuth(generatedCode)) {
-            await ensureAuth();
-          }
-
-          // Use isEdit flag that was determined at the start
-          // Pass the sandbox data from the promise if it's different from the state
-          await applyGeneratedCode(generatedCode, isEdit, activeSandboxData !== sandboxData ? activeSandboxData : undefined);
-        }
+        return;
       }
-      
-      // Tell the user in the chat that the build finished. Completion is otherwise
-      // only signaled by auto-switching to the Preview tab — easy to miss on mobile,
-      // where the user stays on the chat and the build looks stuck.
-      addChatMessage(
-        isEdit
-          ? 'Your changes are live — open the Preview tab to see them.'
-          : 'Your app is ready! Open the Preview tab to try it.',
-        'system'
-      );
+      if (!startRes.ok || !startData?.success || !startData.jobId) {
+        throw new Error(startData?.error || `HTTP error! status: ${startRes.status}`);
+      }
 
-      // Show completion status briefly then switch to preview
-      setGenerationProgress(prev => ({
-        ...prev,
-        isGenerating: false,
-        isStreaming: false,
-        status: 'Generation complete!',
-        isEdit: prev.isEdit,
-        // Clear thinking state on completion
-        isThinking: false,
-        thinkingText: undefined,
-        thinkingDuration: undefined
-      }));
-      
-      setTimeout(() => {
-        // Switch to preview but keep files for display
-        setActiveTab('preview');
-      }, 1000); // Reduced from 3000ms to 1000ms
+      await followBuildJob(genProjectId, startData.jobId, isEdit);
     } catch (error: any) {
       setChatMessages(prev => prev.filter(msg => msg.content !== 'Thinking...'));
       addChatMessage(`Error: ${error.message}`, 'system');
