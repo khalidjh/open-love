@@ -60,6 +60,21 @@ export abstract class SandboxProvider {
     return this.isAlive();
   }
 
+  // Re-attach to a still-running sandbox by id (e.g. after the Node process
+  // restarted but the sandbox survived). Returns false when the provider can't
+  // reconnect or the sandbox is gone — callers then fall back to a full rebuild.
+  async reconnect(_sandboxId: string): Promise<boolean> {
+    return false;
+  }
+
+  // Write many files in one call. Providers with a batch filesystem API should
+  // override this; the default degrades to sequential single writes.
+  async writeFiles(files: SandboxFile[]): Promise<void> {
+    for (const f of files) {
+      await this.writeFile(f.path, f.content);
+    }
+  }
+
   // Refresh the sandbox's TTL so an active session isn't reaped mid-use. No-op by
   // default; providers with an idle timeout should override.
   async keepAlive(): Promise<void> {

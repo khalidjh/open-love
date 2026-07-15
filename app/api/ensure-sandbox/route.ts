@@ -17,13 +17,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     projectId = body?.projectId;
 
-    const { orgId, session } = await requireProjectSession(projectId);
+    const { orgId, project, session } = await requireProjectSession(projectId);
 
     const result = await ensureActiveSandbox({
       session,
       orgId,
       projectId: projectId!,
       loadFallback: makeProjectFallback(projectId),
+      lastSandboxId: project.sandboxId,
     });
 
     return NextResponse.json({

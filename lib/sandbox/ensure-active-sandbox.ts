@@ -22,6 +22,10 @@ export interface EnsureOptions {
   // empty (e.g. the Node process restarted). Typically a DB-snapshot loader.
   // Only invoked on the recovery path, and only when the cache has nothing.
   loadFallback?: () => Promise<{ files: Record<string, string>; framework?: Framework } | null>;
+  // The sandboxId persisted on the project row. After a process restart the
+  // in-memory session is gone but the sandbox itself often survives — this id
+  // lets recovery re-attach to it instead of rebuilding from scratch.
+  lastSandboxId?: string | null;
 }
 
 // Snapshot the session's file cache as a flat path -> content map. The cache
@@ -70,7 +74,7 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
     }
   }
 
-  // --- Recovery path: rebuild and replay ---
+  // --- Recovery path ---
   let files = cachedFiles(session);
   let framework: Framework = session.framework || 'vite';
 
@@ -89,11 +93,50 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
 
   // Drop this project's dead handle so nothing else tries to reuse it. Note we
   // only tear down THIS session's provider — never other tenants' sandboxes.
+  // Unregister its manager entry too so the bookkeeping map doesn't accumulate
+  // dead sandboxes over the container's lifetime.
+  const deadId = session.sandboxData?.sandboxId;
+  if (deadId) await sandboxManager.terminateSandbox(deadId).catch(() => {});
   if (session.provider) {
     try { await session.provider.terminate(); } catch { /* best-effort */ }
     session.provider = null;
   }
 
+  // Cheap path first: if this session had no live handle (process restart), the
+  // sandbox itself may still be running — re-attach instead of rebuilding.
+  // Skip ids we just ping-failed/terminated; only a persisted id from a *previous*
+  // process is worth trying.
+  const reconnectId = opts.lastSandboxId && opts.lastSandboxId !== deadId ? opts.lastSandboxId : null;
+  if (reconnectId) {
+    const candidate = SandboxFactory.create();
+    const reattached = await candidate.reconnect(reconnectId).catch(() => false);
+    if (reattached) {
+      const info = candidate.getSandboxInfo();
+      if (info) {
+        console.log('[ensureActiveSandbox] re-attached to surviving sandbox', reconnectId);
+        sandboxManager.registerSandbox(info.sandboxId, candidate);
+        session.provider = candidate;
+        session.framework = framework;
+        session.sandboxData = { sandboxId: info.sandboxId, url: info.url };
+        // The sandbox already holds these files; cache them for context selection.
+        session.fileCache = {
+          files: Object.fromEntries(
+            paths.map((p) => [p, { content: files[p], lastModified: Date.now() }])
+          ),
+          lastSync: Date.now(),
+          sandboxId: info.sandboxId,
+        };
+        session.existingFiles = new Set([...session.existingFiles, ...paths]);
+        return {
+          provider: candidate,
+          sandboxData: { sandboxId: info.sandboxId, url: info.url },
+          recreated: false,
+        };
+      }
+    }
+  }
+
+  // --- Full rebuild and replay ---
   const provider = SandboxFactory.create();
   const info = await provider.createSandbox();
 
@@ -101,12 +144,17 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
   if (framework === 'nextjs') await provider.setupNextApp();
   else await provider.setupViteApp();
 
-  // Replay generated files over the fresh scaffold.
-  for (const path of paths) {
-    try {
-      await provider.writeFile(path, files[path]);
-    } catch (e) {
-      console.error('[ensureActiveSandbox] failed to replay', path, e);
+  // Replay generated files over the fresh scaffold in one batch write.
+  try {
+    await provider.writeFiles(paths.map((p) => ({ path: p, content: files[p] })));
+  } catch (e) {
+    console.error('[ensureActiveSandbox] batch replay failed, retrying per-file', e);
+    for (const path of paths) {
+      try {
+        await provider.writeFile(path, files[path]);
+      } catch (err) {
+        console.error('[ensureActiveSandbox] failed to replay', path, err);
+      }
     }
   }
 

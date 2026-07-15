@@ -74,3 +74,43 @@ export function getOrCreateSession(projectId: string): SandboxSession {
 export function deleteSession(projectId: string): void {
   store.delete(projectId);
 }
+
+// =============================================================================
+// Idle-session GC.
+//
+// Sessions (and the provider handles inside them) were previously immortal: on a
+// long-running server the map grew with every project ever opened. E2B reaps the
+// actual microVM after its TTL anyway, so a session idle for hours holds only a
+// dead handle + stale file cache — safe to drop. Anything the user returns to
+// later is rebuilt from the project's DB snapshot (see ensure-active-sandbox).
+// =============================================================================
+
+const SESSION_IDLE_TTL_MS = 2 * 60 * 60 * 1000; // 2h idle — far beyond E2B's 30-min sandbox TTL
+const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+
+async function sweepIdleSessions(): Promise<void> {
+  const now = Date.now();
+  for (const [projectId, s] of store) {
+    if (now - s.lastAccessed <= SESSION_IDLE_TTL_MS) continue;
+    store.delete(projectId);
+    // Best-effort teardown of the (almost certainly already-reaped) sandbox and
+    // its bookkeeping entry. Lazy import avoids a module-load cycle.
+    const sandboxId = s.sandboxData?.sandboxId;
+    const provider = s.provider;
+    try {
+      if (sandboxId) {
+        const { sandboxManager } = await import('./sandbox-manager');
+        await sandboxManager.terminateSandbox(sandboxId);
+      }
+      if (provider) await provider.terminate();
+    } catch { /* best-effort */ }
+  }
+}
+
+// Pin the sweeper to globalThis (HMR-safe, single instance) and unref it so it
+// never keeps the process alive on shutdown.
+const gs = globalThis as unknown as { __etlaqSandboxSweeper?: ReturnType<typeof setInterval> };
+if (!gs.__etlaqSandboxSweeper) {
+  gs.__etlaqSandboxSweeper = setInterval(() => { void sweepIdleSessions(); }, SWEEP_INTERVAL_MS);
+  gs.__etlaqSandboxSweeper.unref?.();
+}

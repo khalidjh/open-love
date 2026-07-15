@@ -20,6 +20,11 @@ export async function POST(request: NextRequest) {
 
     // Tear down only THIS project's previous sandbox (if any). Do NOT call
     // sandboxManager.terminateAll() — that would kill every tenant's sandbox.
+    // Unregister its manager entry too so dead sandboxes don't accumulate there.
+    const priorId = session.sandboxData?.sandboxId;
+    if (priorId) {
+      await sandboxManager.terminateSandbox(priorId).catch(() => {});
+    }
     if (session.provider) {
       try {
         await session.provider.terminate();

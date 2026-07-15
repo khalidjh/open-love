@@ -1,5 +1,6 @@
 import { Sandbox } from '@e2b/code-interpreter';
-import { SandboxProvider, SandboxInfo, CommandResult } from '../types';
+import { posix } from 'path';
+import { SandboxProvider, SandboxInfo, CommandResult, SandboxFile } from '../types';
 // SandboxProviderConfig available through parent class
 import { appConfig } from '@/config/app.config';
 import { getTemplate } from '@/lib/templates';
@@ -7,90 +8,128 @@ import { getTemplate } from '@/lib/templates';
 export class E2BProvider extends SandboxProvider {
   private existingFiles: Set<string> = new Set();
 
+  private apiKey(): string | undefined {
+    return this.config.e2b?.apiKey || process.env.E2B_API_KEY;
+  }
+
+  // Confine every filesystem path to /home/user. Generated file paths come from
+  // model output, so a stray "../../etc/passwd" must resolve-and-reject here
+  // rather than land wherever the kernel lets root write.
+  private resolvePath(path: string): string {
+    const base = this.getWorkingDirectory();
+    const full = posix.normalize(path.startsWith('/') ? path : posix.join(base, path));
+    if (!full.startsWith('/home/user/')) {
+      throw new Error(`Refusing to access path outside sandbox home: ${path}`);
+    }
+    return full;
+  }
+
   /**
-   * Attempt to reconnect to an existing E2B sandbox
+   * Re-attach to a still-running E2B sandbox by id. This makes recovery after a
+   * server restart nearly free: instead of scaffold + npm install + file replay,
+   * we resume the live microVM (files and dev server intact).
    */
   async reconnect(sandboxId: string): Promise<boolean> {
     try {
-      
-      // Try to connect to existing sandbox
-      // Note: E2B SDK doesn't directly support reconnection, but we can try to recreate
-      // For now, return false to indicate reconnection isn't supported
-      // In the future, E2B may add this capability
-      
-      return false;
-    } catch (error) {
-      console.error(`[E2BProvider] Failed to reconnect to sandbox ${sandboxId}:`, error);
+      const sandbox = await Sandbox.connect(sandboxId, {
+        apiKey: this.apiKey(),
+        requestTimeoutMs: 15_000,
+      });
+      const running = await sandbox.isRunning({ requestTimeoutMs: 10_000 }).catch(() => false);
+      if (!running) return false;
+
+      this.sandbox = sandbox;
+      const host = sandbox.getHost(appConfig.e2b.vitePort);
+      this.sandboxInfo = {
+        sandboxId,
+        url: `https://${host}`,
+        provider: 'e2b',
+        createdAt: new Date(),
+      };
+      await this.keepAlive();
+      return true;
+    } catch {
+      // Sandbox was reaped or the id is stale — caller falls back to a rebuild.
       return false;
     }
   }
 
   async createSandbox(): Promise<SandboxInfo> {
-    try {
-      
-      // Kill existing sandbox if any
-      if (this.sandbox) {
-        try {
-          await this.sandbox.kill();
-        } catch (e) {
-          console.error('Failed to close existing sandbox:', e);
-        }
-        this.sandbox = null;
+    // Kill existing sandbox if any
+    if (this.sandbox) {
+      try {
+        await this.sandbox.kill();
+      } catch (e) {
+        console.error('Failed to close existing sandbox:', e);
       }
-      
-      // Clear existing files tracking
-      this.existingFiles.clear();
-
-      // Create base sandbox
-      this.sandbox = await Sandbox.create({
-        apiKey: this.config.e2b?.apiKey || process.env.E2B_API_KEY,
-        timeoutMs: this.config.e2b?.timeoutMs || appConfig.e2b.timeoutMs,
-        requestTimeoutMs: 120_000 // allow up to 2 min for the sandbox to spin up
-      });
-      
-      const sandboxId = (this.sandbox as any).sandboxId || Date.now().toString();
-      const host = (this.sandbox as any).getHost(appConfig.e2b.vitePort);
-      
-
-      this.sandboxInfo = {
-        sandboxId,
-        url: `https://${host}`,
-        provider: 'e2b',
-        createdAt: new Date()
-      };
-
-      // Set extended timeout on the sandbox instance if method available
-      if (typeof this.sandbox.setTimeout === 'function') {
-        this.sandbox.setTimeout(appConfig.e2b.timeoutMs);
-      }
-
-      return this.sandboxInfo;
-
-    } catch (error) {
-      console.error('[E2BProvider] Error creating sandbox:', error);
-      throw error;
+      this.sandbox = null;
     }
+
+    // Clear existing files tracking
+    this.existingFiles.clear();
+
+    // E2B create occasionally fails transiently (capacity, network); one retry
+    // with a short backoff absorbs those without hiding real outages.
+    const attempts = 2;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        this.sandbox = await Sandbox.create({
+          apiKey: this.apiKey(),
+          timeoutMs: this.config.e2b?.timeoutMs || appConfig.e2b.timeoutMs,
+          requestTimeoutMs: 120_000 // allow up to 2 min for the sandbox to spin up
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        console.error(`[E2BProvider] Error creating sandbox (attempt ${attempt}/${attempts}):`, error);
+        if (attempt === attempts) throw error;
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    if (!this.sandbox) throw lastError instanceof Error ? lastError : new Error('Sandbox creation failed');
+
+    const sandboxId = (this.sandbox as any).sandboxId || Date.now().toString();
+    const host = (this.sandbox as any).getHost(appConfig.e2b.vitePort);
+
+    this.sandboxInfo = {
+      sandboxId,
+      url: `https://${host}`,
+      provider: 'e2b',
+      createdAt: new Date()
+    };
+
+    // Set extended timeout on the sandbox instance if method available
+    // (awaited — see keepAlive for why floating this promise is dangerous).
+    if (typeof this.sandbox.setTimeout === 'function') {
+      await this.sandbox.setTimeout(appConfig.e2b.timeoutMs).catch((e: unknown) => {
+        console.error('[E2BProvider] initial setTimeout failed:', e);
+      });
+    }
+
+    return this.sandboxInfo;
   }
 
   // Real liveness probe: the E2B microVM can be reaped once its TTL elapses, at
-  // which point the cached sandboxId/URL are dead. A trivial round-trip is the
-  // only reliable way to know — isAlive() only reflects the in-memory handle.
+  // which point the cached sandboxId/URL are dead. isRunning() is a single cheap
+  // control-plane call — unlike spinning up the Python interpreter to print pong.
   async ping(): Promise<boolean> {
     if (!this.sandbox) return false;
     try {
-      const result = await this.sandbox.runCode('print("pong")');
-      return !result.error;
+      return await this.sandbox.isRunning({ requestTimeoutMs: 10_000 });
     } catch {
       return false;
     }
   }
 
   // Extend the sandbox's TTL so an active editing session isn't reaped mid-use.
+  // MUST await the SDK call: un-awaited, a dead sandbox turns this into an
+  // unhandled promise rejection that can take down the whole Node process.
   async keepAlive(): Promise<void> {
     if (!this.sandbox) return;
     try {
       if (typeof this.sandbox.setTimeout === 'function') {
-        this.sandbox.setTimeout(appConfig.e2b.timeoutMs);
+        await this.sandbox.setTimeout(appConfig.e2b.timeoutMs);
       }
     } catch (e) {
       console.error('[E2BProvider] keepAlive failed:', e);
@@ -103,14 +142,17 @@ export class E2BProvider extends SandboxProvider {
     }
 
 
+    // shlex.split honors quoting ("npm pkg set description='two words'"),
+    // unlike naive whitespace splitting which mangles any quoted argument.
     const result = await this.sandbox.runCode(`
       import subprocess
       import os
+      import shlex
 
       os.chdir('/home/user/app')
-      result = subprocess.run(${JSON.stringify(command.split(' '))}, 
-                            capture_output=True, 
-                            text=True, 
+      result = subprocess.run(shlex.split(${JSON.stringify(command)}),
+                            capture_output=True,
+                            text=True,
                             shell=False)
 
       print("STDOUT:")
@@ -174,7 +216,7 @@ sys.stdout.write("\\n__RC__=%d__" % r.returncode)
       throw new Error('No active sandbox');
     }
 
-    const data = await (this.sandbox as any).files.read(path, { format: 'bytes' });
+    const data = await (this.sandbox as any).files.read(this.resolvePath(path), { format: 'bytes' });
     return Buffer.from(data).toString('base64');
   }
 
@@ -183,30 +225,21 @@ sys.stdout.write("\\n__RC__=%d__" % r.returncode)
       throw new Error('No active sandbox');
     }
 
-    const fullPath = path.startsWith('/') ? path : `/home/user/app/${path}`;
-    
-    // Use the E2B filesystem API to write the file
-    // Note: E2B SDK uses files.write() method
-    if ((this.sandbox as any).files && typeof (this.sandbox as any).files.write === 'function') {
-      // Use the files.write API if available
-      await (this.sandbox as any).files.write(fullPath, Buffer.from(content));
-    } else {
-      // Fallback to Python code execution
-      await this.sandbox.runCode(`
-        import os
-
-        # Ensure directory exists
-        dir_path = os.path.dirname("${fullPath}")
-        os.makedirs(dir_path, exist_ok=True)
-
-        # Write file
-        with open("${fullPath}", 'w') as f:
-            f.write(${JSON.stringify(content)})
-        print(f"✓ Written: ${fullPath}")
-      `);
-    }
-    
+    await (this.sandbox as any).files.write(this.resolvePath(path), Buffer.from(content));
     this.existingFiles.add(path);
+  }
+
+  // Batch write via the SDK's multi-entry files.write — one round-trip for the
+  // whole set instead of one per file. Used for replaying a project on recovery.
+  async writeFiles(files: SandboxFile[]): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error('No active sandbox');
+    }
+    if (files.length === 0) return;
+
+    const entries = files.map((f) => ({ path: this.resolvePath(f.path), data: f.content }));
+    await (this.sandbox as any).files.write(entries);
+    for (const f of files) this.existingFiles.add(f.path);
   }
 
   async readFile(path: string): Promise<string> {
@@ -214,15 +247,10 @@ sys.stdout.write("\\n__RC__=%d__" % r.returncode)
       throw new Error('No active sandbox');
     }
 
-    const fullPath = path.startsWith('/') ? path : `/home/user/app/${path}`;
-    
-    const result = await this.sandbox.runCode(`
-      with open("${fullPath}", 'r') as f:
-          content = f.read()
-      print(content)
-    `);
-    
-    return result.logs.stdout.join('\n');
+    // files.read returns the exact content; the old print()-based round-trip
+    // corrupted files (interpolated the path into Python source, and stdout
+    // joining rewrote newlines).
+    return await (this.sandbox as any).files.read(this.resolvePath(path));
   }
 
   async listFiles(directory: string = '/home/user/app'): Promise<string[]> {
@@ -244,10 +272,10 @@ sys.stdout.write("\\n__RC__=%d__" % r.returncode)
                   files.append(rel_path)
           return files
 
-      files = list_files("${directory}")
+      files = list_files(${JSON.stringify(this.resolvePath(directory))})
       print(json.dumps(files))
     `);
-    
+
     try {
       return JSON.parse(result.logs.stdout.join(''));
     } catch {
@@ -509,10 +537,10 @@ process = subprocess.Popen(
 print(f'✓ Vite dev server started with PID: {process.pid}')
 print('Waiting for server to be ready...')
     `);
-    
-    // Wait for Vite to be ready
-    await new Promise(resolve => setTimeout(resolve, appConfig.e2b.viteStartupDelay));
-    
+
+    // Wait for Vite to actually accept connections instead of sleeping blindly.
+    await this.waitForServerReady(appConfig.e2b.viteStartupDelay * 3);
+
     // Track initial files
     this.existingFiles.add('src/App.jsx');
     this.existingFiles.add('src/main.jsx');
@@ -550,6 +578,37 @@ print('Waiting for server to be ready...')
     for (const f of tpl.scaffoldFiles) this.existingFiles.add(f.path);
   }
 
+  // Poll the dev-server port inside the sandbox until it accepts a connection,
+  // up to maxWaitMs. Returns as soon as the server is up (typically seconds),
+  // where the old fixed sleeps always paid the full 10–20s and still couldn't
+  // tell whether the server had actually started.
+  private async waitForServerReady(maxWaitMs: number): Promise<boolean> {
+    if (!this.sandbox) return false;
+    try {
+      const result = await this.sandbox.runCode(`
+import socket, time
+deadline = time.time() + ${Math.ceil(maxWaitMs / 1000)}
+ready = False
+while time.time() < deadline and not ready:
+    s = socket.socket()
+    s.settimeout(1)
+    try:
+        s.connect(('127.0.0.1', ${appConfig.e2b.vitePort}))
+        ready = True
+    except Exception:
+        time.sleep(0.5)
+    s.close()
+print('READY' if ready else 'TIMEOUT')
+`);
+      const ready = (result.logs?.stdout || []).join('').includes('READY');
+      if (!ready) console.error('[E2BProvider] dev server did not become ready within', maxWaitMs, 'ms');
+      return ready;
+    } catch (e) {
+      console.error('[E2BProvider] readiness probe failed:', e);
+      return false;
+    }
+  }
+
   private async startNextServer(): Promise<void> {
     if (!this.sandbox) throw new Error('No active sandbox');
     await this.sandbox.runCode(`
@@ -575,7 +634,7 @@ process = subprocess.Popen(
 )
 print(f'✓ Next dev server started with PID: {process.pid}')
     `);
-    await new Promise(resolve => setTimeout(resolve, appConfig.e2b.nextStartupDelay));
+    await this.waitForServerReady(appConfig.e2b.nextStartupDelay * 3);
   }
 
   async restartNextServer(): Promise<void> {
@@ -615,9 +674,9 @@ process = subprocess.Popen(
 
 print(f'✓ Vite restarted with PID: {process.pid}')
     `);
-    
-    // Wait for Vite to be ready
-    await new Promise(resolve => setTimeout(resolve, appConfig.e2b.viteStartupDelay));
+
+    // Wait for Vite to actually accept connections instead of sleeping blindly.
+    await this.waitForServerReady(appConfig.e2b.viteStartupDelay * 3);
   }
 
   getSandboxUrl(): string | null {

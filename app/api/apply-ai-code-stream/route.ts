@@ -337,9 +337,10 @@ export async function POST(request: NextRequest) {
     // Tenant-isolation boundary: authenticate the caller and resolve THEIR
     // project's sandbox session before touching any sandbox.
     let orgId: string;
+    let project: import('@/lib/db/schema').Project;
     let session: import('@/lib/sandbox/session-store').SandboxSession;
     try {
-      ({ orgId, session } = await requireProjectSession(projectId));
+      ({ orgId, project, session } = await requireProjectSession(projectId));
     } catch (authError) {
       return toErrorResponse(authError);
     }
@@ -387,6 +388,7 @@ export async function POST(request: NextRequest) {
         orgId,
         projectId,
         loadFallback: makeProjectFallback(projectId),
+        lastSandboxId: project.sandboxId,
       });
       provider = ensured.provider;
     } catch (createError) {
