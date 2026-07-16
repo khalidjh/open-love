@@ -12,13 +12,15 @@ export class E2BProvider extends SandboxProvider {
     return this.config.e2b?.apiKey || process.env.E2B_API_KEY;
   }
 
-  // Confine every filesystem path to /home/user. Generated file paths come from
-  // model output, so a stray "../../etc/passwd" must resolve-and-reject here
-  // rather than land wherever the kernel lets root write.
+  // Confine every filesystem path to /home/user or /tmp. Generated file paths
+  // come from model output, so a stray "../../etc/passwd" must resolve-and-reject
+  // here rather than land wherever the kernel lets root write. /tmp is allowed
+  // because our own deploy/zip flows stage archives there (site.tgz,
+  // project.zip) — it's still inside the disposable sandbox VM.
   private resolvePath(path: string): string {
     const base = this.getWorkingDirectory();
     const full = posix.normalize(path.startsWith('/') ? path : posix.join(base, path));
-    if (!full.startsWith('/home/user/')) {
+    if (!full.startsWith('/home/user/') && !full.startsWith('/tmp/')) {
       throw new Error(`Refusing to access path outside sandbox home: ${path}`);
     }
     return full;
