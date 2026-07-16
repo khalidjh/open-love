@@ -40,7 +40,7 @@ export default function AuthModal({ open, initialMode = 'signin', onClose }: Aut
       />
 
       {/* Card — full-screen on mobile, centered card on desktop */}
-      <div className="relative z-10 flex h-full w-full max-w-none flex-col overflow-y-auto rounded-none border-0 bg-white p-24 pt-64 animate-in fade-in duration-200 md:h-auto md:max-w-[440px] md:rounded-24 md:border md:border-[#eae6f3] md:p-40 md:pt-40 md:zoom-in-95">
+      <div className="relative z-10 flex h-full w-full max-w-none flex-col overflow-y-auto rounded-none border-0 bg-white p-24 pt-64 animate-in fade-in duration-200 md:h-auto md:max-w-[440px] md:rounded-24 md:border md:border-[#d6d0e6] md:p-40 md:pt-40 md:zoom-in-95">
         <button
           type="button"
           onClick={onClose}

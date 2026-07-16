@@ -5,7 +5,7 @@
 export default function PreviewSkeleton({ label }: { label?: string }) {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-[#fbfafd] p-8 md:p-16">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-12 border border-[#ece8f4] bg-white">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-12 border border-[#d8d2e6] bg-white">
         {/* Browser chrome */}
         <div className="flex shrink-0 items-center gap-8 border-b border-[#f0edf6] px-16 py-12">
           <div className="flex gap-6">
@@ -55,7 +55,7 @@ export default function PreviewSkeleton({ label }: { label?: string }) {
 
       {/* Caption */}
       <div className="flex shrink-0 items-center justify-center gap-8 pt-16">
-        <span className="h-14 w-14 animate-spin rounded-full border-2 border-[#e2ddf0] border-t-[#6147D4]" />
+        <span className="h-14 w-14 animate-spin rounded-full border-2 border-[#cfc7e2] border-t-[#6147D4]" />
         <p className="text-[13px] text-[#6b6577]">{label ?? 'Starting your preview…'}</p>
       </div>
     </div>

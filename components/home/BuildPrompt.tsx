@@ -269,7 +269,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           {attachments.map((a) => (
             <div
               key={a.id}
-              className="anim-scale-in relative flex items-center gap-8 rounded-10 border border-[#e7e3f0] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
+              className="anim-scale-in relative flex items-center gap-8 rounded-10 border border-[#d4cde4] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
             >
               {a.kind === "image" && a.dataUrl ? (
                 <img src={a.dataUrl} alt="" className="h-28 w-28 rounded-6 object-cover" />
@@ -344,7 +344,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             </svg>
           </button>
           {attachMenuOpen && (
-            <div className="absolute top-full left-0 z-40 mt-8 w-[230px] overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="absolute top-full left-0 z-40 mt-8 w-[230px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 animate-in fade-in slide-in-from-top-1 duration-150">
               <button
                 type="button"
                 onClick={() => {
@@ -379,7 +379,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             {activeTheme?.label ?? "Themes"}
           </button>
           {themeMenuOpen && (
-            <div className="absolute top-full left-0 z-40 mt-8 w-[300px] rounded-14 border border-[#eae6f3] bg-white p-10 shadow-[0_12px_40px_rgba(25,22,34,0.10)] animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="absolute top-full left-0 z-40 mt-8 w-[300px] rounded-14 border border-[#d6d0e6] bg-white p-10 shadow-[0_12px_40px_rgba(25,22,34,0.10)] animate-in fade-in slide-in-from-top-1 duration-150">
               <p className="px-4 pb-8 text-[12px] font-medium text-[#6b6577]">
                 Pick a look for your site
               </p>
@@ -419,7 +419,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                     setSelectedThemeId("custom");
                   }}
                   placeholder="Or describe your own colors…"
-                  className="w-full rounded-8 border border-[#eae6f3] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#c3b8ee] focus:outline-none"
+                  className="w-full rounded-8 border border-[#d6d0e6] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#c3b8ee] focus:outline-none"
                 />
               </div>
               {activeTheme && (

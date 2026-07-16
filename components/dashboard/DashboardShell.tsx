@@ -76,7 +76,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
 
       {/* Sidebar — off-canvas drawer on mobile, in-flow on desktop */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-r border-[#ece8f4] bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-r border-[#d8d2e6] bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
           mobileNavOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "md:w-[68px]" : "md:w-[264px]"}`}
       >
@@ -143,7 +143,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
         )}
 
         {/* Account */}
-        <div className="relative mt-auto border-t border-[#ece8f4] p-12" ref={accountRef}>
+        <div className="relative mt-auto border-t border-[#d8d2e6] p-12" ref={accountRef}>
           <button
             type="button"
             onClick={() => setAccountOpen((v) => !v)}
@@ -162,7 +162,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           </button>
 
           {accountOpen && (
-            <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6">
+            <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6">
               <div className="px-12 py-8">
                 <p className="text-[12px] text-[#6b6577]">Signed in as</p>
                 <p className="truncate text-[14px] font-medium">{email}</p>
@@ -188,7 +188,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             type="button"
             onClick={() => setMobileNavOpen(true)}
             aria-label="Open menu"
-            className="flex h-40 w-40 items-center justify-center rounded-full border border-[#ece8f4] bg-white text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+            className="flex h-40 w-40 items-center justify-center rounded-full border border-[#d8d2e6] bg-white text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
               <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
@@ -248,7 +248,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                   <div
                     key={p.id}
                     style={{ animationDelay: `${Math.min(index * 45, 400)}ms` }}
-                    className="group anim-fade-up hover-lift relative flex flex-col rounded-16 border border-[#ece8f4] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_12px_40px_rgba(97,71,212,0.12)]"
+                    className="group anim-fade-up hover-lift relative flex flex-col rounded-16 border border-[#d8d2e6] bg-white p-20 transition-all hover:border-[#c3b8ee] hover:shadow-[0_12px_40px_rgba(97,71,212,0.12)]"
                   >
                     {/* Full-card link to the editor; interactive controls sit above it. */}
                     <Link

@@ -109,7 +109,7 @@ const MORE_OPTIONS: Array<{ id: string; label: string; icon: React.ReactNode; av
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-14 border border-[#ece8f4] bg-[#faf9fd] p-16">
+    <div className="rounded-14 border border-[#d8d2e6] bg-[#faf9fd] p-16">
       <p className="text-[12px] font-medium text-[#6b6577]">{label}</p>
       <p className="mt-4 text-[26px] font-semibold text-[#191622]">{value.toLocaleString()}</p>
     </div>
@@ -154,7 +154,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
         <StatCard label="Unique visitors" value={totals.visitors} />
       </div>
 
-      <div className="mb-24 rounded-14 border border-[#ece8f4] p-16">
+      <div className="mb-24 rounded-14 border border-[#d8d2e6] p-16">
         <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Last 14 days</p>
         {daily.length === 0 ? (
           <p className="text-[13px] text-[#8b8798]">No visits yet — share your live link to start seeing traffic.</p>
@@ -177,7 +177,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
       </div>
 
       {topPaths.length > 0 && (
-        <div className="rounded-14 border border-[#ece8f4] p-16">
+        <div className="rounded-14 border border-[#d8d2e6] p-16">
           <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Top pages</p>
           <div className="flex flex-col gap-8">
             {topPaths.map((p) => (
@@ -217,7 +217,7 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
         <p className="mt-4 text-[13px] text-[#6b6577]">Let your app accept payments and start earning.</p>
       </div>
 
-      <div className="rounded-16 border border-[#ece8f4] bg-[#faf9fd] p-20">
+      <div className="rounded-16 border border-[#d8d2e6] bg-[#faf9fd] p-20">
         <div className="mb-14 flex items-center gap-10">
           <div className="flex h-32 w-32 items-center justify-center rounded-10 bg-[#6147D4]">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="white" aria-hidden>
@@ -232,7 +232,7 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
           handles the payment gateway, and takes care of the billing details for you.
         </p>
 
-        <div className="mb-18 flex gap-12 rounded-12 border border-[#ece8f4] bg-white p-14">
+        <div className="mb-18 flex gap-12 rounded-12 border border-[#d8d2e6] bg-white p-14">
           <div className="mt-1 flex h-32 w-32 shrink-0 items-center justify-center rounded-8 bg-[#f0ecfb]">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#6147D4" aria-hidden>
               <rect x="3" y="5" width="14" height="10" rx="2" strokeWidth="1.5" />
@@ -3151,7 +3151,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
               }}
               className={
                 previewDevice === 'mobile'
-                  ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#e7e3f0] bg-white transition-all duration-300'
+                  ? 'h-full max-h-[800px] w-[390px] rounded-24 border border-[#d4cde4] bg-white transition-all duration-300'
                   : 'w-full h-full border-none transition-all duration-300'
               }
               title="Etlaq Sandbox"
@@ -3317,7 +3317,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       return (
         <div className="absolute inset-0 flex overflow-hidden bg-white">
           {/* Capability list */}
-          <div className="w-[264px] shrink-0 overflow-y-auto border-r border-[#ece8f4] bg-[#faf9fd] p-12">
+          <div className="w-[264px] shrink-0 overflow-y-auto border-r border-[#d8d2e6] bg-[#faf9fd] p-12">
             {MORE_OPTIONS.map((opt) => {
               const isActive = opt.id === moreSection;
               return (
@@ -4822,7 +4822,7 @@ Focus on the key sections and content, making it clean and modern.`;
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
           aria-label="Menu"
-          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
             <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
@@ -4830,7 +4830,7 @@ Focus on the key sections and content, making it clean and modern.`;
         </button>
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
-          className="mx-8 flex min-w-0 items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-14 py-8 text-[#191622]"
+          className="mx-8 flex min-w-0 items-center gap-6 rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-14 py-8 text-[#191622]"
         >
           <span className="truncate text-[14px] font-medium">{projectName}</span>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#8b8798] transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`}>
@@ -4842,7 +4842,7 @@ Focus on the key sections and content, making it clean and modern.`;
           aria-label={mobileView === 'chat' ? 'Show preview' : 'Show chat'}
           disabled={mobileView === 'chat' && !sandboxData}
           title={mobileView === 'chat' && !sandboxData ? 'Preview not ready yet' : undefined}
-          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+          className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
         >
           {mobileView === 'chat' ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -4859,7 +4859,7 @@ Focus on the key sections and content, making it clean and modern.`;
         {mobileMenuOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
-            <div className="absolute left-16 right-16 top-full z-50 mt-4 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
+            <div className="absolute left-16 right-16 top-full z-50 mt-4 overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
               <a
                 href="/dashboard"
                 className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
@@ -4945,7 +4945,7 @@ Focus on the key sections and content, making it clean and modern.`;
             </button>
 
             {projectMenuOpen && (
-              <div className="absolute left-0 top-full z-40 mt-8 w-[240px] overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6">
+              <div className="absolute left-0 top-full z-40 mt-8 w-[240px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6">
                 <a
                   href="/dashboard"
                   className="flex items-center gap-8 rounded-8 px-10 py-8 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
@@ -5144,7 +5144,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 </svg>
                 Publish
               </button>
-              <div className="mx-4 h-20 w-px bg-[#ece8f4]" />
+              <div className="mx-4 h-20 w-px bg-[#d8d2e6]" />
               <button
                 onClick={() => setChatFullscreen((v) => !v)}
                 className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
@@ -5309,7 +5309,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 const isOpen = !!openBuildRecords[idx];
                 return (
                   <div key={idx} className="anim-fade-up flex w-full flex-col items-start">
-                    <div className="w-full overflow-hidden rounded-14 border border-[#ece8f4] bg-white transition-colors">
+                    <div className="w-full overflow-hidden rounded-14 border border-[#d8d2e6] bg-white transition-colors">
                       <button
                         onClick={() => setOpenBuildRecords((prev) => ({ ...prev, [idx]: !prev[idx] }))}
                         className="flex w-full items-center gap-10 px-14 py-12 text-left"
@@ -5327,11 +5327,11 @@ Focus on the key sections and content, making it clean and modern.`;
                         )}
                       </button>
                       {isOpen && builtFiles.length > 0 && (
-                        <div className="flex flex-col border-t border-[#ece8f4] px-14 py-4">
+                        <div className="flex flex-col border-t border-[#d8d2e6] px-14 py-4">
                           {builtFiles.map((f, i) => (
                             <div
                               key={`built-${idx}-${i}`}
-                              className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
+                              className="flex w-full items-center gap-8 border-b border-[#e2ddef] py-8 text-[13px] text-[#2a2635] last:border-0"
                             >
                               <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -5352,7 +5352,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         isGenerationComplete && idx === chatMessages.length - 1 ? 'anim-pulse-glow ' : ''
                       }${
                         msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
-                        msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#e7e3f0] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
+                        msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#d4cde4] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
                         msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#6b6577]' :
                         msg.type === 'command' ? 'max-w-[94%] rounded-12 bg-[#f6f4fb] px-14 py-10 font-mono text-[13px] text-[#2a2635] border border-[#eee9f5]' :
                         msg.type === 'error' ? 'max-w-[94%] rounded-14 bg-[#fdf0ee] px-14 py-12 text-[14px] text-[#b23b2e] border border-[#f4d6d0]' :
@@ -5617,7 +5617,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
             {/* Assistant is composing a conversational reply (a question, not a build) */}
             {chatTyping && (
-              <div className="anim-fade-up flex items-center gap-6 rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+              <div className="anim-fade-up flex items-center gap-6 rounded-14 border border-[#d8d2e6] bg-white px-14 py-12">
                 <span className="flex items-center gap-3" aria-label="Assistant is typing">
                   <span className="h-6 w-6 rounded-full bg-[#6147D4] opacity-70 animate-bounce [animation-delay:-0.3s]" />
                   <span className="h-6 w-6 rounded-full bg-[#6147D4] opacity-70 animate-bounce [animation-delay:-0.15s]" />
@@ -5636,7 +5636,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
             {/* Setting up the workspace (sandbox provisioning) before the build starts */}
             {preparingBuild && !generationProgress.isGenerating && (
-              <div className="anim-fade-up flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+              <div className="anim-fade-up flex items-center rounded-14 border border-[#d8d2e6] bg-white px-14 py-12">
                 <span className="etlaq-shimmer text-[14px] font-medium">
                   Setting up your workspace…
                 </span>
@@ -5645,7 +5645,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
             {/* Build progress — compact, friendly, expandable */}
             {generationProgress.isGenerating && (
-              <div className="anim-fade-up overflow-hidden rounded-14 border border-[#ece8f4] bg-white">
+              <div className="anim-fade-up overflow-hidden rounded-14 border border-[#d8d2e6] bg-white">
                 <button
                   onClick={() => setBuildDetailsOpen((v) => !v)}
                   className="flex w-full items-center gap-10 px-14 py-12 text-left"
@@ -5673,7 +5673,7 @@ Focus on the key sections and content, making it clean and modern.`;
 
                 {/* Details (collapsed by default) */}
                 {buildDetailsOpen && (generationProgress.files.length > 0 || generationProgress.streamedCode) && (
-                  <div className="border-t border-[#ece8f4] px-14 py-12">
+                  <div className="border-t border-[#d8d2e6] px-14 py-12">
                     {generationProgress.status && (
                       <div className="mb-8 text-[12px] font-medium text-[#6b6577]">{generationProgress.status}</div>
                     )}
@@ -5681,7 +5681,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       {generationProgress.files.map((file, idx) => (
                         <div
                           key={`file-${idx}`}
-                          className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0"
+                          className="flex w-full items-center gap-8 border-b border-[#e2ddef] py-8 text-[13px] text-[#2a2635] last:border-0"
                         >
                           <svg width="15" height="15" className="shrink-0 text-[#6147D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -5690,7 +5690,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         </div>
                       ))}
                       {generationProgress.currentFile && (
-                        <div className="flex w-full items-center gap-8 border-b border-[#f2eff8] py-8 text-[13px] text-[#2a2635] last:border-0">
+                        <div className="flex w-full items-center gap-8 border-b border-[#e2ddef] py-8 text-[13px] text-[#2a2635] last:border-0">
                           <div className="w-15 h-15 shrink-0 border-2 border-[#6147D4] border-t-transparent rounded-full animate-spin" />
                           <span className="truncate">{generationProgress.currentFile.path.split('/').pop()}</span>
                         </div>
@@ -5750,14 +5750,14 @@ Focus on the key sections and content, making it clean and modern.`;
           )}
 
           <div className="px-16 pt-16 pb-[max(16px,env(safe-area-inset-bottom))]">
-            <div className="rounded-20 border border-[#e7e3f0] bg-white p-10 transition-colors focus-within:border-[#c3b8ee]">
+            <div className="rounded-20 border border-[#d4cde4] bg-white p-10 transition-colors focus-within:border-[#c3b8ee]">
               {/* Attachment previews */}
               {attachments.length > 0 && (
                 <div className="mb-8 flex flex-wrap gap-8">
                   {attachments.map((a) => (
                     <div
                       key={a.id}
-                      className="group relative flex items-center gap-8 rounded-10 border border-[#e7e3f0] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
+                      className="group relative flex items-center gap-8 rounded-10 border border-[#d4cde4] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
                     >
                       {a.kind === 'image' && a.dataUrl ? (
                         <img src={a.dataUrl} alt="" className="h-28 w-28 rounded-6 object-cover" />
@@ -5829,7 +5829,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     </svg>
                   </button>
                   {attachMenuOpen && (
-                    <div className="absolute bottom-full left-0 z-40 mb-8 w-[220px] overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                    <div className="absolute bottom-full left-0 z-40 mb-8 w-[220px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 animate-in fade-in slide-in-from-bottom-1 duration-150">
                       <button
                         onClick={() => {
                           setAttachMenuOpen(false);
@@ -5919,7 +5919,7 @@ Focus on the key sections and content, making it clean and modern.`;
             mobileView === 'panel' ? 'flex anim-slide-in-right' : 'hidden'
           } ${chatFullscreen ? 'md:hidden' : 'md:flex'}`}
         >
-          <div className="flex-1 relative overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#ece8f4]">
+          <div className="flex-1 relative overflow-hidden border-0 bg-white md:rounded-12 md:border md:border-[#d8d2e6]">
             {/* Keyed so switching Preview ⇄ Code crossfades the panel. */}
             <div key={activeTab} className="anim-fade-in h-full w-full">
               {renderMainContent()}
@@ -5930,7 +5930,7 @@ Focus on the key sections and content, making it clean and modern.`;
           <div className="flex items-center justify-between gap-8 px-16 pt-10 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
             <button
               onClick={() => setMobileView('chat')}
-              className="flex items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-16 py-9 text-[14px] font-medium text-[#191622] transition-colors hover:bg-[#f3f0fa]"
+              className="flex items-center gap-6 rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-16 py-9 text-[14px] font-medium text-[#191622] transition-colors hover:bg-[#f3f0fa]"
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
                 <path d="M12 5l-5 5 5 5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -5944,7 +5944,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 className={`flex h-40 w-40 items-center justify-center rounded-full border shadow-[0_2px_8px_rgba(23,20,31,0.08)] transition-colors ${
                   activeTab === 'generation'
                     ? 'border-[#c3b8ee] bg-[#f0ecfb] text-[#6147D4]'
-                    : 'border-[#e2ddf0] bg-white text-[#2a2635] hover:bg-[#f3f0fa]'
+                    : 'border-[#cfc7e2] bg-white text-[#2a2635] hover:bg-[#f3f0fa]'
                 }`}
               >
                 <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
@@ -5957,7 +5957,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 }}
                 disabled={!sandboxData}
                 aria-label="Reload preview"
-                className="flex h-40 w-40 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+                className="flex h-40 w-40 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -5968,7 +5968,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open in new tab"
-                className={`flex h-40 w-40 items-center justify-center rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] outline-none transition-colors hover:bg-[#f3f0fa] focus:outline-none focus-visible:outline-none ${!sandboxData ? 'pointer-events-none opacity-40' : ''}`}
+                className={`flex h-40 w-40 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] outline-none transition-colors hover:bg-[#f3f0fa] focus:outline-none focus-visible:outline-none ${!sandboxData ? 'pointer-events-none opacity-40' : ''}`}
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

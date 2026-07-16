@@ -76,7 +76,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+          className="w-full rounded-12 border border-[#d4cde4] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
         />
         <input
           type="password"
@@ -85,7 +85,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+          className="w-full rounded-12 border border-[#d4cde4] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
         />
 
         {error && <p className="text-[14px] text-red-600">{error}</p>}

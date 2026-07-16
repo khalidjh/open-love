@@ -56,7 +56,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
   };
 
   return (
-    <div className="anim-fade-up flex flex-col gap-10 rounded-14 border border-[#ece8f4] bg-white px-14 py-12">
+    <div className="anim-fade-up flex flex-col gap-10 rounded-14 border border-[#d8d2e6] bg-white px-14 py-12">
       <div className="flex items-center gap-8">
         <StatusTag stage={state.stage} />
         {state.stage === 'publishing' && (
@@ -70,7 +70,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
 
       {state.stage === 'published' && state.url && (
         <>
-          <div className="flex items-center gap-8 rounded-10 border border-[#ece8f4] bg-[#faf9fe] px-10 py-8">
+          <div className="flex items-center gap-8 rounded-10 border border-[#d8d2e6] bg-[#faf9fe] px-10 py-8">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="shrink-0 text-[#6147D4]">
               <circle cx="10" cy="10" r="7.5" strokeWidth="1.3" />
               <path d="M2.5 10h15" strokeWidth="1.3" />

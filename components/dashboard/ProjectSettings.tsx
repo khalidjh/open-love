@@ -100,7 +100,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
         </div>
 
         {/* Status card */}
-        <section className="mt-24 rounded-16 border border-[#ece8f4] bg-white p-24">
+        <section className="mt-24 rounded-16 border border-[#d8d2e6] bg-white p-24">
           <div className="flex items-center gap-8">
             <span
               className={`inline-block h-8 w-8 shrink-0 rounded-full ${isLive ? "bg-[#1a7f4b]" : "bg-[#cfc9db]"}`}
@@ -111,7 +111,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
 
           {isLive && deployUrl ? (
             <div className="mt-16">
-              <div className="flex items-center gap-8 rounded-12 border border-[#eae6f3] bg-[#faf9fd] px-12 py-10">
+              <div className="flex items-center gap-8 rounded-12 border border-[#d6d0e6] bg-[#faf9fd] px-12 py-10">
                 <a
                   href={deployUrl}
                   target="_blank"
@@ -233,7 +233,7 @@ function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="anim-fade-up w-full max-w-[400px] rounded-16 border border-[#ece8f4] bg-white p-24 shadow-[0_20px_60px_rgba(24,22,34,0.18)]"
+        className="anim-fade-up w-full max-w-[400px] rounded-16 border border-[#d8d2e6] bg-white p-24 shadow-[0_20px_60px_rgba(24,22,34,0.18)]"
       >
         <h3 className="text-[16px] font-semibold text-[#191622]">{title}</h3>
         <p className="mt-8 text-[14px] leading-relaxed text-[#6b6577]">{body}</p>

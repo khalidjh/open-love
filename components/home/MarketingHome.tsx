@@ -61,7 +61,7 @@ export default function MarketingHome() {
       <header
         className={`anim-fade-in sticky top-0 z-20 transition-all duration-300 ${
           scrolled
-            ? "border-b border-[#eae6f3] bg-[#fbfafd]/80 backdrop-blur-md"
+            ? "border-b border-[#d6d0e6] bg-[#fbfafd]/80 backdrop-blur-md"
             : "border-b border-transparent"
         }`}
       >
@@ -126,7 +126,7 @@ export default function MarketingHome() {
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden absolute inset-x-0 top-full z-30 mx-24 overflow-hidden rounded-16 border border-[#eae6f3] bg-white p-8 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
+          <div className="md:hidden absolute inset-x-0 top-full z-30 mx-24 overflow-hidden rounded-16 border border-[#d6d0e6] bg-white p-8 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
             <button
               type="button"
               onClick={() => {

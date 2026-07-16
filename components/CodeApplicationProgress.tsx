@@ -24,7 +24,7 @@ export default function CodeApplicationProgress({ state }: CodeApplicationProgre
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.3 }}
-        className="inline-flex items-center rounded-14 border border-[#ece8f4] bg-white px-14 py-12 mt-2"
+        className="inline-flex items-center rounded-14 border border-[#d8d2e6] bg-white px-14 py-12 mt-2"
       >
         <div className="flex items-center gap-10">
           {/* Rotating loading indicator */}
