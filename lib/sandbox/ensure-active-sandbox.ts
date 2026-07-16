@@ -1,5 +1,6 @@
 import { SandboxFactory } from './factory';
 import { sandboxManager } from './sandbox-manager';
+import { writeSandboxEnv } from './write-sandbox-env';
 import { updateProject } from '@/lib/db/repos';
 import type { SandboxProvider } from './types';
 import type { SandboxSession } from './session-store';
@@ -116,6 +117,13 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
         console.log('[ensureActiveSandbox] re-attached to surviving sandbox', reconnectId);
         sandboxManager.registerSandbox(info.sandboxId, candidate);
         session.provider = candidate;
+        // Refresh .env from the DB: provisioning may have happened while this
+        // VM was unreachable. Both Next and Vite dev servers reload on change.
+        try {
+          await writeSandboxEnv(projectId, framework);
+        } catch (e) {
+          console.error('[ensureActiveSandbox] env refresh failed', e);
+        }
         session.framework = framework;
         session.sandboxData = { sandboxId: info.sandboxId, url: info.url };
         // The sandbox already holds these files; cache them for context selection.
@@ -163,6 +171,19 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
   if (paths.some((p) => p.endsWith('package.json'))) {
     try { await provider.runShell('npm install'); } catch (e) { console.error('[ensureActiveSandbox] npm install failed', e); }
   }
+
+  // Rebuild the project's .env from the control-plane DB BEFORE the dev server
+  // starts. The file cache / snapshot only hold generated files — never .env —
+  // so without this a recovered sandbox boots a DB/auth/AI app with no config
+  // ("supabaseUrl is required"). Wire the provider into the session first so
+  // the env writer can reach it.
+  session.provider = provider;
+  try {
+    await writeSandboxEnv(projectId, framework);
+  } catch (e) {
+    console.error('[ensureActiveSandbox] env rewrite failed', e);
+  }
+
   if (paths.length) {
     try {
       if (framework === 'nextjs') await provider.restartNextServer();
