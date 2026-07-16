@@ -7,7 +7,7 @@ export default function PreviewSkeleton({ label }: { label?: string }) {
     <div className="flex h-full w-full flex-col overflow-hidden bg-[#fbfafd] p-8 md:p-16">
       <div className="flex flex-1 flex-col overflow-hidden rounded-12 border border-[#d8d2e6] bg-white">
         {/* Browser chrome */}
-        <div className="flex shrink-0 items-center gap-8 border-b border-[#f0edf6] px-16 py-12">
+        <div className="flex shrink-0 items-center gap-8 border-b border-[#ddd7ea] px-16 py-12">
           <div className="flex gap-6">
             <span className="h-10 w-10 rounded-full bg-[#efeaf8]" />
             <span className="h-10 w-10 rounded-full bg-[#efeaf8]" />
@@ -41,7 +41,7 @@ export default function PreviewSkeleton({ label }: { label?: string }) {
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="flex flex-col gap-12 rounded-12 border border-[#f0edf6] p-16"
+                className="flex flex-col gap-12 rounded-12 border border-[#ddd7ea] p-16"
               >
                 <div className="h-72 w-full animate-pulse rounded-8 bg-[#f4f1fa]" />
                 <div className="h-14 w-2/3 animate-pulse rounded-6 bg-[#efeaf8]" />

@@ -395,7 +395,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                     className={`flex items-center gap-8 rounded-10 border px-8 py-8 text-left transition-colors ${
                       selectedThemeId === t.id
                         ? "border-[#6147D4] bg-[#f6f3fe]"
-                        : "border-[#eee9f3] hover:bg-[#faf9fc]"
+                        : "border-[#dbd4ea] hover:bg-[#faf9fc]"
                     }`}
                   >
                     <span className="flex -space-x-4">
@@ -411,7 +411,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                   </button>
                 ))}
               </div>
-              <div className="mt-10 border-t border-[#f0edf6] pt-10">
+              <div className="mt-10 border-t border-[#ddd7ea] pt-10">
                 <input
                   value={customTheme}
                   onChange={(e) => {

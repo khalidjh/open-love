@@ -91,7 +91,7 @@ export default function MarketingHome() {
                 setAuthMode("signin");
                 setAuthOpen(true);
               }}
-              className="hidden md:inline-flex rounded-12 border border-[#e4e0ef] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-all hover:bg-[#f3f0fa] active:scale-[0.98]"
+              className="hidden md:inline-flex rounded-12 border border-[#d0c9e2] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-all hover:bg-[#f3f0fa] active:scale-[0.98]"
             >
               Log in
             </button>
@@ -111,7 +111,7 @@ export default function MarketingHome() {
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Menu"
               aria-expanded={mobileMenuOpen}
-              className="md:hidden flex h-40 w-40 items-center justify-center rounded-12 border border-[#e4e0ef] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              className="md:hidden flex h-40 w-40 items-center justify-center rounded-12 border border-[#d0c9e2] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 {mobileMenuOpen ? (

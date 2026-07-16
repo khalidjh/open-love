@@ -167,7 +167,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                 <p className="text-[12px] text-[#6b6577]">Signed in as</p>
                 <p className="truncate text-[14px] font-medium">{email}</p>
               </div>
-              <div className="my-6 h-px bg-[#eee9f5]" />
+              <div className="my-6 h-px bg-[#ddd7ea]" />
               <button
                 type="button"
                 onClick={signOut}

@@ -4907,7 +4907,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 </svg>
                 Download as ZIP
               </button>
-              <div className="my-6 h-px bg-[#eee9f5]" />
+              <div className="my-6 h-px bg-[#ddd7ea]" />
               <button
                 onClick={() => { deployProject(); setMobileMenuOpen(false); }}
                 disabled={!sandboxData || loading}
@@ -5354,7 +5354,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
                         msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#d4cde4] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
                         msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#6b6577]' :
-                        msg.type === 'command' ? 'max-w-[94%] rounded-12 bg-[#f6f4fb] px-14 py-10 font-mono text-[13px] text-[#2a2635] border border-[#eee9f5]' :
+                        msg.type === 'command' ? 'max-w-[94%] rounded-12 bg-[#f6f4fb] px-14 py-10 font-mono text-[13px] text-[#2a2635] border border-[#dbd4ea]' :
                         msg.type === 'error' ? 'max-w-[94%] rounded-14 bg-[#fdf0ee] px-14 py-12 text-[14px] text-[#b23b2e] border border-[#f4d6d0]' :
                         'max-w-[94%] text-[14px] text-[#6b6577]'
                       }`}>
@@ -5719,7 +5719,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     key={s}
                     onClick={() => sendChatMessage(s)}
                     style={{ animationDelay: `${i * 60}ms` }}
-                    className="group anim-fade-up inline-flex shrink-0 items-center gap-8 whitespace-nowrap rounded-full border border-[#e7e2f4] bg-gradient-to-b from-white to-[#faf9fe] px-14 py-8 text-[13px] font-medium text-[#4b4560] shadow-[0_1px_2px_rgba(97,71,212,0.05)] transition-all duration-200 hover:-translate-y-2 hover:border-[#a99cd9] hover:text-[#191622] hover:shadow-[0_6px_16px_rgba(97,71,212,0.14)] active:translate-y-0 active:scale-[0.98]"
+                    className="group anim-fade-up inline-flex shrink-0 items-center gap-8 whitespace-nowrap rounded-full border border-[#cfc7e2] bg-gradient-to-b from-white to-[#faf9fe] px-14 py-8 text-[13px] font-medium text-[#4b4560] shadow-[0_1px_2px_rgba(97,71,212,0.05)] transition-all duration-200 hover:-translate-y-2 hover:border-[#a99cd9] hover:text-[#191622] hover:shadow-[0_6px_16px_rgba(97,71,212,0.14)] active:translate-y-0 active:scale-[0.98]"
                   >
                     <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="text-[#a99cd9] transition-colors group-hover:text-[#6147D4]">
                       <path d="M10 1.5l1.8 4.9 4.9 1.8-4.9 1.8L10 15l-1.8-4.9L3.3 8.3l4.9-1.8L10 1.5z" />
