@@ -5653,11 +5653,19 @@ Focus on the key sections and content, making it clean and modern.`;
                   <span className="etlaq-shimmer flex-1 text-[14px] font-medium">
                     {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
                   </span>
-                  {generationProgress.currentFile?.path && (
-                    <span className="min-w-0 shrink truncate font-mono text-[12px] text-[#8b8798]">
-                      {generationProgress.currentFile.path.split('/').pop()}
-                    </span>
-                  )}
+                  {/* File being written right now; when between files (or while
+                      applying), hold the last completed one so the slot never
+                      goes blank mid-build. */}
+                  {(() => {
+                    const path =
+                      generationProgress.currentFile?.path ||
+                      generationProgress.files[generationProgress.files.length - 1]?.path;
+                    return path ? (
+                      <span className="min-w-0 shrink truncate font-mono text-[12px] text-[#6b6577]">
+                        {path.split('/').pop()}
+                      </span>
+                    ) : null;
+                  })()}
                   {(generationProgress.files.length > 0 || generationProgress.streamedCode) && (
                     <svg
                       width="16"
