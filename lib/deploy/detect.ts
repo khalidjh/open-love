@@ -8,13 +8,17 @@ export type DeployTarget = 'static' | 'fullstack';
 const SKIP = /(^|\/)(node_modules|dist|\.next|\.git|\.vercel|build)\//;
 
 export function detectDeployTarget(files: Record<string, string>): DeployTarget {
-  // 1. Next.js as a dependency is the strongest signal.
+  // 1. Dependencies are the strongest signal: next → full-stack; vite without
+  //    next → static, decisively — don't let a stray "use server" mention in a
+  //    comment or string (checked below) misroute a Vite SPA into a Next build
+  //    that can only fail.
   const pkg = files['package.json'];
   if (pkg) {
     try {
       const json = JSON.parse(pkg);
       const deps = { ...json.dependencies, ...json.devDependencies };
       if (deps.next) return 'fullstack';
+      if (deps.vite) return 'static';
     } catch {
       // malformed package.json — fall through to file-based checks
     }

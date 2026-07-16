@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProject, updateProject } from '@/lib/db/repos';
 import { getSession } from '@/lib/sandbox/session-store';
 import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
+import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
+import { makeProjectFallback } from '@/lib/sandbox/db-fallback';
 import { detectDeployTarget, collectSandboxSource, type DeployTarget } from '@/lib/deploy/detect';
 import { runNetlifyDeploy } from '@/lib/deploy/netlify';
 import { runVercelDeploy } from '@/lib/deploy/vercel';
@@ -32,7 +34,32 @@ export async function POST(request: NextRequest) {
     const resolved = await requireProjectSession(projectId);
     orgId = resolved.orgId;
     project = resolved.project;
-    provider = resolved.session.provider;
+
+    // Publish must work even when the sandbox died (E2B TTL) or the server
+    // restarted since the last build: reconnect to a surviving sandbox, or
+    // rebuild it from the project's DB snapshot, before reading the source.
+    // Without this, "Publish" fails with "No active sandbox" for any user who
+    // comes back to a finished app later — the most natural time to publish.
+    const loadFallback = makeProjectFallback(projectId);
+    if (!resolved.session.provider) {
+      // No live sandbox this process has ever seen: only recover if there is a
+      // saved snapshot — otherwise we'd scaffold and publish an empty app.
+      const snapshot = loadFallback ? await loadFallback() : null;
+      if (!snapshot) {
+        return NextResponse.json(
+          { success: false, error: 'Nothing to publish yet — generate an app first.' },
+          { status: 400 }
+        );
+      }
+    }
+    const ensured = await ensureActiveSandbox({
+      session: resolved.session,
+      orgId,
+      projectId,
+      loadFallback,
+      lastSandboxId: project.sandboxId,
+    });
+    provider = ensured.provider;
   } catch (error) {
     return toErrorResponse(error);
   }

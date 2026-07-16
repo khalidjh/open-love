@@ -18,6 +18,7 @@ import path from 'path';
 import { APPS_DOMAIN, APPS_DIR, CADDY_APPS_DIR, RUNTIME_IMAGE, resolveSlug, waitForTls } from './ksa-shared';
 import { ensureImage, runToCompletion } from './docker';
 import { injectAnalyticsBeacon } from '@/lib/analytics/beacon';
+import { writeSandboxEnv } from '@/lib/sandbox/write-sandbox-env';
 
 const EXTRACT_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -46,6 +47,16 @@ export async function runKsaStaticDeploy(
   const slug = resolveSlug(opts.projectId, opts.siteName, opts.prevUrl);
   const slugDir = path.join(APPS_DIR, slug);
   const publicDir = path.join(slugDir, 'public');
+
+  // 0. Refresh the sandbox's .env from the control-plane DB before building.
+  //    Vite inlines VITE_* vars at BUILD time, and a recovered/reconnected
+  //    sandbox may have lost the .env written at provisioning time — without
+  //    this, the published SPA silently ships with no Supabase/auth config.
+  try {
+    await writeSandboxEnv(opts.projectId, 'vite');
+  } catch (e) {
+    console.error('[ksa-static] env refresh failed (building with sandbox .env as-is):', e);
+  }
 
   // 1. Build inside the sandbox (same step the Netlify path used).
   const build = await provider.runShell('npm run build');
@@ -108,6 +119,11 @@ export async function runKsaStaticDeploy(
         Binds: [`${slugDir}:/work`],
         NetworkMode: 'none',
         Memory: 512 * 1024 * 1024,
+        MemorySwap: 512 * 1024 * 1024,
+        NanoCpus: 1_000_000_000,
+        PidsLimit: 128,
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges:true'],
       },
     },
     EXTRACT_TIMEOUT_MS

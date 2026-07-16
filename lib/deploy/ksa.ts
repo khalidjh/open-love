@@ -119,6 +119,11 @@ export async function runKsaDeploy(opts: {
       HostConfig: {
         Binds: [`${appDir}:/app`],
         Memory: 2 * 1024 * 1024 * 1024,
+        MemorySwap: 2 * 1024 * 1024 * 1024, // = Memory: no swap on top of the cap
+        NanoCpus: 2_000_000_000, // 2 CPUs — a build can't starve the shared VM
+        PidsLimit: 1024, // npm spawns freely; still stops fork bombs
+        CapDrop: ['ALL'], // tenant code needs no kernel capabilities
+        SecurityOpt: ['no-new-privileges:true'],
         NetworkMode: 'bridge',
       },
     },
@@ -141,6 +146,11 @@ export async function runKsaDeploy(opts: {
       PortBindings: { '3000/tcp': [{ HostIp: '127.0.0.1', HostPort: String(port) }] },
       RestartPolicy: { Name: 'unless-stopped' },
       Memory: 1024 * 1024 * 1024,
+      MemorySwap: 1024 * 1024 * 1024, // = Memory: no swap on top of the cap
+      NanoCpus: 1_000_000_000, // 1 CPU per tenant app
+      PidsLimit: 256, // a Next server needs few processes; stops fork bombs
+      CapDrop: ['ALL'], // tenant code needs no kernel capabilities
+      SecurityOpt: ['no-new-privileges:true'],
       NetworkMode: 'bridge',
     },
   });

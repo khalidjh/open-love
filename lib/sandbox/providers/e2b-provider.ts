@@ -188,6 +188,8 @@ export class E2BProvider extends SandboxProvider {
     // commands.run here fails because it executes as the `user` account, which
     // cannot write into the root-owned app directory (EACCES during builds).
     const cwd = this.getWorkingDirectory();
+    // 5-min ceiling instead of runCode's 60s default: deploy builds
+    // (npm run build) and installs routinely outlive a minute.
     const result = await this.sandbox.runCode(`
 import subprocess, sys
 r = subprocess.run(${JSON.stringify(command)}, shell=True, cwd=${JSON.stringify(cwd)},
@@ -195,7 +197,7 @@ r = subprocess.run(${JSON.stringify(command)}, shell=True, cwd=${JSON.stringify(
 sys.stdout.write(r.stdout)
 sys.stderr.write(r.stderr)
 sys.stdout.write("\\n__RC__=%d__" % r.returncode)
-`);
+`, { timeoutMs: 300_000 });
 
     let stdout = (result.logs?.stdout || []).join('');
     const stderr = (result.logs?.stderr || []).join('');
