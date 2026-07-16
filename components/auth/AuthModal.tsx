@@ -45,7 +45,7 @@ export default function AuthModal({ open, initialMode = 'signin', onClose }: Aut
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-16 top-16 flex h-36 w-36 items-center justify-center rounded-full text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:right-20 md:top-20 md:h-32 md:w-32"
+          className="absolute right-16 top-16 flex h-36 w-36 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:right-20 md:top-20 md:h-32 md:w-32"
         >
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
             <path

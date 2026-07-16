@@ -76,7 +76,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
         {/* Back */}
         <Link
           href="/dashboard"
-          className="mb-24 inline-flex items-center gap-6 text-[13px] font-medium text-[#8b8798] transition-colors hover:text-[#6147D4]"
+          className="mb-24 inline-flex items-center gap-6 text-[13px] font-medium text-[#6b6577] transition-colors hover:text-[#6147D4]"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M19 12H5" />
@@ -89,7 +89,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
         <div className="mb-8 flex items-start justify-between gap-16">
           <div className="min-w-0">
             <h1 className="truncate text-[24px] font-semibold tracking-tight">{project.name}</h1>
-            <p className="mt-2 text-[13px] text-[#a29db0]">{typeLabel(project)}</p>
+            <p className="mt-2 text-[13px] text-[#8b8798]">{typeLabel(project)}</p>
           </div>
           <Link
             href={`/generation?project=${project.id}`}
@@ -124,7 +124,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
                   type="button"
                   onClick={copyUrl}
                   title="Copy link"
-                  className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
+                  className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -136,7 +136,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Visit site"
-                  className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
+                  className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M15 3h6v6" />

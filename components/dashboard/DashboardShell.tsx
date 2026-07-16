@@ -101,7 +101,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             type="button"
             onClick={() => setCollapsed((v) => !v)}
             aria-label="Toggle sidebar"
-            className="hidden h-28 w-28 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:flex"
+            className="hidden h-28 w-28 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:flex"
           >
             <SidebarIcon />
           </button>
@@ -110,7 +110,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             type="button"
             onClick={() => setMobileNavOpen(false)}
             aria-label="Close menu"
-            className="flex h-28 w-28 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:hidden"
+            className="flex h-28 w-28 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:hidden"
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
               <path d="M5 5l10 10M15 5L5 15" strokeWidth="1.6" strokeLinecap="round" />
@@ -123,7 +123,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           <div className="mt-8 flex-1 overflow-y-auto px-12">
             {recents.length > 0 && (
               <>
-                <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#a29db0]">
+                <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#8b8798]">
                   Recents
                 </p>
                 <div className="flex flex-col">
@@ -164,7 +164,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           {accountOpen && (
             <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#eae6f3] bg-white p-6">
               <div className="px-12 py-8">
-                <p className="text-[12px] text-[#8b8798]">Signed in as</p>
+                <p className="text-[12px] text-[#6b6577]">Signed in as</p>
                 <p className="truncate text-[14px] font-medium">{email}</p>
               </div>
               <div className="my-6 h-px bg-[#eee9f5]" />
@@ -231,7 +231,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           <section className="pb-64">
             <div className="anim-fade-up anim-delay-3 mb-16 flex items-center justify-between">
               <h2 className="text-[18px] font-semibold">Your projects</h2>
-              <span className="text-[14px] text-[#8b8798]">
+              <span className="text-[14px] text-[#6b6577]">
                 {projects.length} {projects.length === 1 ? "project" : "projects"}
               </span>
             </div>
@@ -271,7 +271,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                             href={`/dashboard/projects/${p.id}`}
                             aria-label={`Manage ${p.name}`}
                             title="Manage"
-                            className="pointer-events-auto grid h-24 w-24 place-items-center rounded-8 text-[#a29db0] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
+                            className="pointer-events-auto grid h-24 w-24 place-items-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                               <circle cx="12" cy="12" r="3" />
@@ -281,9 +281,9 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                         </div>
                       </div>
                       {p.sourceUrl && (
-                        <p className="mt-4 truncate text-[13px] text-[#a29db0]">{p.sourceUrl}</p>
+                        <p className="mt-4 truncate text-[13px] text-[#8b8798]">{p.sourceUrl}</p>
                       )}
-                      <div className="mt-20 flex items-center justify-between text-[12px] text-[#a29db0]">
+                      <div className="mt-20 flex items-center justify-between text-[12px] text-[#8b8798]">
                         <span className="truncate">{p.model || "app"}</span>
                         <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
                       </div>

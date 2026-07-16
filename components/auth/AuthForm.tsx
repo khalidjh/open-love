@@ -63,7 +63,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           className="h-[40px] w-auto md:h-[32px]"
           priority
         />
-        <p className="mt-24 text-[16px] text-[#8b8798] md:mt-20">Start building.</p>
+        <p className="mt-24 text-[16px] text-[#6b6577] md:mt-20">Start building.</p>
         <h1 className="mt-4 text-[30px] font-semibold tracking-tight text-[#191622] md:text-[24px]">
           {mode === 'signin' ? 'Log in to your account' : 'Create your account'}
         </h1>
@@ -76,7 +76,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
         />
         <input
           type="password"
@@ -85,7 +85,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
+          className="w-full rounded-12 border border-[#e7e3f0] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
         />
 
         {error && <p className="text-[14px] text-red-600">{error}</p>}

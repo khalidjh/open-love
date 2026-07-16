@@ -56,7 +56,7 @@ export default function PreviewSkeleton({ label }: { label?: string }) {
       {/* Caption */}
       <div className="flex shrink-0 items-center justify-center gap-8 pt-16">
         <span className="h-14 w-14 animate-spin rounded-full border-2 border-[#e2ddf0] border-t-[#6147D4]" />
-        <p className="text-[13px] text-[#8b8798]">{label ?? 'Starting your preview…'}</p>
+        <p className="text-[13px] text-[#6b6577]">{label ?? 'Starting your preview…'}</p>
       </div>
     </div>
   );

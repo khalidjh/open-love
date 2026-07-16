@@ -286,7 +286,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
               )}
               <button
                 onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
-                className="absolute right-6 top-1/2 -translate-y-1/2 text-[#a29db0] hover:text-[#191622]"
+                className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
                 aria-label="Remove attachment"
               >
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -298,7 +298,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         </div>
       )}
       {hasImages && (
-        <p className="mb-8 px-4 text-[12px] text-[#8b8798]">
+        <p className="mb-8 px-4 text-[12px] text-[#6b6577]">
           Etlaq will look at your image(s) and build to match — great for a logo, a screenshot, or a design you like.
         </p>
       )}
@@ -315,7 +315,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         }}
         rows={1}
         placeholder={placeholder ?? ROTATING_PLACEHOLDERS[phIndex]}
-        className="max-h-[220px] min-h-[96px] w-full resize-none bg-transparent px-4 py-4 text-[16px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none"
+        className="max-h-[220px] min-h-[96px] w-full resize-none bg-transparent px-4 py-4 text-[16px] leading-relaxed text-[#191622] placeholder:text-[#8b8798] focus:outline-none"
       />
 
       <div className="mt-12 flex items-center justify-between">
@@ -337,7 +337,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             type="button"
             onClick={() => setAttachMenuOpen((v) => !v)}
             aria-label="Add attachment"
-            className="flex h-40 w-40 items-center justify-center rounded-full text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+            className="flex h-40 w-40 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
               <path d="M10 4v12M4 10h12" strokeWidth="1.7" strokeLinecap="round" />
@@ -353,7 +353,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                 }}
                 className="flex w-full items-center gap-10 rounded-8 px-10 py-8 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
               >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#8b8798]">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#6b6577]">
                   <path d="M13 7l-5 5a2 2 0 002.8 2.8l5.7-5.7a3.5 3.5 0 00-5-5l-6 6a5 5 0 007 7l4.5-4.5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 Attach file or image
@@ -372,7 +372,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             className={`flex h-40 items-center gap-6 rounded-full pl-10 pr-14 text-[13px] font-medium transition-colors ${
               activeTheme
                 ? "bg-[#f0ecfb] text-[#6147D4]"
-                : "text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]"
+                : "text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]"
             }`}
           >
             <PaletteIcon />
@@ -380,7 +380,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           </button>
           {themeMenuOpen && (
             <div className="absolute top-full left-0 z-40 mt-8 w-[300px] rounded-14 border border-[#eae6f3] bg-white p-10 shadow-[0_12px_40px_rgba(25,22,34,0.10)] animate-in fade-in slide-in-from-top-1 duration-150">
-              <p className="px-4 pb-8 text-[12px] font-medium text-[#8b8798]">
+              <p className="px-4 pb-8 text-[12px] font-medium text-[#6b6577]">
                 Pick a look for your site
               </p>
               <div className="grid grid-cols-2 gap-6">
@@ -419,7 +419,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                     setSelectedThemeId("custom");
                   }}
                   placeholder="Or describe your own colors…"
-                  className="w-full rounded-8 border border-[#eae6f3] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#a29db0] transition-colors focus:border-[#c3b8ee] focus:outline-none"
+                  className="w-full rounded-8 border border-[#eae6f3] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#c3b8ee] focus:outline-none"
                 />
               </div>
               {activeTheme && (
@@ -430,7 +430,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                     setCustomTheme("");
                     setThemeMenuOpen(false);
                   }}
-                  className="mt-8 px-4 text-[12px] text-[#a29db0] transition-colors hover:text-[#6147D4]"
+                  className="mt-8 px-4 text-[12px] text-[#8b8798] transition-colors hover:text-[#6147D4]"
                 >
                   Clear theme
                 </button>
@@ -459,7 +459,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
               className={`relative flex h-44 w-44 items-center justify-center rounded-full transition-colors ${
                 micListening
                   ? "bg-[#6147D4] text-white"
-                  : "text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]"
+                  : "text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]"
               }`}
             >
               {micListening && (

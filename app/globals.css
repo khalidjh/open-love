@@ -11,13 +11,15 @@
 }
 
 .etlaq-shimmer {
+  /* Base tone matches secondary text (#6b6577) so the live status line stays
+     readable; the purple sweep provides the "working" motion. */
   background: linear-gradient(
     90deg,
-    #a29db0 0%,
-    #a29db0 38%,
+    #6b6577 0%,
+    #6b6577 38%,
     #6147d4 50%,
-    #a29db0 62%,
-    #a29db0 100%
+    #6b6577 62%,
+    #6b6577 100%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;

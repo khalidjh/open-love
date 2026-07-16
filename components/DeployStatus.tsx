@@ -60,7 +60,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
       <div className="flex items-center gap-8">
         <StatusTag stage={state.stage} />
         {state.stage === 'publishing' && (
-          <span className="text-[13px] text-[#8b8798]">This can take a minute…</span>
+          <span className="text-[13px] text-[#6b6577]">This can take a minute…</span>
         )}
       </div>
 
@@ -89,7 +89,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
               onClick={copyUrl}
               aria-label={copied ? 'Copied' : 'Copy URL'}
               title={copied ? 'Copied!' : 'Copy URL'}
-              className="flex h-28 w-28 shrink-0 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f0ecfb] hover:text-[#6147D4]"
+              className="flex h-28 w-28 shrink-0 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f0ecfb] hover:text-[#6147D4]"
             >
               {copied ? (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -108,7 +108,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
               rel="noopener noreferrer"
               aria-label="Open in new tab"
               title="Open in new tab"
-              className="flex h-28 w-28 shrink-0 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f0ecfb] hover:text-[#6147D4]"
+              className="flex h-28 w-28 shrink-0 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f0ecfb] hover:text-[#6147D4]"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -116,7 +116,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
             </a>
           </div>
           {state.processing && (
-            <p className="text-[12px] text-[#8b8798]">Still finishing processing — the URL will be live shortly.</p>
+            <p className="text-[12px] text-[#6b6577]">Still finishing processing — the URL will be live shortly.</p>
           )}
         </>
       )}

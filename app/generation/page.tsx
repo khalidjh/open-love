@@ -110,7 +110,7 @@ const MORE_OPTIONS: Array<{ id: string; label: string; icon: React.ReactNode; av
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-14 border border-[#ece8f4] bg-[#faf9fd] p-16">
-      <p className="text-[12px] font-medium text-[#8b8798]">{label}</p>
+      <p className="text-[12px] font-medium text-[#6b6577]">{label}</p>
       <p className="mt-4 text-[26px] font-semibold text-[#191622]">{value.toLocaleString()}</p>
     </div>
   );
@@ -155,9 +155,9 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
       </div>
 
       <div className="mb-24 rounded-14 border border-[#ece8f4] p-16">
-        <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#8b8798]">Last 14 days</p>
+        <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Last 14 days</p>
         {daily.length === 0 ? (
-          <p className="text-[13px] text-[#a29db0]">No visits yet — share your live link to start seeing traffic.</p>
+          <p className="text-[13px] text-[#8b8798]">No visits yet — share your live link to start seeing traffic.</p>
         ) : (
           <div className="flex h-[120px] items-end gap-4">
             {daily.map((d) => (
@@ -178,7 +178,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
 
       {topPaths.length > 0 && (
         <div className="rounded-14 border border-[#ece8f4] p-16">
-          <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#8b8798]">Top pages</p>
+          <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Top pages</p>
           <div className="flex flex-col gap-8">
             {topPaths.map((p) => (
               <div key={p.path} className="flex items-center justify-between text-[13px]">
@@ -214,7 +214,7 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
     <div className="p-24">
       <div className="mb-20">
         <h2 className="text-[18px] font-semibold text-[#191622]">Payments</h2>
-        <p className="mt-4 text-[13px] text-[#8b8798]">Let your app accept payments and start earning.</p>
+        <p className="mt-4 text-[13px] text-[#6b6577]">Let your app accept payments and start earning.</p>
       </div>
 
       <div className="rounded-16 border border-[#ece8f4] bg-[#faf9fd] p-20">
@@ -241,7 +241,7 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
           </div>
           <div>
             <p className="text-[14px] font-semibold text-[#191622]">Paddle checkout</p>
-            <p className="mt-2 text-[13px] leading-relaxed text-[#8b8798]">
+            <p className="mt-2 text-[13px] leading-relaxed text-[#6b6577]">
               Seamlessly set up and manage payments in your app. We'll add a secure Paddle overlay
               checkout so your customers can pay without ever leaving your app.
             </p>
@@ -3276,7 +3276,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           <div className="flex items-center justify-center h-full bg-white text-[#6b6577]">
             <div className="text-center">
               <p className="mb-8 text-[15px] text-[#191622]">Failed to capture screenshot</p>
-              <p className="text-[13px] text-[#8b8798]">{screenshotError}</p>
+              <p className="text-[13px] text-[#6b6577]">{screenshotError}</p>
             </div>
           </div>
         );
@@ -3292,7 +3292,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         <div className="flex items-center justify-center h-full bg-white text-[#6b6577]">
           <div className="text-center">
             <p className="text-[19px] font-semibold text-[#191622]">Your app will live here</p>
-            <p className="mt-6 text-[14px] text-[#8b8798]">Ask Etlaq to build it</p>
+            <p className="mt-6 text-[14px] text-[#6b6577]">Ask Etlaq to build it</p>
           </div>
         </div>
       );
@@ -3319,13 +3319,13 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                 >
                   <svg
                     width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden
-                    className={isActive ? 'text-[#6147D4]' : opt.available ? 'text-[#8b8798]' : 'text-[#c9c4d6]'}
+                    className={isActive ? 'text-[#6147D4]' : opt.available ? 'text-[#6b6577]' : 'text-[#c9c4d6]'}
                   >
                     {opt.icon}
                   </svg>
                   <span className="flex-1">{opt.label}</span>
                   {!opt.available && (
-                    <span className="rounded-4 bg-[#eee9f5] px-6 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#8b8798]">
+                    <span className="rounded-4 bg-[#eee9f5] px-6 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#6b6577]">
                       Soon
                     </span>
                   )}
@@ -3353,7 +3353,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   </svg>
                 </div>
                 <p className="text-[17px] font-semibold text-[#191622]">{active.label}</p>
-                <p className="mt-6 max-w-[320px] text-[14px] text-[#8b8798]">
+                <p className="mt-6 max-w-[320px] text-[14px] text-[#6b6577]">
                   This is coming soon — we're building it as part of Etlaq.
                 </p>
               </div>
@@ -4817,7 +4817,7 @@ Focus on the key sections and content, making it clean and modern.`;
           className="mx-8 flex min-w-0 items-center gap-6 rounded-full border border-[#e2ddf0] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] px-14 py-8 text-[#191622]"
         >
           <span className="truncate text-[14px] font-medium">{projectName}</span>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#a29db0] transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#8b8798] transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`}>
             <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -4848,7 +4848,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 href="/dashboard"
                 className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
               >
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                   <path d="M11 5L6 10l5 5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 Go to Dashboard
@@ -4861,7 +4861,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   }}
                   className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                 >
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   Reload preview
@@ -4875,7 +4875,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                 >
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   Open in new tab
@@ -4886,7 +4886,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 disabled={!sandboxData}
                 className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
                 Download as ZIP
@@ -4923,7 +4923,7 @@ Focus on the key sections and content, making it clean and modern.`;
               className="flex min-w-0 items-center gap-6 rounded-8 px-6 py-4 text-[#191622] transition-colors hover:bg-[#f3f0fa]"
             >
               <span className="truncate text-[15px] font-medium">{projectName}</span>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#a29db0] transition-transform ${projectMenuOpen ? 'rotate-180' : ''}`}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#8b8798] transition-transform ${projectMenuOpen ? 'rotate-180' : ''}`}>
                 <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
@@ -4934,7 +4934,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   href="/dashboard"
                   className="flex items-center gap-8 rounded-8 px-10 py-8 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                 >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="text-[#8b8798]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                     <path d="M11 5L6 10l5 5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Go to Dashboard
@@ -4946,7 +4946,7 @@ Focus on the key sections and content, making it clean and modern.`;
             <button
               onClick={() => setChatFullscreen((v) => !v)}
               title="Exit fullscreen"
-              className="ml-auto flex h-32 w-32 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+              className="ml-auto flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
             >
               <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                 <path d="M8 3H5a2 2 0 00-2 2v3M12 3h3a2 2 0 012 2v3M8 17H5a2 2 0 01-2-2v-3M12 17h3a2 2 0 002-2v-3" strokeWidth="1.6" strokeLinecap="round" />
@@ -5043,7 +5043,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     onClick={() => setPreviewDevice('desktop')}
                     title="Desktop view"
                     className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
-                      previewDevice === 'desktop' ? 'text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
+                      previewDevice === 'desktop' ? 'text-[#191622]' : 'text-[#6b6577] hover:text-[#191622]'
                     }`}
                   >
                     {previewDevice === 'desktop' && (
@@ -5062,7 +5062,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     onClick={() => setPreviewDevice('mobile')}
                     title="Mobile view"
                     className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
-                      previewDevice === 'mobile' ? 'text-[#191622]' : 'text-[#8b8798] hover:text-[#191622]'
+                      previewDevice === 'mobile' ? 'text-[#191622]' : 'text-[#6b6577] hover:text-[#191622]'
                     }`}
                   >
                     {previewDevice === 'mobile' && (
@@ -5084,7 +5084,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       iframeRef.current.src = `${sandboxData.url}?t=${Date.now()}`;
                     }
                   }}
-                  className="flex h-32 w-32 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+                  className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
                   title="Reload preview"
                 >
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -5095,7 +5095,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   href={sandboxData.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-32 w-32 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+                  className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
                   title="Open in new tab"
                 >
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -5110,7 +5110,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <button
                 onClick={downloadZip}
                 disabled={!sandboxData}
-                className="flex h-32 w-32 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] disabled:opacity-30 disabled:hover:bg-transparent"
+                className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] disabled:opacity-30 disabled:hover:bg-transparent"
                 title="Download as ZIP"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -5131,7 +5131,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <div className="mx-4 h-20 w-px bg-[#ece8f4]" />
               <button
                 onClick={() => setChatFullscreen((v) => !v)}
-                className="flex h-32 w-32 items-center justify-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+                className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
                 title="Fullscreen chat"
               >
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -5305,7 +5305,7 @@ Focus on the key sections and content, making it clean and modern.`;
                           Built your app · {builtFiles.length} {builtFiles.length === 1 ? 'file' : 'files'}
                         </span>
                         {builtFiles.length > 0 && (
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#a29db0] transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`shrink-0 text-[#8b8798] transition-transform ${isOpen ? 'rotate-180' : ''}`}>
                             <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         )}
@@ -5337,10 +5337,10 @@ Focus on the key sections and content, making it clean and modern.`;
                       }${
                         msg.type === 'user' ? 'max-w-[82%] rounded-[20px] bg-[#e5dcf6] px-16 py-12 text-[15px] leading-relaxed text-[#191622]' :
                         msg.type === 'ai' ? 'max-w-[94%] rounded-16 border border-[#e7e3f0] bg-white px-16 py-14 text-[15px] leading-[1.6] text-[#2a2635]' :
-                        msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#8b8798]' :
+                        msg.type === 'system' ? 'max-w-[94%] text-[14px] leading-relaxed text-[#6b6577]' :
                         msg.type === 'command' ? 'max-w-[94%] rounded-12 bg-[#f6f4fb] px-14 py-10 font-mono text-[13px] text-[#2a2635] border border-[#eee9f5]' :
                         msg.type === 'error' ? 'max-w-[94%] rounded-14 bg-[#fdf0ee] px-14 py-12 text-[14px] text-[#b23b2e] border border-[#f4d6d0]' :
-                        'max-w-[94%] text-[14px] text-[#8b8798]'
+                        'max-w-[94%] text-[14px] text-[#6b6577]'
                       }`}>
                     {msg.type === 'command' ? (
                       <div className="flex items-start gap-2">
@@ -5638,7 +5638,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
                   </span>
                   {generationProgress.currentFile?.path && (
-                    <span className="min-w-0 shrink truncate font-mono text-[12px] text-[#a29db0]">
+                    <span className="min-w-0 shrink truncate font-mono text-[12px] text-[#8b8798]">
                       {generationProgress.currentFile.path.split('/').pop()}
                     </span>
                   )}
@@ -5648,7 +5648,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       height="16"
                       viewBox="0 0 16 16"
                       fill="none"
-                      className={`shrink-0 text-[#a29db0] transition-transform ${buildDetailsOpen ? 'rotate-180' : ''}`}
+                      className={`shrink-0 text-[#8b8798] transition-transform ${buildDetailsOpen ? 'rotate-180' : ''}`}
                     >
                       <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -5659,7 +5659,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 {buildDetailsOpen && (generationProgress.files.length > 0 || generationProgress.streamedCode) && (
                   <div className="border-t border-[#ece8f4] px-14 py-12">
                     {generationProgress.status && (
-                      <div className="mb-8 text-[12px] font-medium text-[#8b8798]">{generationProgress.status}</div>
+                      <div className="mb-8 text-[12px] font-medium text-[#6b6577]">{generationProgress.status}</div>
                     )}
                     <div className="flex flex-col">
                       {generationProgress.files.map((file, idx) => (
@@ -5758,7 +5758,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       )}
                       <button
                         onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
-                        className="absolute right-6 top-1/2 -translate-y-1/2 text-[#a29db0] hover:text-[#191622]"
+                        className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
                         aria-label="Remove attachment"
                       >
                         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -5770,7 +5770,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 </div>
               )}
               {attachments.some((a) => a.kind === 'image') && (
-                <p className="mb-8 px-4 text-[12px] text-[#8b8798]">
+                <p className="mb-8 px-4 text-[12px] text-[#6b6577]">
                   Etlaq will look at your image(s) and build to match — great for logos, screenshots, or a design you like.
                 </p>
               )}
@@ -5787,7 +5787,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 rows={1}
                 disabled={generationProgress.isGenerating || preparingBuild}
                 placeholder={generationProgress.isGenerating || preparingBuild ? 'Building your app…' : 'Ask Etlaq…'}
-                className="max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-8 py-6 text-[15px] leading-relaxed text-[#191622] placeholder:text-[#a29db0] focus:outline-none disabled:cursor-not-allowed"
+                className="max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-8 py-6 text-[15px] leading-relaxed text-[#191622] placeholder:text-[#8b8798] focus:outline-none disabled:cursor-not-allowed"
               />
               <div className="mt-6 flex items-center justify-between">
                 {/* Attach ("+") */}
@@ -5806,7 +5806,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   <button
                     onClick={() => setAttachMenuOpen((v) => !v)}
                     aria-label="Add attachment"
-                    className="flex h-32 w-32 items-center justify-center rounded-full text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+                    className="flex h-32 w-32 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
                   >
                     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                       <path d="M10 4v12M4 10h12" strokeWidth="1.7" strokeLinecap="round" />
@@ -5821,7 +5821,7 @@ Focus on the key sections and content, making it clean and modern.`;
                         }}
                         className="flex w-full items-center gap-10 rounded-8 px-10 py-8 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                       >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#8b8798]">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#6b6577]">
                           <path d="M13 7l-5 5a2 2 0 002.8 2.8l5.7-5.7a3.5 3.5 0 00-5-5l-6 6a5 5 0 007 7l4.5-4.5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         Attach file or image
@@ -5849,7 +5849,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       className={`relative flex h-36 w-36 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                         micListening
                           ? 'bg-[#6147D4] text-white'
-                          : 'text-[#8b8798] hover:bg-[#f3f0fa] hover:text-[#191622]'
+                          : 'text-[#6b6577] hover:bg-[#f3f0fa] hover:text-[#191622]'
                       }`}
                     >
                       {micListening ? (
