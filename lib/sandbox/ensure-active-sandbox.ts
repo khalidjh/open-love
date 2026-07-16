@@ -76,17 +76,21 @@ export async function ensureActiveSandbox(opts: EnsureOptions): Promise<EnsureRe
   }
 
   // --- Recovery path ---
-  let files = cachedFiles(session);
+  const cached = cachedFiles(session);
+  let files = cached;
   let framework: Framework = session.framework || 'vite';
 
-  // If the session's file cache is empty (the Node process likely restarted and
-  // lost it), fall back to the durable DB snapshot so we rebuild the real app
-  // rather than a blank scaffold.
-  if (Object.keys(files).length === 0 && opts.loadFallback) {
+  // Always merge the durable DB snapshot UNDER the in-memory cache (cache wins
+  // per file). The cache is often PARTIAL — restore/apply may have populated it
+  // with only the last turn's files — and rebuilding from it alone silently
+  // drops the rest of the app (e.g. lib/supabaseClient.js → "Module not found"
+  // at publish). When the cache is empty the snapshot is the whole app.
+  if (opts.loadFallback) {
     const fallback = await opts.loadFallback().catch(() => null);
     if (fallback && Object.keys(fallback.files).length > 0) {
-      files = fallback.files;
-      if (fallback.framework) framework = fallback.framework;
+      files = { ...fallback.files, ...cached };
+      // Only trust the snapshot's framework when the session has no live state.
+      if (Object.keys(cached).length === 0 && fallback.framework) framework = fallback.framework;
     }
   }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProject, updateProject } from '@/lib/db/repos';
+import { getProject, updateProject, getLatestVersion } from '@/lib/db/repos';
 import { getSession } from '@/lib/sandbox/session-store';
 import { requireProjectSession, toErrorResponse } from '@/lib/sandbox/require-project-session';
 import { ensureActiveSandbox } from '@/lib/sandbox/ensure-active-sandbox';
@@ -74,6 +74,20 @@ export async function POST(request: NextRequest) {
 
     // Inspect the source and decide where it goes.
     const source = await collectSandboxSource(provider);
+
+    // Completeness backstop: anything in the durable snapshot that's missing
+    // from the live sandbox ships too (live wins per file). A partially
+    // recovered sandbox must not publish a build that can't compile.
+    try {
+      const version = await getLatestVersion(projectId);
+      const snapshot = (version?.files ?? {}) as Record<string, string>;
+      for (const [p, c] of Object.entries(snapshot)) {
+        if (!(p in source)) source[p] = c;
+      }
+    } catch (e) {
+      console.error('[deploy] snapshot backstop failed (continuing with live files):', e);
+    }
+
     const target: DeployTarget = detectDeployTarget(source);
     const siteName = project?.name;
 

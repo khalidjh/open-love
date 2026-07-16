@@ -50,12 +50,20 @@ export async function collectSandboxSource(provider: any): Promise<Record<string
   for (const raw of paths) {
     const path = raw.replace(/^\.?\//, '');
     if (!path || SKIP.test(`/${path}`)) continue;
+    // A listed file that can't be read means an INCOMPLETE upload — publishing
+    // it produces a build that can't compile (or a site missing code). Retry
+    // once for transient sandbox hiccups, then abort the deploy loudly.
+    let content: unknown;
     try {
-      const content = await provider.readFile(path);
-      if (typeof content === 'string') files[path] = content;
+      content = await provider.readFile(path);
     } catch {
-      // unreadable / binary — skip
+      try {
+        content = await provider.readFile(path);
+      } catch {
+        throw new Error(`Could not read ${path} from the sandbox. Try publishing again.`);
+      }
     }
+    if (typeof content === 'string') files[path] = content;
   }
   return files;
 }

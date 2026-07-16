@@ -46,6 +46,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    // Mirror the restored files into the session's cache. Leaving it empty
+    // meant the next apply seeded it with ONLY that turn's files, and any later
+    // sandbox recovery rebuilt from that partial set — losing the rest of the
+    // app.
+    const session = getSession(id);
+    if (session) {
+      session.fileCache = {
+        files: Object.fromEntries(paths.map((p) => [p, { content: files[p], lastModified: Date.now() }])),
+        lastSync: Date.now(),
+        sandboxId: session.sandboxData?.sandboxId ?? '',
+      };
+      session.existingFiles = new Set([...session.existingFiles, ...paths]);
+    }
+
     // Install any deps the saved package.json needs.
     const hasPackageJson = paths.some((p) => p.endsWith('package.json'));
     if (hasPackageJson) {
