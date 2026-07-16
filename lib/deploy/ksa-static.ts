@@ -69,21 +69,39 @@ export async function runKsaStaticDeploy(
     throw new Error('Build succeeded but produced no dist/ directory. Is this a Vite app?');
   }
 
-  // Inject the visitor-analytics beacon into the BUILT index.html only. We touch
-  // dist/ (never src/), so the live site is counted but the sandbox preview —
-  // which serves src/ via Vite dev — stays out of the numbers.
-  const collectBase = process.env.ETLAQ_PUBLIC_URL;
-  if (collectBase && opts.projectId) {
-    try {
-      const read = await provider.runShell('cat dist/index.html');
-      const html: string = read?.stdout || '';
-      if (html) {
-        const injected = injectAnalyticsBeacon({ 'index.html': html }, opts.projectId, collectBase)['index.html'];
-        if (injected !== html) await provider.writeFile('dist/index.html', injected);
+  // Post-process the BUILT index.html only (never src/, so the sandbox preview
+  // is untouched): inject the visitor-analytics beacon, and give the page a
+  // meaningful <title> — generated apps routinely keep the scaffold's
+  // "Sandbox App" placeholder, which then becomes the published site's name.
+  try {
+    const read = await provider.runShell('cat dist/index.html');
+    let html: string = read?.stdout || '';
+    if (html) {
+      const original = html;
+
+      const collectBase = process.env.ETLAQ_PUBLIC_URL;
+      if (collectBase && opts.projectId) {
+        html = injectAnalyticsBeacon({ 'index.html': html }, opts.projectId, collectBase)['index.html'];
       }
-    } catch (e) {
-      console.error('[ksa-static] analytics beacon injection failed (non-fatal):', e);
+
+      // Replace only known scaffold placeholders — a title the app set
+      // deliberately is preserved. Add one if the page has none at all.
+      if (opts.siteName) {
+        const safeName = opts.siteName
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const titleTag = /<title>\s*([^<]*?)\s*<\/title>/i;
+        const m = html.match(titleTag);
+        if (m && /^(sandbox app|vite app|react app|app)?$/i.test(m[1])) {
+          html = html.replace(titleTag, `<title>${safeName}</title>`);
+        } else if (!m) {
+          html = html.replace(/<\/head>/i, `  <title>${safeName}</title>\n</head>`);
+        }
+      }
+
+      if (html !== original) await provider.writeFile('dist/index.html', html);
     }
+  } catch (e) {
+    console.error('[ksa-static] index.html post-processing failed (non-fatal):', e);
   }
 
   // 2. Archive dist/ and read it out as base64 — a tarball round-trips binary

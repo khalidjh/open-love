@@ -6,9 +6,13 @@ import { getProjectDatabase, getProjectAuth, getProjectAi } from '@/lib/db/repos
 import { decrypt } from '@/lib/crypto';
 import { etlaqAiProxyUrl, etlaqTranscribeUrl } from '@/lib/ai/provision-ai';
 
-export async function buildEnv(projectId: string) {
+export async function buildEnv(projectId: string, opts: { appName?: string } = {}) {
   const publicEnv: Record<string, string> = {};
   const secretEnv: Record<string, string> = {};
+
+  // The project's human name — the Next template's layout metadata reads this at
+  // build time so the published site isn't titled "App".
+  if (opts.appName) publicEnv.NEXT_PUBLIC_APP_NAME = opts.appName;
 
   const dbRec = await getProjectDatabase(projectId);
   if (dbRec?.encryptedCredentials) {

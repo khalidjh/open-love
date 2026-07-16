@@ -48,8 +48,8 @@ async function syncSource(appDir: string, files: Record<string, string>) {
 
 // .env.production.local outranks every env file a generated app could ship, and
 // Next reads it at BUILD time (NEXT_PUBLIC_* inlining) and at runtime alike.
-async function writeEnvFile(appDir: string, projectId: string) {
-  const { publicEnv, secretEnv } = await buildEnv(projectId);
+async function writeEnvFile(appDir: string, projectId: string, appName?: string) {
+  const { publicEnv, secretEnv } = await buildEnv(projectId, { appName });
   const all = { ...publicEnv, ...secretEnv };
   const lines = Object.entries(all).map(([k, v]) => `${k}=${v}`);
   await fs.writeFile(path.join(appDir, '.env.production.local'), lines.join('\n') + '\n', 'utf8');
@@ -99,7 +99,7 @@ export async function runKsaDeploy(opts: {
   const runName = `etlaq-app-${slug}`;
 
   await syncSource(appDir, files);
-  await writeEnvFile(appDir, projectId);
+  await writeEnvFile(appDir, projectId, opts.siteName);
   await ensureImage(RUNTIME_IMAGE);
 
   // Build in a throwaway container. The app dir is bind-mounted, so node_modules

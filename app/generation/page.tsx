@@ -965,9 +965,11 @@ function AISandboxPage() {
   useEffect(() => {
     const el = chatMessagesRef.current;
     if (!el) return;
-    // Ease down to the newest message rather than snapping.
+    // Ease down to the newest message rather than snapping. deployStatus is a
+    // dependency so clicking Publish (and the later published/error updates)
+    // scrolls the status card into view — it renders below the messages.
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [chatMessages, generationProgress.isGenerating, preparingBuild]);
+  }, [chatMessages, generationProgress.isGenerating, preparingBuild, deployStatus]);
 
   // Auto-trigger generation when flag is set (from home page navigation)
   useEffect(() => {

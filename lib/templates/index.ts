@@ -186,7 +186,8 @@ module.exports = {
       content: `import './globals.css';
 
 export const metadata = {
-  title: 'App',
+  // Deploys inject NEXT_PUBLIC_APP_NAME (the project's name) at build time.
+  title: process.env.NEXT_PUBLIC_APP_NAME || 'App',
   description: 'Built with Etlaq',
 };
 
