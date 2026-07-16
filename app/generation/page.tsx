@@ -1882,7 +1882,13 @@ Tip: I automatically detect and install npm packages from your code imports (lik
   // background build completes: the server already saved the code snapshot and
   // appended its own minimal chat records — this replaces them with the client's
   // full, correctly-ordered history.
-  const persistMessagesOnly = async () => {
+  //
+  // extraMessages: messages the caller just queued via addChatMessage in the
+  // SAME tick. React hasn't flushed them into chatMessagesDataRef yet (the
+  // mirror ref syncs in an effect after render), so a same-tick sync would
+  // otherwise persist a stale list — and replaceMessages on the server would
+  // erase the completion messages the job-runner had already appended.
+  const persistMessagesOnly = async (extraMessages: ChatMessage[] = []) => {
     const projectId = currentProjectIdRef.current;
     if (!projectId) return;
     try {
@@ -1891,7 +1897,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           files: {},
-          messages: chatMessagesDataRef.current
+          messages: [...chatMessagesDataRef.current, ...extraMessages]
             .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'system' || m.type === 'build')
             .map(m => m.type === 'build'
               ? { role: 'build', content: JSON.stringify(m.metadata?.appliedFiles || []) }
@@ -1920,22 +1926,31 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       const files: string[] = Array.isArray(data.filesChanged) ? data.filesChanged : [];
       const explanationText = (typeof data.explanation === 'string' && data.explanation) || explanation || '';
 
+      // Queue each message into the UI AND collect it for the same-tick DB sync
+      // below — chatMessagesDataRef won't reflect these until after the next
+      // render, so persistMessagesOnly needs them passed explicitly.
+      const completionMessages: ChatMessage[] = [];
+      const say = (content: string, type: ChatMessage['type'], metadata?: ChatMessage['metadata']) => {
+        addChatMessage(content, type, metadata);
+        completionMessages.push({ content, type, timestamp: new Date(), metadata });
+      };
+
       if (files.length > 0) {
-        addChatMessage('', 'build', { appliedFiles: files });
+        say('', 'build', { appliedFiles: files });
         if (isEdit) {
           const editedFileNames = files.map(f => f.split('/').pop()).join(', ');
-          addChatMessage(explanationText || `Updated ${editedFileNames}`, 'ai', { appliedFiles: [files[0]] });
+          say(explanationText || `Updated ${editedFileNames}`, 'ai', { appliedFiles: [files[0]] });
         } else {
-          addChatMessage(explanationText || 'Code generated!', 'ai', { appliedFiles: files });
+          say(explanationText || 'Code generated!', 'ai', { appliedFiles: files });
         }
         setConversationContext(prev => ({
           ...prev,
           appliedCode: [...prev.appliedCode, { files, timestamp: new Date() }]
         }));
       } else if (explanationText) {
-        addChatMessage(explanationText, 'ai');
+        say(explanationText, 'ai');
       }
-      addChatMessage(
+      say(
         isEdit
           ? 'Your changes are live — open the Preview tab to see them.'
           : 'Your app is ready! Open the Preview tab to try it.',
@@ -1978,8 +1993,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       }
 
       fetchSandboxFiles().catch(() => {});
-      // Replace the server's minimal appended chat records with the full history.
-      void persistMessagesOnly();
+      // Replace the server's minimal appended chat records with the full history,
+      // including the completion messages queued above (not yet in the ref).
+      void persistMessagesOnly(completionMessages);
 
       setTimeout(() => setActiveTab('preview'), 1000);
     };
