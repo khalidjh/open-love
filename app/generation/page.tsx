@@ -1670,8 +1670,20 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           // Force iframe refresh after applying code
           const refreshDelay = appConfig.codeApplication.defaultRefreshDelay; // Allow Vite to process changes
           
-          setTimeout(() => {
-            const currentSandboxData = effectiveSandboxData;
+          setTimeout(async () => {
+            // Prefer the server's CURRENT sandbox for this project — an apply
+            // can swap sandboxes via recovery, and the captured URL goes stale.
+            let currentSandboxData = effectiveSandboxData;
+            try {
+              const pid = currentProjectIdRef.current;
+              if (pid) {
+                const st = await fetch(`/api/sandbox-status?projectId=${encodeURIComponent(pid)}`).then((r) => r.json());
+                if (st?.active && st?.sandboxData?.url && st.sandboxData.url !== currentSandboxData?.url) {
+                  currentSandboxData = { sandboxId: st.sandboxData.sandboxId, url: st.sandboxData.url } as SandboxData;
+                  setSandboxData(currentSandboxData);
+                }
+              }
+            } catch { /* fall back to the captured URL */ }
             if (iframeRef.current && currentSandboxData?.url) {
               console.log('[home] Refreshing iframe after code application...');
               
@@ -1979,17 +1991,19 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
       // The sandbox may have been created server-side (tab was closed / reloaded
       // during the build) — discover it so the preview has something to show.
+      // ALWAYS re-check which sandbox is current, not just when the URL is
+      // missing: the server can transparently swap sandboxes during a build
+      // (recovery/reconnect), and refreshing the OLD url makes a successful
+      // edit look like nothing changed.
       let sb = sandboxDataRef.current;
-      if (!sb?.url) {
-        try {
-          const st = await fetch(`/api/sandbox-status?projectId=${encodeURIComponent(projectId)}`).then(r => r.json());
-          if (st?.active && st?.sandboxData?.url) {
-            sb = { sandboxId: st.sandboxData.sandboxId, url: st.sandboxData.url } as SandboxData;
-            setSandboxData(sb);
-          }
-        } catch {
-          // Preview will attach on the next status poll.
+      try {
+        const st = await fetch(`/api/sandbox-status?projectId=${encodeURIComponent(projectId)}`).then(r => r.json());
+        if (st?.active && st?.sandboxData?.url && st.sandboxData.url !== sb?.url) {
+          sb = { sandboxId: st.sandboxData.sandboxId, url: st.sandboxData.url } as SandboxData;
+          setSandboxData(sb);
         }
+      } catch {
+        // Preview will attach on the next status poll.
       }
       if (sb?.url && iframeRef.current) {
         setTimeout(() => {
