@@ -472,6 +472,9 @@ function AISandboxPage() {
   });
 
   const [deployStatus, setDeployStatus] = useState<DeployState | null>(null);
+  // False right after a successful publish; true again once a build/edit lands.
+  // Drives the Publish button: Published (disabled) → Redeploy (enabled).
+  const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(true);
 
   const [generationProgress, setGenerationProgress] = useState<{
     isGenerating: boolean;
@@ -1652,6 +1655,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
 
           // Persist the applied code + chat to the DB (survives sandbox death / reload)
           await persistSnapshot(updatedFiles);
+          // An edit just landed — the deployed site (if any) is now behind.
+          setHasUnpublishedChanges(true);
 
           // Skip automatic package check - it's not needed here and can cause false "no sandbox" messages
           // Packages are already installed during the apply-ai-code-stream process
@@ -1998,6 +2003,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       // Replace the server's minimal appended chat records with the full history,
       // including the completion messages queued above (not yet in the ref).
       void persistMessagesOnly(completionMessages);
+      // A build just landed — the deployed site (if any) is now behind.
+      setHasUnpublishedChanges(true);
 
       setTimeout(() => setActiveTab('preview'), 1000);
     };
@@ -2478,6 +2485,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       // actions survive a page reload instead of vanishing with local state.
       if (data.project?.deployUrl) {
         setDeployStatus({ stage: 'published', url: data.project.deployUrl });
+        // Compare the newest snapshot against the last publish: only offer
+        // Redeploy when there is actually something new to ship.
+        const deployedAt = data.project.deployedAt ? new Date(data.project.deployedAt).getTime() : 0;
+        const latestAt = data.latestVersionAt ? new Date(data.latestVersionAt).getTime() : 0;
+        setHasUnpublishedChanges(deployedAt === 0 || latestAt > deployedAt);
       }
 
       // Rehydrate chat history
@@ -3710,6 +3722,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           url: data.url,
           processing: !!(data.state && data.state !== 'ready' && data.state !== 'READY'),
         });
+        setHasUnpublishedChanges(false);
       } else {
         throw new Error(data.error);
       }
@@ -5986,7 +5999,12 @@ Focus on the key sections and content, making it clean and modern.`;
               </a>
               <button
                 onClick={deployProject}
-                disabled={!sandboxData || loading || deployStatus?.stage === 'publishing'}
+                disabled={
+                  !sandboxData ||
+                  loading ||
+                  deployStatus?.stage === 'publishing' ||
+                  (deployStatus?.stage === 'published' && !hasUnpublishedChanges)
+                }
                 aria-label="Publish your app"
                 className="flex h-40 items-center gap-6 rounded-full bg-[#6147D4] px-16 text-[14px] font-semibold text-white shadow-[0_2px_8px_rgba(97,71,212,0.28)] transition-colors hover:bg-[#5238c0] disabled:opacity-40"
               >
@@ -5997,7 +6015,9 @@ Focus on the key sections and content, making it clean and modern.`;
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                   </svg>
                 )}
-                Publish
+                {deployStatus?.stage === 'published'
+                  ? (hasUnpublishedChanges ? 'Redeploy' : 'Published')
+                  : 'Publish'}
               </button>
             </div>
           </div>

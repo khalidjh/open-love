@@ -48,6 +48,7 @@ export const projects = pgTable('projects', {
   vercelProjectId: text('vercel_project_id'), // stable per-project full-stack deploy target
   deployUrl: text('deploy_url'),
   deployTarget: text('deploy_target').default('static'), // 'static' | 'fullstack'
+  deployedAt: timestamp('deployed_at', { withTimezone: true }), // last successful publish — vs latest version = "has unpublished changes"
   currentVersionId: uuid('current_version_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

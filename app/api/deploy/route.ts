@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
             vercelProjectId: result.vercelProjectId,
             deployUrl: result.url,
             deployTarget: 'fullstack',
+            deployedAt: new Date(),
           });
         } catch (e) {
           console.error('[deploy] Failed to persist full-stack metadata:', e);
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
         await updateProject(orgId, projectId, {
           deployUrl: result.url,
           deployTarget: 'fullstack',
+          deployedAt: new Date(),
         });
       } catch (e) {
         console.error('[deploy] Failed to persist full-stack metadata:', e);
@@ -180,6 +182,7 @@ export async function POST(request: NextRequest) {
           netlifySiteId: result.siteId,
           deployUrl: result.url,
           deployTarget: 'static',
+          deployedAt: new Date(),
         });
       } catch (e) {
         console.error('[deploy] Failed to persist static metadata:', e);
@@ -212,6 +215,7 @@ export async function POST(request: NextRequest) {
       await updateProject(orgId, projectId, {
         deployUrl: result.url,
         deployTarget: 'static',
+        deployedAt: new Date(),
       });
     } catch (e) {
       console.error('[deploy] Failed to persist static metadata:', e);

@@ -23,6 +23,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       project,
       files: version?.files ?? {},
       messages: msgs,
+      // When the newest snapshot postdates deployedAt, the client offers
+      // "Redeploy"; otherwise the publish button rests disabled.
+      latestVersionAt: version?.createdAt ?? null,
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
