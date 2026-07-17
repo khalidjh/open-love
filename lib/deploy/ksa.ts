@@ -130,7 +130,13 @@ export async function runKsaDeploy(opts: {
     BUILD_TIMEOUT_MS
   ));
   if (build.exitCode !== 0) {
-    throw new Error(`App build failed (exit ${build.exitCode}):\n${build.logs.slice(-2000)}`);
+    // Lead with something actionable for a non-technical user when we recognize
+    // the failure; the raw tail still follows for debugging.
+    const friendly = /window is not defined/.test(build.logs)
+      ? 'Your app uses browser-only features while pages are being pre-built. ' +
+        'Ask the assistant: "fix window is not defined during the production build", then publish again.\n\n'
+      : '';
+    throw new Error(`App build failed (exit ${build.exitCode}):\n${friendly}${build.logs.slice(-2000)}`);
   }
 
   const port = await allocatePort(slug, runName);
