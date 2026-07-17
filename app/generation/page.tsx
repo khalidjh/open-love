@@ -5742,7 +5742,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     key={s}
                     onClick={() => sendChatMessage(s)}
                     style={{ animationDelay: `${i * 60}ms` }}
-                    className="group anim-fade-up inline-flex shrink-0 items-center gap-8 whitespace-nowrap rounded-full border border-[#a99cd9] bg-gradient-to-b from-white to-[#faf9fe] px-14 py-8 text-[13px] font-medium text-[#4b4560] shadow-[0_1px_2px_rgba(97,71,212,0.05)] transition-all duration-200 hover:-translate-y-2 hover:border-[#6147D4] hover:text-[#191622] hover:shadow-[0_6px_16px_rgba(97,71,212,0.14)] active:translate-y-0 active:scale-[0.98]"
+                    className="group anim-fade-up inline-flex shrink-0 items-center gap-8 whitespace-nowrap rounded-full border border-[#8674c7] bg-gradient-to-b from-white to-[#faf9fe] px-14 py-8 text-[13px] font-medium text-[#4b4560] shadow-[0_1px_2px_rgba(97,71,212,0.05)] transition-all duration-200 hover:-translate-y-2 hover:border-[#6147D4] hover:text-[#191622] hover:shadow-[0_6px_16px_rgba(97,71,212,0.14)] active:translate-y-0 active:scale-[0.98]"
                   >
                     <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="text-[#a99cd9] transition-colors group-hover:text-[#6147D4]">
                       <path d="M10 1.5l1.8 4.9 4.9 1.8-4.9 1.8L10 15l-1.8-4.9L3.3 8.3l4.9-1.8L10 1.5z" />
