@@ -1149,12 +1149,23 @@ The user is non-technical and will NOT ask for "OAuth", an "auth provider", or a
 - If the app is public/anonymous (no accounts), ignore this section.
 
 WHEN YOU USE AUTH:
-- The client is auto-provided at ${authClientPath} — import { etlaqAuth } and call:
-    etlaqAuth.signUp()          // begin sign-up (redirects to the login page)
-    etlaqAuth.signIn()          // begin login (redirects)
-    etlaqAuth.signOut()
-    etlaqAuth.getUser()         // -> the logged-in user, or null
-    etlaqAuth.getAccessToken()  // -> bearer token for authorized data calls
+- The client is auto-provided at ${authClientPath} — import { etlaqAuth }. EVERY method is ASYNC (returns a Promise) — you MUST await them:
+    await etlaqAuth.signUp()          // begin sign-up (redirects to the login page)
+    await etlaqAuth.signIn()          // begin login (redirects)
+    await etlaqAuth.signOut()         // clears the session, returns home
+    const user = await etlaqAuth.getUser()         // -> the logged-in user, or null
+    const token = await etlaqAuth.getAccessToken() // -> bearer token for authorized data calls
+- CRITICAL: getUser() returns a PROMISE. NEVER write \`if (etlaqAuth.getUser())\` — an un-awaited
+  Promise is always truthy, so the app would treat EVERYONE as logged in. Always await first.
+- Gate the whole app on auth like this (copy this pattern):
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+      etlaqAuth.getUser().then((u) => { setUser(u); setLoading(false); });
+    }, []);
+    if (loading) return <div>Loading…</div>;
+    if (!user) return <button onClick={() => etlaqAuth.signIn()}>Sign in</button>;
+    // ...authenticated app UI here...
 - Add a callback route at /auth/callback that calls etlaqAuth.handleCallback() then
   redirects home — the login flow returns the user there. ${framework === 'nextjs'
     ? "In Next.js make it a client component at app/auth/callback/page.jsx ('use client')."

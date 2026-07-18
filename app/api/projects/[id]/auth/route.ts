@@ -41,8 +41,19 @@ export const etlaqAuth = {
   signIn: () => (inBrowser() ? mgr().signinRedirect() : Promise.resolve()),
   signUp: () => (inBrowser() ? mgr().signinRedirect({ prompt: 'create' }) : Promise.resolve()),
   handleCallback: () => (inBrowser() ? mgr().signinRedirectCallback() : Promise.resolve(null)),
-  signOut: () => (inBrowser() ? mgr().signoutRedirect() : Promise.resolve()),
+  // Local sign-out: clear this app's tokens and return home. We deliberately do
+  // NOT call signoutRedirect() — the OIDC end-session endpoint bounces to a
+  // hosted logout UI that isn't reliably available, leaving users on a raw
+  // "Not Found" page. Clearing the local session logs them out of THIS app.
+  signOut: async () => {
+    if (!inBrowser()) return;
+    try { await mgr().removeUser(); } catch { /* already gone */ }
+    window.location.href = '/';
+  },
+  // ASYNC — returns a Promise. You MUST await it: \`const user = await etlaqAuth.getUser()\`.
+  // Resolves to the signed-in user, or null when nobody is logged in.
   getUser: () => (inBrowser() ? mgr().getUser() : Promise.resolve(null)),
+  isLoggedIn: async () => (inBrowser() ? !!(await mgr().getUser()) : false),
   getAccessToken: async () => (inBrowser() ? ((await mgr().getUser())?.access_token ?? null) : null),
 };
 `;
