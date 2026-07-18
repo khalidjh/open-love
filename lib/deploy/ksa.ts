@@ -14,6 +14,7 @@ import path from 'path';
 import { buildEnv } from './env';
 import { APPS_DOMAIN, APPS_DIR, RUNTIME_IMAGE, resolveSlug, safeJoin, writeCaddyVhost, waitForTls } from './ksa-shared';
 import { withBuildSlot } from './build-gate';
+import { injectBeaconIntoNextLayout } from '@/lib/analytics/beacon';
 import {
   ensureImage, createAndStart, removeContainer, inspectContainer,
   runToCompletion, probeContainerHttp, usedHostPorts, containerLogs,
@@ -100,6 +101,24 @@ export async function runKsaDeploy(opts: {
 
   await syncSource(appDir, files);
   await writeEnvFile(appDir, projectId, opts.siteName);
+
+  // Inject the visitor-analytics beacon into the root layout (Next apps have no
+  // index.html, so the static-path injector can't reach them — without this,
+  // published full-stack apps always report 0 views). Runs on the synced source
+  // before the build so it's compiled in.
+  const collectBase = process.env.ETLAQ_PUBLIC_URL;
+  if (collectBase) {
+    for (const rel of ['app/layout.jsx', 'app/layout.js', 'src/app/layout.jsx']) {
+      const layoutPath = safeJoin(appDir, rel);
+      if (!layoutPath) continue;
+      try {
+        const src = await fs.readFile(layoutPath, 'utf8');
+        const injected = injectBeaconIntoNextLayout(src, projectId, collectBase);
+        if (injected !== src) { await fs.writeFile(layoutPath, injected, 'utf8'); break; }
+      } catch { /* layout not at this path — try next */ }
+    }
+  }
+
   await ensureImage(RUNTIME_IMAGE);
 
   // Build in a throwaway container. The app dir is bind-mounted, so node_modules

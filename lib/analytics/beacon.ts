@@ -21,6 +21,31 @@ export function buildBeaconSnippet(projectId: string, collectBase: string): stri
     `}catch(e){}})();</script>`;
 }
 
+// The beacon's inner JS (no <script> wrapper) for embedding in JSX via
+// dangerouslySetInnerHTML. Contains only single/double quotes and +
+// concatenation — no backticks or ${…} — so it's safe inside a template literal.
+function buildBeaconInnerJs(projectId: string, collectBase: string): string {
+  return buildBeaconSnippet(projectId, collectBase).replace(/^<script>/, '').replace(/<\/script>$/, '');
+}
+
+// Inject the beacon into a Next.js App Router root layout (app/layout.jsx),
+// which has no index.html. Adds a <script dangerouslySetInnerHTML> right after
+// the opening <body> tag so every server-rendered page reports a view on load.
+// Returns the layout unchanged if there's no <body> or collectBase is falsy.
+export function injectBeaconIntoNextLayout(
+  layoutSource: string,
+  projectId: string,
+  collectBase: string,
+): string {
+  if (!collectBase || !projectId) return layoutSource;
+  if (layoutSource.includes('etlaq_vid')) return layoutSource; // already injected
+  const bodyOpen = /<body[^>]*>/i;
+  if (!bodyOpen.test(layoutSource)) return layoutSource;
+  const inner = buildBeaconInnerJs(projectId, collectBase);
+  const scriptEl = `<script dangerouslySetInnerHTML={{ __html: \`${inner}\` }} />`;
+  return layoutSource.replace(bodyOpen, (m) => `${m}${scriptEl}`);
+}
+
 // Return a shallow-cloned files map with the beacon injected before </body> of
 // any index.html. No-op (returns source unchanged) when collectBase is falsy or
 // no index.html is present. Never mutates the input object.
