@@ -40,9 +40,12 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     path.startsWith('/login') ||
     path.startsWith('/auth') ||
-    // Generated tenant apps call the AI proxy with a per-project bearer token,
-    // not a Supabase session — it authenticates itself and must stay public.
+    // Generated tenant apps call the AI proxy AND the speech-to-text endpoint
+    // with a per-project bearer token, not a Supabase session — both
+    // authenticate themselves and must stay public (a redirect to /login here
+    // makes the tenant app's fetch fail, surfacing as "Could not transcribe").
     path.startsWith('/api/ai/proxy') ||
+    path.startsWith('/api/ai/transcribe') ||
     // The visitor-analytics beacon is fired cross-origin from DEPLOYED apps with
     // no Supabase session; it validates its own input and must stay public (a
     // redirect here would silently drop every page-view).
