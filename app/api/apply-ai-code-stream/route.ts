@@ -579,7 +579,8 @@ export async function POST(request: NextRequest) {
                   sandbox: morphSandbox,
                   targetPath: edit.targetFile,
                   instructions: edit.instructions,
-                  updateSnippet: edit.update
+                  updateSnippet: edit.update,
+                  framework,
                 });
                 if (result.success && result.normalizedPath) {
                   console.log('[apply-ai-code-stream] Morph updated', result.normalizedPath);

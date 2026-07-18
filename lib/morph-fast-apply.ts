@@ -13,26 +13,38 @@ export interface MorphApplyResult {
   error?: string;
 }
 
-// Normalize project-relative paths to sandbox layout
-export function normalizeProjectPath(inputPath: string): { normalizedPath: string; fullPath: string } {
+// Normalize project-relative paths to sandbox layout.
+//
+// framework matters: Vite apps keep source under src/, but Next.js App Router
+// apps live at the project root (app/, lib/, components/, pages/) and have NO
+// src/ dir. Blindly prepending src/ for a Next app rewrites app/page.jsx ->
+// src/app/page.jsx, which Next SILENTLY IGNORES — so every Morph edit to a
+// Next app landed in a dead file and the change never appeared (build/preview
+// alike). For Next.js, never force a src/ prefix.
+export function normalizeProjectPath(
+  inputPath: string,
+  framework: 'vite' | 'nextjs' = 'vite',
+): { normalizedPath: string; fullPath: string } {
   let normalizedPath = inputPath.trim();
   if (normalizedPath.startsWith('/')) normalizedPath = normalizedPath.slice(1);
 
-  const configFiles = new Set([
-    'tailwind.config.js',
-    'vite.config.js',
-    'package.json',
-    'package-lock.json',
-    'tsconfig.json',
-    'postcss.config.js'
-  ]);
+  if (framework !== 'nextjs') {
+    const configFiles = new Set([
+      'tailwind.config.js',
+      'vite.config.js',
+      'package.json',
+      'package-lock.json',
+      'tsconfig.json',
+      'postcss.config.js'
+    ]);
 
-  const fileName = normalizedPath.split('/').pop() || '';
-  if (!normalizedPath.startsWith('src/') &&
-      !normalizedPath.startsWith('public/') &&
-      normalizedPath !== 'index.html' &&
-      !configFiles.has(fileName)) {
-    normalizedPath = 'src/' + normalizedPath;
+    const fileName = normalizedPath.split('/').pop() || '';
+    if (!normalizedPath.startsWith('src/') &&
+        !normalizedPath.startsWith('public/') &&
+        normalizedPath !== 'index.html' &&
+        !configFiles.has(fileName)) {
+      normalizedPath = 'src/' + normalizedPath;
+    }
   }
 
   const fullPath = `/home/user/app/${normalizedPath}`;
@@ -182,13 +194,14 @@ export async function applyMorphEditToFile(params: {
   targetPath: string;
   instructions: string;
   updateSnippet: string;
+  framework?: 'vite' | 'nextjs';
 }): Promise<MorphApplyResult> {
   try {
     if (!process.env.MORPH_API_KEY) {
       return { success: false, error: 'MORPH_API_KEY not set' };
     }
 
-    const { normalizedPath, fullPath } = normalizeProjectPath(params.targetPath);
+    const { normalizedPath, fullPath } = normalizeProjectPath(params.targetPath, params.framework ?? 'vite');
 
     // Read original code (existence validation happens here)
     const initialCode = await readFileFromSandbox(params.sandbox, normalizedPath, fullPath);
