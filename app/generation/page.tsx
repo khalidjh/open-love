@@ -3540,6 +3540,14 @@ Tip: I automatically detect and install npm packages from your code imports (lik
     if (!skipEcho) {
       const decision = await respondConversationally(message);
       if (decision === 'chat') return;
+      // Build confirmed — reply conversationally so the chat feels responsive
+      // while the build runs, instead of leaving the user's message next to a
+      // silent progress card.
+      const isEditReq = conversationContext.appliedCode.length > 0;
+      const acks = isEditReq
+        ? ['Got it — updating your app now…', 'On it! Applying that change…', 'Sure — making that change now…', 'Great idea — updating it now…']
+        : ['Got it — building that now…', 'On it! Putting it together…', 'Sure — let me build that…'];
+      addChatMessage(acks[Math.floor(Math.random() * acks.length)], 'ai');
     }
 
     // Kick off sandbox creation in parallel so the preview has somewhere to
