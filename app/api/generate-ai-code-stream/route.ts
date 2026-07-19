@@ -1131,8 +1131,14 @@ WHEN YOU USE THE DATABASE:
                       the automatic "user_id".
     - "public"      = anyone can read AND write, even with no account (a shared guestbook,
                       a contact form, an anonymous poll). Only for non-personal, shared data.
+    - "org"         = ROLE-BASED, for internal company/team systems: the owner sees & edits
+                      everything, a manager sees their team's rows (and edits their own), an
+                      employee sees & edits only their own. Use this for shared business data
+                      (clients, orders, invoices, tasks) in an app that has staff with roles.
+                      Requires sign-in — see the TEAM ROLES section below. Also gets "user_id".
     - RULE: if the app has user accounts, personal data MUST be "private" — never "public".
-      If the app has no sign-in, use "public".
+      For an internal business system with staff roles, use "org". If the app has no sign-in,
+      use "public".
     - For "private"/"public_read" tables the app MUST query the database AS the logged-in
       user: use createSupabaseClient(await etlaqAuth.getAccessToken()) (see the auth
       section), NOT the plain anonymous \`supabase\` client, or reads/writes are blocked.
@@ -1199,6 +1205,36 @@ WHEN YOU USE AUTH:
   provided factory so RLS filters data by that user:
     import { createSupabaseClient } from '${framework === 'nextjs' ? '@/lib/supabaseClient' : './lib/supabaseClient'}';
     const supabase = createSupabaseClient(await etlaqAuth.getAccessToken());
+`;
+
+          // Role-based access for internal/company tools (owner/manager/employee).
+          systemPrompt += `
+
+TEAM ROLES (owner / manager / employee) — for internal company/team systems:
+If this app is an internal tool where a company's staff sign in and have different levels
+of access (a boss who sees everything, managers who oversee a team, employees who see only
+their own work), use the BUILT-IN team roles. Do NOT invent your own roles table or enforce
+access only in the UI — that is not secure.
+- Mark shared business tables (clients, orders, invoices, tasks, projects) with
+  "access": "org" in the <tables> block. The DATABASE then enforces, automatically:
+    • owner    → sees and edits every row
+    • manager  → sees their team's rows (their direct reports); edits only their own
+    • employee → sees and edits only their own rows
+  Each row is auto-tagged with its creator (the "user_id" column) — do NOT set it yourself.
+- The team client is auto-provided at ${framework === 'nextjs' ? 'lib/etlaqTeam.js' : 'src/lib/etlaqTeam.js'} — import { etlaqTeam }. Every method is async:
+    await etlaqTeam.claim()                       // call ONCE right after sign-in; the FIRST
+                                                  // user ever becomes owner, the rest employee
+    const role = await etlaqTeam.myRole()         // 'owner' | 'manager' | 'employee'
+    const people = await etlaqTeam.members()      // the roster (for assignment dropdowns)
+    await etlaqTeam.setRole(userId, 'manager')    // OWNER ONLY — promote / demote
+    await etlaqTeam.setManager(userId, managerId) // OWNER ONLY — assign who reports to whom
+- ALWAYS call etlaqTeam.claim() once as soon as the user is signed in (right after
+  etlaqAuth.getUser() resolves), then read etlaqTeam.myRole() to adapt the UI.
+- Build an OWNER-ONLY "Team" page where the owner sees the roster, changes each person's role,
+  and assigns each employee's manager (setManager). Hide it from non-owners.
+- Query org tables with the authenticated client createSupabaseClient(await
+  etlaqAuth.getAccessToken()); the database returns ONLY the rows the signed-in person may
+  see, so do NOT filter by role yourself.
 `;
         }
 

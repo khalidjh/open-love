@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { schemaNameForProject } from './provision-schema';
+import { provisionProjectRoles } from './provision-roles';
 
 // Creates tables inside a project's schema from a STRUCTURED spec (never raw
 // AI SQL). Identifiers are validated and column types come from a whitelist,
@@ -11,7 +12,12 @@ import { schemaNameForProject } from './provision-schema';
 // every "private" app shipped the anon key and let any visitor read/write every
 // row of every table. See `securityStatements`.
 
-export type TableAccess = 'private' | 'public_read' | 'public';
+// private     — owner-only (each row scoped to the user who created it)
+// public_read — anyone reads, signed-in owner writes
+// public      — open to anyone (even anonymous)
+// org         — role-based: owner sees/edits all, manager sees their team (reads),
+//               employee sees/edits own. Requires the roles infra (see provision-roles).
+export type TableAccess = 'private' | 'public_read' | 'public' | 'org';
 
 export interface ColumnSpec {
   name: string;
@@ -57,10 +63,14 @@ const MANAGED_POLICIES = [
   'etlaq_owner_upd',
   'etlaq_owner_del',
   'etlaq_owner_all',
+  'etlaq_org_sel',
+  'etlaq_org_ins',
+  'etlaq_org_upd',
+  'etlaq_org_del',
 ];
 
 function ownerScoped(access: TableAccess): boolean {
-  return access === 'private' || access === 'public_read';
+  return access === 'private' || access === 'public_read' || access === 'org';
 }
 
 // Column names that plausibly tag a row's owner, best first. Used by the backfill
@@ -81,7 +91,7 @@ function resolveAccess(
   allowOwnerScoped: boolean,
 ): TableAccess {
   let access: TableAccess =
-    raw === 'private' || raw === 'public_read' || raw === 'public' ? raw : fallback;
+    raw === 'private' || raw === 'public_read' || raw === 'public' || raw === 'org' ? raw : fallback;
   if (!allowOwnerScoped && ownerScoped(access)) access = 'public';
   return access;
 }
@@ -167,6 +177,17 @@ export function securityStatements(
     stmts.push(
       `create policy "etlaq_owner_del" on ${T} for delete to authenticated using (${owner} = ${JWT_SUB})`,
     );
+  } else if (access === 'org') {
+    // Role-based (see provision-roles). Visibility/edit rights come from the
+    // app_members roster via helper functions, so owner/manager/employee are
+    // enforced in the database. anon gets nothing (org data always requires login).
+    const canSee = `"${schema}".app_can_see(${owner})`;
+    const canWrite = `"${schema}".app_can_write(${owner})`;
+    stmts.push(`grant select, insert, update, delete on ${T} to authenticated`);
+    stmts.push(`create policy "etlaq_org_sel" on ${T} for select to authenticated using (${canSee})`);
+    stmts.push(`create policy "etlaq_org_ins" on ${T} for insert to authenticated with check (${owner} = ${JWT_SUB})`);
+    stmts.push(`create policy "etlaq_org_upd" on ${T} for update to authenticated using (${canWrite}) with check (${canWrite})`);
+    stmts.push(`create policy "etlaq_org_del" on ${T} for delete to authenticated using (${canWrite})`);
   } else {
     // private: only the signed-in owner can see or change their own rows. anon
     // gets NO grant and NO policy, so the public key can't touch the table at all.
@@ -189,12 +210,18 @@ export async function createTables(
   const allowOwnerScoped = opts.allowOwnerScoped !== false; // default true
   const fallback = resolveAccess(opts.defaultAccess, 'public', allowOwnerScoped);
 
+  // Any `org` table's policies call the app_members helper functions, so the roles
+  // infra must exist first. Provision it once up front (idempotent).
+  const resolved = tables.map((t) => resolveAccess(t.access, fallback, allowOwnerScoped));
+  if (resolved.includes('org')) await provisionProjectRoles(projectId);
+
   const sql = postgres(url, { max: 1 });
   const created: string[] = [];
   const warnings: string[] = [];
   try {
-    for (const table of tables) {
-      let access = resolveAccess(table.access, fallback, allowOwnerScoped);
+    for (let i = 0; i < tables.length; i++) {
+      const table = tables[i];
+      let access = resolved[i];
       await sql.unsafe(buildCreateTable(schema, table, access));
 
       // Owner-scoped policies filter on a text "user_id". buildCreateTable adds it

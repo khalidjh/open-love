@@ -55,6 +55,9 @@ const needsAi = (generated: string): boolean =>
   /ETLAQ_AI_(URL|KEY)|ETLAQ_TRANSCRIBE_URL/.test(generated);
 const needsAuth = (generated: string): boolean =>
   /etlaqAuth|(VITE_|NEXT_PUBLIC_)AUTH_(ISSUER|CLIENT_ID)/.test(generated);
+// Role-based access: the app uses the team client or declares an `org` table.
+const needsRoles = (generated: string): boolean =>
+  /etlaqTeam|app_members|app_claim_membership|["']access["']\s*:\s*["']org["']/.test(generated);
 
 // Turn detected build errors into a tight, surgical fix instruction for the model.
 function buildHealPrompt(errors: BuildError[]): string {
@@ -229,6 +232,11 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
         'Setting up private sign-in for your app…',
         `/api/projects/${opts.projectId}/auth`);
     }
+    if (needsRoles(generatedCode)) {
+      await provision(jobId, internalFetch, 'roles',
+        'Setting up team roles and permissions…',
+        `/api/projects/${opts.projectId}/database/roles`);
+    }
 
     // ---- Phase 3: apply to the sandbox --------------------------------------
     // apply-ai-code-stream guarantees a live sandbox itself (ensureActiveSandbox
@@ -348,7 +356,7 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
 async function provision(
   jobId: string,
   internalFetch: (path: string, init?: RequestInit) => Promise<Response>,
-  key: 'database' | 'ai' | 'auth',
+  key: 'database' | 'ai' | 'auth' | 'roles',
   message: string,
   path: string,
 ): Promise<void> {
@@ -359,7 +367,8 @@ async function provision(
     const data = await res.json().catch(() => null);
     ok = Boolean(
       data?.success &&
-      (data.database?.status === 'ready' || data.ai?.status === 'ready' || data.auth?.status === 'ready'),
+      (data.database?.status === 'ready' || data.ai?.status === 'ready' ||
+        data.auth?.status === 'ready' || data.roles?.status === 'ready'),
     );
   } catch (e) {
     console.error(`[job-runner] ${key} provisioning failed:`, e);
