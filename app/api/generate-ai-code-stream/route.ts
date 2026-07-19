@@ -682,6 +682,13 @@ TYPOGRAPHY (the single strongest signal of quality):
 - Pair a characterful DISPLAY face for headings with a clean face for body text.
   Strong choices: Space Grotesk, Fraunces, Instrument Serif, Bricolage Grotesque,
   Syne, DM Serif Display, Archivo, Sora, Clash-style grotesks, Playfair Display.
+- ARABIC / RTL apps: the Latin display faces above do NOT contain Arabic glyphs, so if
+  the UI text is Arabic you MUST use a proper modern Arabic typeface — default to
+  IBM Plex Sans Arabic, and never fall back to system/default Arabic:
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+    @layer base { body { font-family: 'IBM Plex Sans Arabic', sans-serif; } }
+  Also set dir="rtl" and lang="ar" on the root <html>/container. For a bilingual app you
+  may pair it with a Latin face, but Arabic text must always render in IBM Plex Sans Arabic.
 - Exploit type-scale contrast: oversized headings (text-6xl -> text-8xl), deliberate
   tracking-tight, considered leading. Let typography carry the composition.
 
