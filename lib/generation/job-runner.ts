@@ -58,6 +58,9 @@ const needsAuth = (generated: string): boolean =>
 // Role-based access: the app uses the team client or declares an `org` table.
 const needsRoles = (generated: string): boolean =>
   /etlaqTeam|app_members|app_claim_membership|["']access["']\s*:\s*["']org["']/.test(generated);
+// File uploads: the app uses the files client or Supabase storage directly.
+const needsStorage = (generated: string): boolean =>
+  /etlaqFiles|storage\.from\(|\.createSignedUrl\(/.test(generated);
 
 // Turn detected build errors into a tight, surgical fix instruction for the model.
 function buildHealPrompt(errors: BuildError[]): string {
@@ -237,6 +240,14 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
         'Setting up team roles and permissions…',
         `/api/projects/${opts.projectId}/database/roles`);
     }
+    if (needsStorage(generatedCode)) {
+      // Files inherit the app's access model: role-based → org, signed-in → private,
+      // otherwise public.
+      const fileAccess = needsRoles(generatedCode) ? 'org' : needsAuth(generatedCode) ? 'private' : 'public';
+      await provision(jobId, internalFetch, 'storage',
+        'Setting up file uploads for your app…',
+        `/api/projects/${opts.projectId}/database/storage?access=${fileAccess}`);
+    }
 
     // ---- Phase 3: apply to the sandbox --------------------------------------
     // apply-ai-code-stream guarantees a live sandbox itself (ensureActiveSandbox
@@ -356,7 +367,7 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
 async function provision(
   jobId: string,
   internalFetch: (path: string, init?: RequestInit) => Promise<Response>,
-  key: 'database' | 'ai' | 'auth' | 'roles',
+  key: 'database' | 'ai' | 'auth' | 'roles' | 'storage',
   message: string,
   path: string,
 ): Promise<void> {
@@ -368,7 +379,8 @@ async function provision(
     ok = Boolean(
       data?.success &&
       (data.database?.status === 'ready' || data.ai?.status === 'ready' ||
-        data.auth?.status === 'ready' || data.roles?.status === 'ready'),
+        data.auth?.status === 'ready' || data.roles?.status === 'ready' ||
+        data.storage?.status === 'ready'),
     );
   } catch (e) {
     console.error(`[job-runner] ${key} provisioning failed:`, e);

@@ -1155,6 +1155,22 @@ WHEN YOU USE THE DATABASE:
   ]}
 ]
 </tables>
+
+FILE UPLOADS (photos, documents, receipts, attachments, avatars):
+If the app needs users to upload or attach files, use the BUILT-IN file storage. Do NOT
+store file contents in the database and do NOT use base64 data URLs except for tiny inline
+previews.
+- The file client is auto-provided at ${framework === 'nextjs' ? 'lib/etlaqFiles.js' : 'src/lib/etlaqFiles.js'} — import { etlaqFiles }. Every method is async:
+    const { key, error } = await etlaqFiles.upload(file)  // file from <input type="file">
+    const link = await etlaqFiles.url(key)                // a temporary link to show/download
+    const items = await etlaqFiles.list()                 // files in this app
+    await etlaqFiles.remove(key)                           // delete
+- Store the returned "key" (a short string) in your database row (e.g. an order's
+  attachment_key), then call etlaqFiles.url(key) to display or download it.
+- Access is AUTOMATIC and matches your data: in a team ("org") app the owner sees all
+  files, a manager their team's, an employee only their own; in a personal (signed-in) app
+  each user sees only their own uploads; in a public app anyone can. Do NOT build your own
+  permission checks for files.
 `;
 
         // Decide automatically whether this app needs end-user accounts. Only
@@ -1302,11 +1318,11 @@ WHEN THE APP TRANSCRIBES VOICE / AUDIO (speech-to-text):
   endpoint from the browser directly — always go through app/api/transcribe so the token stays on the server.
 - Always handle the error case: if the response is not ok or text is empty, show the user a friendly
   "Couldn't transcribe that — try again" message rather than failing silently.
-- NEVER upload the recorded audio to Supabase Storage / a bucket (no supabase.storage.from(...).upload(),
-  no createBucket) — object storage is NOT provisioned for this app and any upload fails with
-  "Bucket not found". Keep the recording only in memory (a Blob) long enough to POST it to
-  /api/transcribe, then discard it. If the app needs to remember the note, persist the TRANSCRIBED
-  TEXT (data.text) in a database table — never the raw audio file.
+- For voice notes, PREFER persisting the TRANSCRIBED TEXT (data.text) in a database table
+  rather than the raw audio — it is smaller and searchable. If you genuinely need to keep the
+  audio itself, upload the recorded Blob with etlaqFiles.upload(blob) (see FILE UPLOADS) and
+  store the returned key; otherwise keep the recording only in memory long enough to POST it
+  to /api/transcribe, then discard it.
 `;
         }
 
