@@ -37,10 +37,26 @@ function mgr() {
   return _mgr;
 }
 
+// Auto-complete the login redirect. After the user signs in, the provider sends
+// them back with ?code=&state= in the URL. We exchange it here on load and clean the
+// URL, so login works even when the app has no dedicated /auth/callback route (the
+// common case). getUser()/getAccessToken() await this so the app never reads a null
+// user during the exchange.
+let _ready = Promise.resolve();
+if (inBrowser()) {
+  const _p = new URLSearchParams(window.location.search);
+  if (_p.has('code') && _p.has('state')) {
+    _ready = mgr().signinRedirectCallback()
+      .then(() => { window.history.replaceState({}, document.title, '/'); })
+      .catch(() => { window.history.replaceState({}, document.title, '/'); });
+  }
+}
+
 export const etlaqAuth = {
   signIn: () => (inBrowser() ? mgr().signinRedirect() : Promise.resolve()),
   signUp: () => (inBrowser() ? mgr().signinRedirect({ prompt: 'create' }) : Promise.resolve()),
-  handleCallback: () => (inBrowser() ? mgr().signinRedirectCallback() : Promise.resolve(null)),
+  // Kept for backward compatibility; login is now completed automatically on load.
+  handleCallback: () => (inBrowser() ? _ready.then(() => mgr().getUser()) : Promise.resolve(null)),
   // Local sign-out: clear this app's tokens and return home. We deliberately do
   // NOT call signoutRedirect() — the OIDC end-session endpoint bounces to a
   // hosted logout UI that isn't reliably available, leaving users on a raw
@@ -52,9 +68,9 @@ export const etlaqAuth = {
   },
   // ASYNC — returns a Promise. You MUST await it: \`const user = await etlaqAuth.getUser()\`.
   // Resolves to the signed-in user, or null when nobody is logged in.
-  getUser: () => (inBrowser() ? mgr().getUser() : Promise.resolve(null)),
-  isLoggedIn: async () => (inBrowser() ? !!(await mgr().getUser()) : false),
-  getAccessToken: async () => (inBrowser() ? ((await mgr().getUser())?.access_token ?? null) : null),
+  getUser: async () => { if (!inBrowser()) return null; await _ready; return mgr().getUser(); },
+  isLoggedIn: async () => { if (!inBrowser()) return false; await _ready; return !!(await mgr().getUser()); },
+  getAccessToken: async () => { if (!inBrowser()) return null; await _ready; return (await mgr().getUser())?.access_token ?? null; },
 };
 `;
 }

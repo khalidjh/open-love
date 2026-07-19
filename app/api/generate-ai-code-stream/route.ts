@@ -1210,10 +1210,9 @@ WHEN YOU USE AUTH:
     if (loading) return <div>Loading…</div>;
     if (!user) return <button onClick={() => etlaqAuth.signIn()}>Sign in</button>;
     // ...authenticated app UI here...
-- Add a callback route at /auth/callback that calls etlaqAuth.handleCallback() then
-  redirects home — the login flow returns the user there. ${framework === 'nextjs'
-    ? "In Next.js make it a client component at app/auth/callback/page.jsx ('use client')."
-    : "In Vite add a client-side route for /auth/callback that runs handleCallback() on mount."}
+- The login redirect is completed AUTOMATICALLY — you do NOT need to build an
+  /auth/callback route or call handleCallback(). Just call etlaqAuth.signIn() to start
+  login; when the user returns, etlaqAuth.getUser() resolves to them (await it).
 - The env vars ${template.env.authIssuer} / ${template.env.authClientId} are auto-provided; never hardcode them.
 - Do NOT create your own login/password form or store users yourself — etlaqAuth hosts
   the sign-up and login pages. Your UI just calls signIn()/signUp() and reads getUser().

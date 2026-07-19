@@ -8,7 +8,7 @@ import { detectFramework, type Framework } from '@/lib/templates';
 // INTENT instead, and falls back to the keyword heuristic on any error/timeout so
 // it never blocks project creation.
 
-const CLASSIFY_MODEL = 'moonshotai/kimi-k2-instruct-0905'; // fast, cheap, non-reasoning
+const CLASSIFY_MODEL = 'llama-3.1-8b-instant'; // Groq: fast, cheap, non-reasoning, and available on prod
 
 const SYSTEM = `You decide what kind of web project a build request needs.
 Reply with EXACTLY one lowercase word: "nextjs" or "vite". No punctuation, no explanation.
