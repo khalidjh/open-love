@@ -22,6 +22,7 @@ import {
   updateProject,
 } from '@/lib/db/repos';
 import { getSession } from '@/lib/sandbox/session-store';
+import { isZitadelConfigured } from '@/lib/auth/zitadel';
 import { openJobChannel, publishJobEvent, finishJobChannel } from './job-events';
 
 export interface StartJobOptions {
@@ -322,10 +323,20 @@ async function createDeclaredTables(
     return;
   }
   if (!Array.isArray(tables) || tables.length === 0) return;
+  // Owner-scoped tables (private / public_read) only work when the app has a real
+  // sign-in: they filter rows by the logged-in user's id. If this app uses auth
+  // AND a Zitadel backend is configured, default undeclared tables to `private`
+  // (secure by default) and honor owner-scoped requests; otherwise fall back to
+  // `public` and downgrade owner-scoped tables so the app still works.
+  const authAvailable = needsAuth(generatedCode) && isZitadelConfigured();
   try {
     const res = await internalFetch(`/api/projects/${projectId}/database/tables`, {
       method: 'POST',
-      body: JSON.stringify({ tables }),
+      body: JSON.stringify({
+        tables,
+        defaultAccess: authAvailable ? 'private' : 'public',
+        allowOwnerScoped: authAvailable,
+      }),
     });
     const data = await res.json().catch(() => null);
     if (!data?.success) {

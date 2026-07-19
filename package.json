@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:backfill-rls": "tsx scripts/backfill-rls.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.1",

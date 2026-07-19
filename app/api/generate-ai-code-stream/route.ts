@@ -1119,11 +1119,33 @@ WHEN YOU USE THE DATABASE:
   - Every table AUTOMATICALLY gets "id" (uuid pk) and "created_at" (timestamptz) — do NOT list them.
   - Allowed column types: text, integer, bigint, boolean, numeric, uuid, jsonb, timestamptz, date.
   - lowercase snake_case names.
+  - SECURITY — set "access" on EVERY table. This decides who can read/write it, so
+    getting it wrong leaks data. Choose per table:
+    - "private"     = each row belongs to ONE logged-in user; only that user can read or
+                      change their own rows. USE THIS for anything personal (a user's own
+                      todos, notes, messages, orders, profile). Requires the app to have
+                      sign-in. A "user_id" column is added and filled in automatically —
+                      do NOT define it and do NOT set it on insert.
+    - "public_read" = anyone can READ, only signed-in users can add/edit their OWN rows
+                      (blog posts, a public product catalog, public profiles). Also gets
+                      the automatic "user_id".
+    - "public"      = anyone can read AND write, even with no account (a shared guestbook,
+                      a contact form, an anonymous poll). Only for non-personal, shared data.
+    - RULE: if the app has user accounts, personal data MUST be "private" — never "public".
+      If the app has no sign-in, use "public".
+    - For "private"/"public_read" tables the app MUST query the database AS the logged-in
+      user: use createSupabaseClient(await etlaqAuth.getAccessToken()) (see the auth
+      section), NOT the plain anonymous \`supabase\` client, or reads/writes are blocked.
+      The plain \`supabase\` client is only for "public" tables.
 <tables>
 [
-  { "name": "todos", "columns": [
+  { "name": "todos", "access": "private", "columns": [
     { "name": "title", "type": "text", "nullable": false },
     { "name": "done", "type": "boolean", "default": false }
+  ]},
+  { "name": "guestbook_entries", "access": "public", "columns": [
+    { "name": "name", "type": "text" },
+    { "name": "message", "type": "text", "nullable": false }
   ]}
 ]
 </tables>

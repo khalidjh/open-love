@@ -4,6 +4,14 @@ import { schemaNameForProject } from './provision-schema';
 // Creates tables inside a project's schema from a STRUCTURED spec (never raw
 // AI SQL). Identifiers are validated and column types come from a whitelist,
 // so nothing user/AI-supplied is interpolated unchecked.
+//
+// SECURITY: every table gets Row-Level Security enabled. What the public browser
+// key (`anon`) and a logged-in end user (`authenticated`) may read/write is
+// decided by the table's `access` level — NOT left wide open. Without this,
+// every "private" app shipped the anon key and let any visitor read/write every
+// row of every table. See `securityStatements`.
+
+export type TableAccess = 'private' | 'public_read' | 'public';
 
 export interface ColumnSpec {
   name: string;
@@ -14,10 +22,11 @@ export interface ColumnSpec {
 export interface TableSpec {
   name: string;
   columns: ColumnSpec[];
+  access?: TableAccess;
 }
 
 const IDENT = /^[a-z][a-z0-9_]{0,62}$/;
-const RESERVED = new Set(['id', 'created_at']); // added automatically
+const RESERVED = new Set(['id', 'created_at', 'user_id']); // added / managed automatically
 
 // friendly type -> postgres type
 const TYPE_MAP: Record<string, string> = {
@@ -32,6 +41,46 @@ const TYPE_MAP: Record<string, string> = {
   date: 'date',
 };
 
+// The logged-in end user's id, read from the request JWT that PostgREST verifies
+// against the combined JWKS. This is the Zitadel `sub` — a text snowflake, NOT a
+// uuid, so `auth.uid()` (which casts to uuid) would fail here; we keep it as text.
+// Resolves to NULL for anonymous (anon-key) requests, which owner-scoped policies
+// then reject. Safe to inline: no user/AI input touches this string.
+const JWT_SUB = "nullif(current_setting('request.jwt.claims', true), '')::json ->> 'sub'";
+
+// Every policy we manage is dropped-if-exists before (re)creating the ones the
+// current access level needs, so changing a table's access re-provisions cleanly.
+const MANAGED_POLICIES = [
+  'etlaq_public_all',
+  'etlaq_read_all',
+  'etlaq_owner_ins',
+  'etlaq_owner_upd',
+  'etlaq_owner_del',
+  'etlaq_owner_all',
+];
+
+function ownerScoped(access: TableAccess): boolean {
+  return access === 'private' || access === 'public_read';
+}
+
+// Column names that plausibly tag a row's owner, best first. Used by the backfill
+// to owner-scope pre-existing tables that were created before RLS was enforced.
+export const OWNER_COLUMN_CANDIDATES = ['user_id', 'owner_id', 'created_by', 'author_id', 'uid'];
+
+// Validate the requested access and downgrade owner-scoped levels to `public`
+// when the app has no working sign-in (no authenticated user can ever exist, so
+// a private table would deny everyone and silently break the app).
+function resolveAccess(
+  raw: unknown,
+  fallback: TableAccess,
+  allowOwnerScoped: boolean,
+): TableAccess {
+  let access: TableAccess =
+    raw === 'private' || raw === 'public_read' || raw === 'public' ? raw : fallback;
+  if (!allowOwnerScoped && ownerScoped(access)) access = 'public';
+  return access;
+}
+
 function columnDefault(pgType: string, def: ColumnSpec['default']): string | null {
   if (def === undefined || def === null) return null;
   if (pgType === 'boolean') return def === true || def === 'true' ? 'true' : 'false';
@@ -43,14 +92,14 @@ function columnDefault(pgType: string, def: ColumnSpec['default']): string | nul
   return null;
 }
 
-function buildCreateTable(schema: string, table: TableSpec): string {
+function buildCreateTable(schema: string, table: TableSpec, access: TableAccess): string {
   if (!IDENT.test(table.name)) throw new Error(`Invalid table name: ${table.name}`);
   const cols: string[] = [
     `"id" uuid primary key default gen_random_uuid()`,
   ];
   for (const c of table.columns) {
     if (!IDENT.test(c.name)) throw new Error(`Invalid column name: ${c.name}`);
-    if (RESERVED.has(c.name)) continue; // id/created_at are automatic
+    if (RESERVED.has(c.name)) continue; // id/created_at/user_id are automatic
     const pgType = TYPE_MAP[String(c.type).toLowerCase()];
     if (!pgType) throw new Error(`Unsupported column type: ${c.type}`);
     let def = `"${c.name}" ${pgType}`;
@@ -59,27 +108,91 @@ function buildCreateTable(schema: string, table: TableSpec): string {
     if (d !== null) def += ` default ${d}`;
     cols.push(def);
   }
+  // Owner-scoped tables carry an automatic "user_id" tagged with the logged-in
+  // user, so RLS can filter rows by owner. The app never sets it (default fills it).
+  if (ownerScoped(access)) {
+    cols.push(`"user_id" text not null default (${JWT_SUB})`);
+  }
   cols.push(`"created_at" timestamptz not null default now()`);
   return `create table if not exists "${schema}"."${table.name}" (${cols.join(', ')})`;
 }
 
+// The grants + RLS policies for one table, keyed by its access level. Idempotent:
+// end-user grants are reset and all managed policies dropped first, so a table can
+// be re-provisioned at a different access level without leftovers. `ownerColumn` is
+// the row-owner column the owner-scoped policies filter on — always "user_id" for
+// freshly created tables, but the backfill passes a pre-existing table's column.
+export function securityStatements(
+  schema: string,
+  table: string,
+  access: TableAccess,
+  ownerColumn: string = 'user_id',
+): string[] {
+  const T = `"${schema}"."${table}"`;
+  const owner = `"${ownerColumn}"`;
+  const stmts: string[] = [
+    `alter table ${T} enable row level security`,
+    // service_role runs server/admin tasks; it keeps full access (and bypasses RLS).
+    `grant select, insert, update, delete on ${T} to service_role`,
+    // Reset end-user grants + our policies so an access change re-provisions cleanly.
+    `revoke all on ${T} from anon, authenticated`,
+    ...MANAGED_POLICIES.map((p) => `drop policy if exists "${p}" on ${T}`),
+  ];
+
+  if (access === 'public') {
+    // Open: anyone (even without an account) can read and write. For genuinely
+    // shared, non-personal data only (guestbook, contact form, anonymous poll).
+    stmts.push(`grant select, insert, update, delete on ${T} to anon, authenticated`);
+    stmts.push(
+      `create policy "etlaq_public_all" on ${T} for all to anon, authenticated using (true) with check (true)`,
+    );
+  } else if (access === 'public_read') {
+    // Anyone reads; only a signed-in user may write, and only their own rows.
+    stmts.push(`grant select on ${T} to anon`);
+    stmts.push(`grant select, insert, update, delete on ${T} to authenticated`);
+    stmts.push(
+      `create policy "etlaq_read_all" on ${T} for select to anon, authenticated using (true)`,
+    );
+    stmts.push(
+      `create policy "etlaq_owner_ins" on ${T} for insert to authenticated with check (${owner} = ${JWT_SUB})`,
+    );
+    stmts.push(
+      `create policy "etlaq_owner_upd" on ${T} for update to authenticated using (${owner} = ${JWT_SUB}) with check (${owner} = ${JWT_SUB})`,
+    );
+    stmts.push(
+      `create policy "etlaq_owner_del" on ${T} for delete to authenticated using (${owner} = ${JWT_SUB})`,
+    );
+  } else {
+    // private: only the signed-in owner can see or change their own rows. anon
+    // gets NO grant and NO policy, so the public key can't touch the table at all.
+    stmts.push(`grant select, insert, update, delete on ${T} to authenticated`);
+    stmts.push(
+      `create policy "etlaq_owner_all" on ${T} for all to authenticated using (${owner} = ${JWT_SUB}) with check (${owner} = ${JWT_SUB})`,
+    );
+  }
+  return stmts;
+}
+
 export async function createTables(
   projectId: string,
-  tables: TableSpec[]
+  tables: TableSpec[],
+  opts: { defaultAccess?: TableAccess; allowOwnerScoped?: boolean } = {},
 ): Promise<{ created: string[] }> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   const schema = schemaNameForProject(projectId);
-  const roles = 'anon, authenticated, service_role';
+  const allowOwnerScoped = opts.allowOwnerScoped !== false; // default true
+  const fallback = resolveAccess(opts.defaultAccess, 'public', allowOwnerScoped);
 
   const sql = postgres(url, { max: 1 });
   const created: string[] = [];
   try {
     for (const table of tables) {
-      const ddl = buildCreateTable(schema, table);
-      await sql.unsafe(ddl);
-      // Grant API roles CRUD access to the new table + its sequences
-      await sql.unsafe(`grant all on "${schema}"."${table.name}" to ${roles}`);
+      const access = resolveAccess(table.access, fallback, allowOwnerScoped);
+      await sql.unsafe(buildCreateTable(schema, table, access));
+      for (const stmt of securityStatements(schema, table.name, access)) {
+        await sql.unsafe(stmt);
+      }
       created.push(table.name);
     }
     // Tell PostgREST to reload its schema cache so the new tables are queryable

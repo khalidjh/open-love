@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { getProject, getProjectDatabase } from '@/lib/db/repos';
-import { createTables, type TableSpec } from '@/lib/db/provision-tables';
+import { createTables, type TableSpec, type TableAccess } from '@/lib/db/provision-tables';
 
 // POST /api/projects/:id/database/tables
 // Create tables from a structured spec inside the project's schema.
@@ -24,7 +24,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ success: true, created: [] });
     }
 
-    const { created } = await createTables(id, tables);
+    // Access defaults come from the caller (the job runner decides based on whether
+    // the app has working sign-in). createTables validates and, when auth is
+    // unavailable, downgrades owner-scoped tables so nothing silently breaks.
+    const { created } = await createTables(id, tables, {
+      defaultAccess: body.defaultAccess as TableAccess | undefined,
+      allowOwnerScoped: body.allowOwnerScoped !== false,
+    });
     return NextResponse.json({ success: true, created });
   } catch (error) {
     if (error instanceof UnauthorizedError) {

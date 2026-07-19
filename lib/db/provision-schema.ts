@@ -33,13 +33,20 @@ export async function provisionProjectSchema(projectId: string): Promise<{ schem
     // 1. Create the schema
     await sql.unsafe(`create schema if not exists "${schema}"`);
 
-    // 2. Grant API roles access (present + future objects)
-    const roles = 'anon, authenticated, service_role';
-    await sql.unsafe(`grant usage on schema "${schema}" to ${roles}`);
-    await sql.unsafe(`grant all on all tables in schema "${schema}" to ${roles}`);
-    await sql.unsafe(`grant all on all sequences in schema "${schema}" to ${roles}`);
-    await sql.unsafe(`alter default privileges in schema "${schema}" grant all on tables to ${roles}`);
-    await sql.unsafe(`alter default privileges in schema "${schema}" grant all on sequences to ${roles}`);
+    // 2. Grant API roles access. IMPORTANT: end-user roles (anon = the public
+    //    browser key, authenticated = a logged-in user) get ONLY schema usage —
+    //    never blanket table access. Per-table CRUD is granted by createTables
+    //    according to each table's RLS access level, so nothing is world-writable
+    //    by default. service_role (server/admin) keeps full access, now + future.
+    await sql.unsafe(`grant usage on schema "${schema}" to anon, authenticated, service_role`);
+    await sql.unsafe(`grant all on all tables in schema "${schema}" to service_role`);
+    await sql.unsafe(`grant all on all sequences in schema "${schema}" to service_role`);
+    await sql.unsafe(`alter default privileges in schema "${schema}" grant all on tables to service_role`);
+    await sql.unsafe(`alter default privileges in schema "${schema}" grant all on sequences to service_role`);
+    // Neutralize any legacy blanket grants to end-user roles from earlier
+    // provisioning of this schema, so future tables are not auto-opened to them.
+    await sql.unsafe(`alter default privileges in schema "${schema}" revoke all on tables from anon, authenticated`);
+    await sql.unsafe(`alter default privileges in schema "${schema}" revoke all on sequences from anon, authenticated`);
 
     // 3. Expose the schema to PostgREST (read current list, append, reload)
     const rows = await sql<{ cfg: string }[]>`
