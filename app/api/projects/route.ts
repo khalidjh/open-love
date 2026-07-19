@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrg, UnauthorizedError } from '@/lib/auth';
 import { createProject, listProjects } from '@/lib/db/repos';
-import { detectFramework, type Framework } from '@/lib/templates';
+import { type Framework } from '@/lib/templates';
+import { classifyFramework } from '@/lib/ai/classify-framework';
 
 // GET /api/projects — list the current tenant's projects
 export async function GET() {
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
   try {
     const { orgId } = await requireOrg();
     const body = await request.json().catch(() => ({}));
-    // Auto-detect the framework from the build request (a backend need → Next.js),
-    // unless the caller pins it explicitly.
-    const framework: Framework = body.framework || detectFramework(body.prompt || body.name);
+    // Classify the framework from the build request by intent (a backend need →
+    // Next.js), language-agnostic, unless the caller pins it explicitly.
+    const framework: Framework = body.framework || (await classifyFramework(body.prompt || body.name));
     const project = await createProject(orgId, {
       name: body.name || 'Untitled app',
       sourceUrl: body.sourceUrl,
