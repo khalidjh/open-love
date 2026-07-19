@@ -23,6 +23,7 @@ import {
 } from '@/lib/db/repos';
 import { getSession } from '@/lib/sandbox/session-store';
 import { isZitadelConfigured } from '@/lib/auth/zitadel';
+import { detectBuildErrors, type BuildError } from './build-check';
 import { openJobChannel, publishJobEvent, finishJobChannel } from './job-events';
 
 export interface StartJobOptions {
@@ -54,6 +55,19 @@ const needsAi = (generated: string): boolean =>
   /ETLAQ_AI_(URL|KEY)|ETLAQ_TRANSCRIBE_URL/.test(generated);
 const needsAuth = (generated: string): boolean =>
   /etlaqAuth|(VITE_|NEXT_PUBLIC_)AUTH_(ISSUER|CLIENT_ID)/.test(generated);
+
+// Turn detected build errors into a tight, surgical fix instruction for the model.
+function buildHealPrompt(errors: BuildError[]): string {
+  const details = errors
+    .slice(0, 4)
+    .map((e) => (e.file ? `File ${e.file}:\n${e.message}` : e.message))
+    .join('\n\n');
+  return (
+    `The app you just generated has a build error and will not run. Fix ONLY what is ` +
+    `needed to resolve it — do not redesign or change unrelated code, and return the ` +
+    `corrected file(s) in full.\n\nBuild error:\n${details}`
+  );
+}
 
 // Create the durable job row + live channel and kick off the pipeline without
 // awaiting it. Returns the job id immediately.
@@ -108,24 +122,28 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
     publishJobEvent(jobId, { stage: 'job', type: 'phase', phase });
   };
 
-  try {
-    // ---- Phase 1: generation ------------------------------------------------
-    await setPhase('generating');
+  // Generation and apply are each an SSE stream we consume identically whether it's
+  // the first pass or a self-heal retry — factor them so the heal loop reuses them.
+  const generateCode = async (
+    prompt: string,
+    isEdit: boolean,
+    context: unknown,
+    images?: string[],
+  ) => {
     const genRes = await internalFetch('/api/generate-ai-code-stream', {
       method: 'POST',
       body: JSON.stringify({
-        prompt: opts.prompt,
+        prompt,
         model: opts.model,
-        context: opts.context,
-        isEdit: opts.isEdit,
+        context,
+        isEdit,
         projectId: opts.projectId,
-        images: opts.images && opts.images.length ? opts.images : undefined,
+        images: images && images.length ? images : undefined,
       }),
     });
     if (!genRes.ok || !genRes.body) {
       throw new Error(`Generation request failed (HTTP ${genRes.status})`);
     }
-
     let generatedCode = '';
     let explanation = '';
     let packagesToInstall: string[] = [];
@@ -140,7 +158,43 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
       }
       publishJobEvent(jobId, { ...data, stage: 'generate' });
     });
-    if (genError) throw new Error(genError);
+    return { generatedCode, explanation, packagesToInstall, genError };
+  };
+
+  const applyCode = async (code: string, packages: string[], isEdit: boolean) => {
+    const applyRes = await internalFetch('/api/apply-ai-code-stream', {
+      method: 'POST',
+      body: JSON.stringify({ response: code, isEdit, packages, projectId: opts.projectId }),
+    });
+    if (!applyRes.ok || !applyRes.body) {
+      throw new Error(`Apply request failed (HTTP ${applyRes.status})`);
+    }
+    let applyResults: Record<string, unknown> | null = null;
+    let applyError: string | null = null;
+    await readSse(applyRes, (data) => {
+      if (data.type === 'complete') {
+        applyResults = (data.results as Record<string, unknown>) ?? null;
+      } else if (data.type === 'error') {
+        applyError = typeof data.error === 'string' ? data.error : 'Apply failed';
+      }
+      publishJobEvent(jobId, { ...data, stage: 'apply' });
+    });
+    return { applyResults, applyError };
+  };
+
+  const collectChangedFiles = (results: Record<string, unknown> | null): string[] => [
+    ...(((results as any)?.filesCreated as string[]) || []),
+    ...(((results as any)?.filesUpdated as string[]) || []),
+  ];
+
+  try {
+    // ---- Phase 1: generation ------------------------------------------------
+    await setPhase('generating');
+    const gen = await generateCode(opts.prompt, opts.isEdit, opts.context, opts.images);
+    if (gen.genError) throw new Error(gen.genError);
+    const generatedCode = gen.generatedCode;
+    let explanation = gen.explanation;
+    const packagesToInstall = gen.packagesToInstall;
 
     // A purely conversational response (no code) still ends the job cleanly.
     if (!generatedCode) {
@@ -181,35 +235,43 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
     // with DB-snapshot fallback), so this works even when no browser ever
     // created one for this build.
     await setPhase('applying');
-    const applyRes = await internalFetch('/api/apply-ai-code-stream', {
-      method: 'POST',
-      body: JSON.stringify({
-        response: generatedCode,
-        isEdit: opts.isEdit,
-        packages: packagesToInstall,
-        projectId: opts.projectId,
-      }),
-    });
-    if (!applyRes.ok || !applyRes.body) {
-      throw new Error(`Apply request failed (HTTP ${applyRes.status})`);
-    }
+    const apply = await applyCode(generatedCode, packagesToInstall, opts.isEdit);
+    if (apply.applyError) throw new Error(apply.applyError);
+    let applyResults = apply.applyResults;
+    const filesChanged: string[] = collectChangedFiles(applyResults);
 
-    let applyResults: Record<string, unknown> | null = null;
-    let applyError: string | null = null;
-    await readSse(applyRes, (data) => {
-      if (data.type === 'complete') {
-        applyResults = (data.results as Record<string, unknown>) ?? null;
-      } else if (data.type === 'error') {
-        applyError = typeof data.error === 'string' ? data.error : 'Apply failed';
+    // ---- Phase 3.5: verify the build compiles; auto-fix if it doesn't -------
+    // Detect compile/syntax errors the model may have introduced, and re-prompt it
+    // to fix them (up to MAX_HEAL times). Fully guarded and best-effort: a failure
+    // in detection or healing must never fail an otherwise-successful build.
+    try {
+      const session = getSession(opts.projectId);
+      const provider = session?.provider;
+      const framework = session?.framework ?? 'vite';
+      const MAX_HEAL = 2;
+      for (let attempt = 1; provider && attempt <= MAX_HEAL; attempt++) {
+        const errors = await detectBuildErrors(provider, framework, filesChanged);
+        if (errors.length === 0) break;
+        await setPhase('fixing');
+        publishJobEvent(jobId, {
+          stage: 'job',
+          type: 'healing',
+          attempt,
+          message: 'Found a code error — fixing it automatically…',
+        });
+        const heal = await generateCode(buildHealPrompt(errors), true, undefined);
+        if (heal.genError || !heal.generatedCode) break;
+        const healApply = await applyCode(heal.generatedCode, heal.packagesToInstall, true);
+        if (healApply.applyError) break;
+        if (heal.explanation) explanation = heal.explanation;
+        applyResults = healApply.applyResults ?? applyResults;
+        for (const f of collectChangedFiles(healApply.applyResults)) {
+          if (!filesChanged.includes(f)) filesChanged.push(f);
+        }
       }
-      publishJobEvent(jobId, { ...data, stage: 'apply' });
-    });
-    if (applyError) throw new Error(applyError);
-
-    const filesChanged: string[] = [
-      ...(((applyResults as any)?.filesCreated as string[]) || []),
-      ...(((applyResults as any)?.filesUpdated as string[]) || []),
-    ];
+    } catch (healErr) {
+      console.error('[job-runner] self-heal skipped:', healErr);
+    }
 
     // ---- Phase 4: persist the snapshot + chat -------------------------------
     await setPhase('finalizing');
@@ -342,6 +404,10 @@ async function createDeclaredTables(
     if (!data?.success) {
       console.error('[job-runner] table creation failed:', data?.error);
       publishJobEvent(jobId, { stage: 'job', type: 'warning', message: 'Some data tables could not be created.' });
+    } else if (Array.isArray(data.warnings)) {
+      for (const w of data.warnings) {
+        publishJobEvent(jobId, { stage: 'job', type: 'warning', message: String(w) });
+      }
     }
   } catch (e) {
     console.error('[job-runner] table creation error:', e);

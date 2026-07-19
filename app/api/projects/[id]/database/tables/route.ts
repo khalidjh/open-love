@@ -27,11 +27,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Access defaults come from the caller (the job runner decides based on whether
     // the app has working sign-in). createTables validates and, when auth is
     // unavailable, downgrades owner-scoped tables so nothing silently breaks.
-    const { created } = await createTables(id, tables, {
+    const { created, warnings } = await createTables(id, tables, {
       defaultAccess: body.defaultAccess as TableAccess | undefined,
       allowOwnerScoped: body.allowOwnerScoped !== false,
     });
-    return NextResponse.json({ success: true, created });
+    return NextResponse.json({ success: true, created, warnings });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

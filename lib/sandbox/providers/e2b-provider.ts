@@ -531,10 +531,13 @@ time.sleep(1)
 env = os.environ.copy()
 env['FORCE_COLOR'] = '0'
 
+# Capture dev-server output to a fresh log file (truncated each start) so the
+# server-side build-error check can read compile errors. Also avoids the orphaned
+# PIPE buffers filling up and stalling the process.
 process = subprocess.Popen(
     ['npm', 'run', 'dev'],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    stdout=open('/tmp/vite.log', 'w'),
+    stderr=subprocess.STDOUT,
     env=env
 )
 
@@ -630,10 +633,12 @@ env = os.environ.copy()
 env['FORCE_COLOR'] = '0'
 env['PORT'] = '${appConfig.e2b.vitePort}'  # bind to the proxied port
 
+# Capture dev-server output to a fresh log file so the server-side build-error
+# check can read compile errors (Next prints them to stdout/stderr).
 process = subprocess.Popen(
     ['npm', 'run', 'dev'],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    stdout=open('/tmp/next.log', 'w'),
+    stderr=subprocess.STDOUT,
     env=env
 )
 print(f'✓ Next dev server started with PID: {process.pid}')
@@ -671,8 +676,8 @@ env['FORCE_COLOR'] = '0'
 
 process = subprocess.Popen(
     ['npm', 'run', 'dev'],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    stdout=open('/tmp/vite.log', 'w'),
+    stderr=subprocess.STDOUT,
     env=env
 )
 

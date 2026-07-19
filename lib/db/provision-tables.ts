@@ -67,6 +67,11 @@ function ownerScoped(access: TableAccess): boolean {
 // to owner-scope pre-existing tables that were created before RLS was enforced.
 export const OWNER_COLUMN_CANDIDATES = ['user_id', 'owner_id', 'created_by', 'author_id', 'uid'];
 
+// information_schema.data_type values a text JWT sub can be compared against. An
+// owner column of any other type (notably `uuid` from old supabase.auth apps)
+// can never equal the Zitadel text sub, so we must NOT build a policy on it.
+const TEXT_OWNER_TYPES = new Set(['text', 'character varying']);
+
 // Validate the requested access and downgrade owner-scoped levels to `public`
 // when the app has no working sign-in (no authenticated user can ever exist, so
 // a private table would deny everyone and silently break the app).
@@ -177,7 +182,7 @@ export async function createTables(
   projectId: string,
   tables: TableSpec[],
   opts: { defaultAccess?: TableAccess; allowOwnerScoped?: boolean } = {},
-): Promise<{ created: string[] }> {
+): Promise<{ created: string[]; warnings: string[] }> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   const schema = schemaNameForProject(projectId);
@@ -186,18 +191,48 @@ export async function createTables(
 
   const sql = postgres(url, { max: 1 });
   const created: string[] = [];
+  const warnings: string[] = [];
   try {
     for (const table of tables) {
-      const access = resolveAccess(table.access, fallback, allowOwnerScoped);
+      let access = resolveAccess(table.access, fallback, allowOwnerScoped);
       await sql.unsafe(buildCreateTable(schema, table, access));
-      for (const stmt of securityStatements(schema, table.name, access)) {
+
+      // Owner-scoped policies filter on a text "user_id". buildCreateTable adds it
+      // for a freshly created table, but a table that ALREADY existed (an edit that
+      // re-declares it) may lack it or have it as an incompatible type. Reconcile
+      // here so we never leave the table half-secured with a policy that references
+      // a missing/mismatched column (which would deny everyone — RLS on, no working
+      // policy). This is the same "flag, don't break" rule the backfill uses.
+      if (ownerScoped(access)) {
+        const [col] = await sql<{ data_type: string }[]>`
+          select data_type from information_schema.columns
+          where table_schema = ${schema} and table_name = ${table.name} and column_name = 'user_id'
+        `;
+        if (!col) {
+          // Pre-existing table with no owner column: add a nullable one (not-null
+          // would fail on existing rows). New rows get auto-tagged; any old rows
+          // are simply unowned.
+          await sql.unsafe(
+            `alter table "${schema}"."${table.name}" add column if not exists "user_id" text default (${JWT_SUB})`,
+          );
+        } else if (!TEXT_OWNER_TYPES.has(col.data_type)) {
+          // e.g. an old uuid user_id: can't match the text sub, so owner-scoping
+          // would lock every user out. Keep the table usable (public) and flag it.
+          access = 'public';
+          warnings.push(
+            `Table "${table.name}" has a ${col.data_type} user_id that can't be owner-scoped; kept public — regenerate it to make it private.`,
+          );
+        }
+      }
+
+      for (const stmt of securityStatements(schema, table.name, access, 'user_id')) {
         await sql.unsafe(stmt);
       }
       created.push(table.name);
     }
     // Tell PostgREST to reload its schema cache so the new tables are queryable
     await sql.unsafe(`notify pgrst, 'reload schema'`);
-    return { created };
+    return { created, warnings };
   } finally {
     await sql.end();
   }
