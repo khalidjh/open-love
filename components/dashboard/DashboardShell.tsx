@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import BuildPrompt from "@/components/home/BuildPrompt";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 const PRODUCT_NAME = "Etlaq";
 
@@ -24,19 +25,22 @@ interface DashboardShellProps {
   projects: ProjectItem[];
 }
 
-function timeAgo(iso: string) {
+type TFn = (key: string, params?: Record<string, string | number>) => string;
+
+function timeAgo(iso: string, t: TFn) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("time.justNow");
+  if (mins < 60) return t("time.mAgo", { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return t("time.hAgo", { n: hrs });
   const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return t("time.dAgo", { n: days });
 }
 
 export default function DashboardShell({ email, name, projects }: DashboardShellProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const [supabase] = useState(() => createClient());
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -76,8 +80,8 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
 
       {/* Sidebar — off-canvas drawer on mobile, in-flow on desktop */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-r border-[#d8d2e6] bg-white transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
-          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-[#d8d2e6] bg-white transition-transform duration-200 ltr:left-0 ltr:border-r rtl:right-0 rtl:border-l md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
+          mobileNavOpen ? "translate-x-0" : "ltr:-translate-x-full rtl:translate-x-full"
         } ${collapsed ? "md:w-[68px]" : "md:w-[264px]"}`}
       >
         {/* Brand + collapse */}
@@ -100,7 +104,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}
-            aria-label="Toggle sidebar"
+            aria-label={t("dash.toggleSidebar")}
             className="hidden h-28 w-28 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:flex"
           >
             <SidebarIcon />
@@ -109,7 +113,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           <button
             type="button"
             onClick={() => setMobileNavOpen(false)}
-            aria-label="Close menu"
+            aria-label={t("dash.closeMenu")}
             className="flex h-28 w-28 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:hidden"
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden>
@@ -124,7 +128,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
             {recents.length > 0 && (
               <>
                 <p className="px-10 pb-6 text-[12px] font-medium uppercase tracking-wide text-[#8b8798]">
-                  Recents
+                  {t("dash.recents")}
                 </p>
                 <div className="flex flex-col">
                   {recents.map((p) => (
@@ -155,7 +159,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
               {initial}
             </span>
             {!collapsed && (
-              <span className="min-w-0 flex-1 truncate text-left text-[14px] font-medium">
+              <span className="min-w-0 flex-1 truncate text-start text-[14px] font-medium">
                 {email}
               </span>
             )}
@@ -164,16 +168,16 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           {accountOpen && (
             <div className="absolute bottom-full left-12 right-12 z-30 mb-8 overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6">
               <div className="px-12 py-8">
-                <p className="text-[12px] text-[#6b6577]">Signed in as</p>
+                <p className="text-[12px] text-[#6b6577]">{t("dash.signedInAs")}</p>
                 <p className="truncate text-[14px] font-medium">{email}</p>
               </div>
               <div className="my-6 h-px bg-[#ddd7ea]" />
               <button
                 type="button"
                 onClick={signOut}
-                className="block w-full rounded-8 px-12 py-8 text-left text-[14px] text-[#c0392b] transition-colors hover:bg-[#fdf0ee]"
+                className="block w-full rounded-8 px-12 py-8 text-start text-[14px] text-[#c0392b] transition-colors hover:bg-[#fdf0ee]"
               >
-                Sign out
+                {t("dash.signOut")}
               </button>
             </div>
           )}
@@ -187,7 +191,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           <button
             type="button"
             onClick={() => setMobileNavOpen(true)}
-            aria-label="Open menu"
+            aria-label={t("dash.openMenu")}
             className="flex h-40 w-40 items-center justify-center rounded-full border border-[#d8d2e6] bg-white text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -216,31 +220,32 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
           {/* Hero — vertically centered in the viewport */}
           <div className="flex min-h-[80vh] flex-col justify-center">
             <h1 className="anim-fade-up text-center text-[26px] font-bold tracking-[-0.025em] text-[#17141f] md:text-[32px]">
-              Ready to build, {firstName}?
+              {t("dash.ready", { name: firstName })}
             </h1>
 
             {/* relative z-30: the anim-fade-up transform makes this wrapper a
                 stacking context, so the z-index that lifts the open theme/attach
                 dropdown above the projects list must live here, not inside BuildPrompt. */}
             <div className="relative z-30 anim-fade-up anim-delay-2 mt-32">
-              <BuildPrompt placeholder={`Ask ${PRODUCT_NAME} to build a landing page...`} />
+              <BuildPrompt placeholder={t("dash.buildPlaceholder")} />
             </div>
           </div>
 
           {/* Projects */}
           <section className="pb-64">
             <div className="anim-fade-up anim-delay-3 mb-16 flex items-center justify-between">
-              <h2 className="text-[18px] font-semibold">Your projects</h2>
+              <h2 className="text-[18px] font-semibold">{t("dash.yourProjects")}</h2>
               <span className="text-[14px] text-[#6b6577]">
-                {projects.length} {projects.length === 1 ? "project" : "projects"}
+                {t("dash.projectCount", {
+                  count: projects.length,
+                  noun: t(projects.length === 1 ? "dash.projectSingular" : "dash.projectPlural"),
+                })}
               </span>
             </div>
 
             {projects.length === 0 ? (
               <div className="anim-fade-up rounded-16 border border-dashed border-[#dcd6ec] bg-white/60 p-48 text-center">
-                <p className="text-[15px] text-[#6b6577]">
-                  You haven&rsquo;t built anything yet. Describe an app above to get started.
-                </p>
+                <p className="text-[15px] text-[#6b6577]">{t("dash.empty")}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-16 sm:grid-cols-2 lg:grid-cols-3">
@@ -253,7 +258,7 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                     {/* Full-card link to the editor; interactive controls sit above it. */}
                     <Link
                       href={`/generation?project=${p.id}`}
-                      aria-label={`Open ${p.name}`}
+                      aria-label={t("dash.openAria", { name: p.name })}
                       className="absolute inset-0 z-0 rounded-16"
                     />
                     <div className="pointer-events-none relative z-10 flex flex-1 flex-col">
@@ -264,13 +269,13 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                         <div className="flex shrink-0 items-center gap-6">
                           {p.deployUrl && (
                             <span className="rounded-6 bg-[#e7f7ee] px-8 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#1a7f4b]">
-                              live
+                              {t("dash.live")}
                             </span>
                           )}
                           <Link
                             href={`/dashboard/projects/${p.id}`}
-                            aria-label={`Manage ${p.name}`}
-                            title="Manage"
+                            aria-label={t("dash.manageAria", { name: p.name })}
+                            title={t("dash.manage")}
                             className="pointer-events-auto grid h-24 w-24 place-items-center rounded-8 text-[#8b8798] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -284,12 +289,12 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
                         <p className="mt-4 truncate text-[13px] text-[#8b8798]">{p.sourceUrl}</p>
                       )}
                       <div className="mt-20 flex items-center justify-between text-[12px] text-[#8b8798]">
-                        <span className="truncate">{p.model || "app"}</span>
-                        <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
+                        <span className="truncate">{p.model || t("dash.appFallback")}</span>
+                        <span className="shrink-0">{timeAgo(p.updatedAt, t)}</span>
                       </div>
                       <span className="mt-12 flex items-center gap-4 self-end text-[13px] font-medium text-[#6147D4] opacity-0 translate-x-[-4px] transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
-                        Open
-                        <span aria-hidden className="transition-transform group-hover:translate-x-1">
+                        {t("dash.open")}
+                        <span aria-hidden className="transition-transform group-hover:translate-x-1 rtl:-scale-x-100">
                           &rarr;
                         </span>
                       </span>

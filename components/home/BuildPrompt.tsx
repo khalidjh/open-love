@@ -6,6 +6,7 @@ import { appConfig } from "@/config/app.config";
 import { useSpeechDictation } from "@/hooks/useSpeechDictation";
 import VoiceWaveform from "@/components/shared/VoiceWaveform";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 const PRODUCT_NAME = "Etlaq";
 
@@ -99,6 +100,8 @@ const THEMES: Theme[] = [
  * Shared between the marketing home and the logged-in dashboard.
  */
 export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
+  const { t } = useI18n();
+  const rotating = [t("build.ph1"), t("build.ph2"), t("build.ph3"), t("build.ph4")];
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -187,12 +190,12 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
       .filter((a) => a.kind === "image" && a.dataUrl)
       .map((a) => a.dataUrl as string);
     if (!value && attachments.length === 0) {
-      toast.error("Describe what you want to build");
+      toast.error(t("build.errDescribe"));
       textareaRef.current?.focus();
       return;
     }
     const finalPrompt =
-      value || (imageAtts.length ? "Build from the attached image(s)." : "Build using the attached file(s).");
+      value || (imageAtts.length ? t("build.fromImages") : t("build.fromFiles"));
     sessionStorage.setItem("initialBuildPrompt", finalPrompt);
     sessionStorage.setItem("selectedModel", appConfig.ai.defaultModel);
     sessionStorage.setItem("autoStart", "true");
@@ -211,7 +214,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
         sessionStorage.setItem("initialBuildImages", JSON.stringify(imageAtts));
       } catch {
         sessionStorage.removeItem("initialBuildImages");
-        toast.error("Those images are a bit large to send — try smaller ones.");
+        toast.error(t("build.imagesTooLarge"));
       }
     } else {
       sessionStorage.removeItem("initialBuildImages");
@@ -287,7 +290,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
               <button
                 onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
                 className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
-                aria-label="Remove attachment"
+                aria-label={t("build.removeAttachment")}
               >
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                   <path d="M5 5l10 10M15 5L5 15" strokeWidth="1.6" strokeLinecap="round" />
@@ -314,7 +317,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           }
         }}
         rows={1}
-        placeholder={placeholder ?? ROTATING_PLACEHOLDERS[phIndex]}
+        placeholder={placeholder ?? rotating[phIndex]}
         className="max-h-[220px] min-h-[96px] w-full resize-none bg-transparent px-4 py-4 text-[16px] leading-relaxed text-[#191622] placeholder:text-[#8b8798] focus:outline-none"
       />
 
@@ -336,7 +339,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           <button
             type="button"
             onClick={() => setAttachMenuOpen((v) => !v)}
-            aria-label="Add attachment"
+            aria-label={t("build.addAttachment")}
             className="flex h-40 w-40 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -367,7 +370,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
           <button
             type="button"
             onClick={() => setThemeMenuOpen((v) => !v)}
-            aria-label="Choose a color theme"
+            aria-label={t("build.chooseTheme")}
             aria-expanded={themeMenuOpen}
             className={`flex h-40 items-center gap-6 rounded-full pl-10 pr-14 text-[13px] font-medium transition-colors ${
               activeTheme
@@ -418,7 +421,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
                     setCustomTheme(e.target.value);
                     setSelectedThemeId("custom");
                   }}
-                  placeholder="Or describe your own colors…"
+                  placeholder={t("build.customColors")}
                   className="w-full rounded-8 border border-[#d6d0e6] px-10 py-8 text-[13px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#c3b8ee] focus:outline-none"
                 />
               </div>
@@ -453,9 +456,9 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
             <button
               type="button"
               onClick={toggleMic}
-              aria-label={micListening ? "Stop dictation" : "Dictate with microphone"}
+              aria-label={micListening ? t("build.stopDictation") : t("build.dictateMic")}
               aria-pressed={micListening}
-              title={micListening ? "Stop dictation" : "Dictate"}
+              title={micListening ? t("build.stopDictation") : t("build.dictate")}
               className={`relative flex h-44 w-44 items-center justify-center rounded-full transition-colors ${
                 micListening
                   ? "bg-[#6147D4] text-white"
@@ -479,7 +482,7 @@ export default function BuildPrompt({ placeholder }: { placeholder?: string }) {
               handleSubmit();
             }}
             disabled={!prompt.trim() && attachments.length === 0}
-            aria-label="Build"
+            aria-label={t("build.build")}
             className="flex h-44 w-44 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:text-white disabled:hover:scale-100"
           >
             <ArrowUp />
