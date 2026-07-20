@@ -146,6 +146,18 @@ const en: Dict = {
   'gen.published': 'Published',
   'gen.viewCode': 'View code',
   'gen.viewPreview': 'View preview',
+  // build job status messages (emitted server-side)
+  'job.storage': 'Setting up storage so your app can save data…',
+  'job.ai': 'Enabling AI for your app…',
+  'job.auth': 'Setting up private sign-in for your app…',
+  'job.roles': 'Setting up team roles and permissions…',
+  'job.files': 'Setting up file uploads for your app…',
+  'job.fixing': 'Found a code error — fixing it automatically…',
+  'job.appReady': 'Your app is ready! Open the Preview tab to try it.',
+  'job.changesLive': 'Your changes are live — open the Preview tab to see them.',
+  'job.snapshotFailed': 'Build finished, but saving the project snapshot failed.',
+  'job.tablesWarning': 'Some data tables could not be created.',
+  'job.codeGenerated': 'Code generated!',
 };
 
 // Arabic. Keys not yet translated fall back to English.
@@ -272,6 +284,17 @@ const ar: Dict = {
   'gen.published': 'منشور',
   'gen.viewCode': 'عرض الكود',
   'gen.viewPreview': 'عرض المعاينة',
+  'job.storage': 'جارٍ تجهيز التخزين ليتمكّن تطبيقك من حفظ البيانات…',
+  'job.ai': 'جارٍ تفعيل الذكاء الاصطناعي لتطبيقك…',
+  'job.auth': 'جارٍ إعداد تسجيل الدخول الخاص لتطبيقك…',
+  'job.roles': 'جارٍ إعداد أدوار الفريق والصلاحيات…',
+  'job.files': 'جارٍ إعداد رفع الملفات لتطبيقك…',
+  'job.fixing': 'وجدنا خطأً في الكود — نُصلحه تلقائيًا…',
+  'job.appReady': 'تطبيقك جاهز! افتح تبويب المعاينة لتجربته.',
+  'job.changesLive': 'تغييراتك أصبحت مباشرة — افتح تبويب المعاينة لرؤيتها.',
+  'job.snapshotFailed': 'انتهى البناء، لكن حفظ نسخة المشروع فشل.',
+  'job.tablesWarning': 'تعذّر إنشاء بعض جداول البيانات.',
+  'job.codeGenerated': 'تم إنشاء الكود!',
 };
 
 export const DICT: Record<Lang, Dict> = { en, ar };

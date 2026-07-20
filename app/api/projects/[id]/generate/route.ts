@@ -44,6 +44,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       images: Array.isArray(body.images) ? body.images : undefined,
       origin: `${protocol}://${host}`,
       cookie: request.headers.get('cookie') || '',
+      // UI language (from the switcher cookie) so status messages match the UI.
+      lang: request.cookies.get('etlaq_lang')?.value === 'ar' ? 'ar' : 'en',
     });
 
     return NextResponse.json({ success: true, jobId });

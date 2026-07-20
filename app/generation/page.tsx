@@ -2744,7 +2744,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         <div className="absolute inset-0 flex overflow-hidden bg-[#1b1b1f]">
           {/* File Explorer - Hide during edits */}
           {!generationProgress.isEdit && (
-            <div className="w-[248px] border-r border-[#2a2a30] bg-[#161619] flex flex-col flex-shrink-0">
+            <div className="w-[248px] border-e border-[#2a2a30] bg-[#161619] flex flex-col flex-shrink-0">
             {/* Search */}
             <div className="p-10 border-b border-[#2a2a30]">
               <div className="flex items-center gap-8 rounded-8 bg-[#0f0f12] border border-[#2a2a30] px-10 py-7">
@@ -2791,7 +2791,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                         </div>
                       )}
                       {(!dir || expandedFolders.has(dir)) && (
-                        <div className={dir ? 'ml-14' : ''}>
+                        <div className={dir ? 'ms-14' : ''}>
                           {files.sort((a, b) => a.name.localeCompare(b.name)).map((fileInfo) => {
                             const fullPath = dir ? `${dir}/${fileInfo.name}` : fileInfo.name;
                             const isSelected = selectedFile === fullPath;
@@ -2863,12 +2863,12 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   <div>
                     {/* Tab bar */}
                     <div className="sticky top-0 z-10 flex items-stretch border-b border-[#2a2a30] bg-[#161619]">
-                      <div className="flex items-center gap-8 border-r border-[#2a2a30] bg-[#1e1e22] px-14 py-9 text-[13px] text-white">
+                      <div className="flex items-center gap-8 border-e border-[#2a2a30] bg-[#1e1e22] px-14 py-9 text-[13px] text-white">
                         {getFileIcon(selectedFile)}
                         <span className="font-mono">{selectedFile.split('/').pop()}</span>
                         <button
                           onClick={() => setSelectedFile(null)}
-                          className="ml-4 rounded-4 p-2 text-[#8b8b96] transition-colors hover:bg-[#2a2a30] hover:text-white"
+                          className="ms-4 rounded-4 p-2 text-[#8b8b96] transition-colors hover:bg-[#2a2a30] hover:text-white"
                           title={t("gen.closeFile")}
                         >
                           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2941,7 +2941,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                         >
                           {generationProgress.streamedCode || 'Starting code generation...'}
                         </SyntaxHighlighter>
-                        <span className="inline-block w-3 h-5 bg-orange-400 ml-1 animate-pulse" />
+                        <span className="inline-block w-3 h-5 bg-orange-400 ms-1 animate-pulse" />
                       </div>
                     </div>
                   )
@@ -2983,7 +2983,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                           >
                             {generationProgress.currentFile.content}
                           </SyntaxHighlighter>
-                          <span className="inline-block w-3 h-4 bg-orange-400 ml-4 mb-4 animate-pulse" />
+                          <span className="inline-block w-3 h-4 bg-orange-400 ms-4 mb-4 animate-pulse" />
                         </div>
                       </div>
                     )}
@@ -3262,7 +3262,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                           >
                             {pkg}
                             {codeApplicationState.installedPackages?.includes(pkg) && (
-                              <span className="ml-1">✓</span>
+                              <span className="ms-1">✓</span>
                             )}
                           </span>
                         ))}
@@ -3288,7 +3288,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             
             {/* Show a subtle indicator when code is being edited/generated */}
             {generationProgress.isGenerating && generationProgress.isEdit && !codeApplicationState.stage && (
-              <div className="absolute top-4 right-4 inline-flex items-center gap-2 px-3 py-1.5 bg-black/80 backdrop-blur-sm rounded-lg">
+              <div className="absolute top-4 end-4 inline-flex items-center gap-2 px-3 py-1.5 bg-black/80 backdrop-blur-sm rounded-lg">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 <span className="text-white text-xs font-medium">Generating code...</span>
               </div>
@@ -3303,7 +3303,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   iframeRef.current.src = newSrc;
                 }
               }}
-              className="absolute bottom-4 right-4 bg-white/90 hover:bg-white text-gray-700 p-2 rounded-lg transition-all duration-200 hover:scale-105"
+              className="absolute bottom-4 end-4 bg-white/90 hover:bg-white text-gray-700 p-2 rounded-lg transition-all duration-200 hover:scale-105"
               title={t("gen.refreshSandbox")}
             >
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3345,7 +3345,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       return (
         <div className="absolute inset-0 flex overflow-hidden bg-white">
           {/* Capability list */}
-          <div className="w-[264px] shrink-0 overflow-y-auto border-r border-[#d8d2e6] bg-[#faf9fd] p-12">
+          <div className="w-[264px] shrink-0 overflow-y-auto border-e border-[#d8d2e6] bg-[#faf9fd] p-12">
             {MORE_OPTIONS.map((opt) => {
               const isActive = opt.id === moreSection;
               return (
@@ -3353,7 +3353,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   key={opt.id}
                   onClick={() => opt.available && setMoreSection(opt.id)}
                   disabled={!opt.available}
-                  className={`mb-2 flex w-full items-center gap-10 rounded-10 px-12 py-10 text-left text-[14px] font-medium transition-colors ${
+                  className={`mb-2 flex w-full items-center gap-10 rounded-10 px-12 py-10 text-start text-[14px] font-medium transition-colors ${
                     isActive
                       ? 'bg-[#f0ecfb] text-[#191622]'
                       : opt.available
@@ -4894,7 +4894,7 @@ Focus on the key sections and content, making it clean and modern.`;
         {mobileMenuOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
-            <div className="absolute left-16 right-16 top-full z-50 mt-4 overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
+            <div className="absolute start-16 end-16 top-full z-50 mt-4 overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 shadow-[0_12px_40px_rgba(23,20,31,0.12)]">
               <a
                 href="/dashboard"
                 className="flex items-center gap-10 rounded-8 px-12 py-10 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
@@ -4910,7 +4910,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     if (iframeRef.current && sandboxData?.url) iframeRef.current.src = `${sandboxData.url}?t=${Date.now()}`;
                     setMobileMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+                  className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-start text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                 >
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -4935,7 +4935,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <button
                 onClick={() => { downloadZip(); setMobileMenuOpen(false); }}
                 disabled={!sandboxData}
-                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-start text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="text-[#6b6577]">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -4946,7 +4946,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <button
                 onClick={() => { deployProject(); setMobileMenuOpen(false); }}
                 disabled={!sandboxData || loading}
-                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-left text-[14px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
+                className="flex w-full items-center gap-10 rounded-8 px-12 py-10 text-start text-[14px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -4980,7 +4980,7 @@ Focus on the key sections and content, making it clean and modern.`;
             </button>
 
             {projectMenuOpen && (
-              <div className="absolute left-0 top-full z-40 mt-8 w-[240px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6">
+              <div className="absolute start-0 top-full z-40 mt-8 w-[240px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6">
                 <a
                   href="/dashboard"
                   className="flex items-center gap-8 rounded-8 px-10 py-8 text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
@@ -4997,7 +4997,7 @@ Focus on the key sections and content, making it clean and modern.`;
             <button
               onClick={() => setChatFullscreen((v) => !v)}
               title={t("gen.exitFullscreen")}
-              className="ml-auto flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
+              className="ms-auto flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
             >
               <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                 <path d="M8 3H5a2 2 0 00-2 2v3M12 3h3a2 2 0 012 2v3M8 17H5a2 2 0 01-2-2v-3M12 17h3a2 2 0 002-2v-3" strokeWidth="1.6" strokeLinecap="round" />
@@ -5084,11 +5084,11 @@ Focus on the key sections and content, making it clean and modern.`;
 
             {/* Center: 'Code' label on the Code tab, device controls on Preview */}
             {activeTab === 'generation' ? (
-              <span className="absolute left-1/2 -translate-x-1/2 text-[14px] font-semibold text-[#191622]">
+              <span className="absolute start-1/2 -translate-x-1/2 text-[14px] font-semibold text-[#191622]">
                 Code
               </span>
             ) : sandboxData ? (
-              <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-8">
+              <div className="absolute start-1/2 -translate-x-1/2 flex items-center gap-8">
                 <div className="inline-flex items-center gap-2 rounded-10 bg-[#f3f0fa] p-3">
                   <button
                     onClick={() => setPreviewDevice('desktop')}
@@ -5347,7 +5347,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     <div className="w-full overflow-hidden rounded-14 border border-[#d8d2e6] bg-white transition-colors">
                       <button
                         onClick={() => setOpenBuildRecords((prev) => ({ ...prev, [idx]: !prev[idx] }))}
-                        className="flex w-full items-center gap-10 px-14 py-12 text-left"
+                        className="flex w-full items-center gap-10 px-14 py-12 text-start"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[#6147D4]" stroke="currentColor">
                           <path className="anim-check-draw" pathLength={1} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -5687,7 +5687,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <div className="anim-fade-up overflow-hidden rounded-14 border border-[#d8d2e6] bg-white">
                 <button
                   onClick={() => setBuildDetailsOpen((v) => !v)}
-                  className="flex w-full items-center gap-10 px-14 py-12 text-left"
+                  className="flex w-full items-center gap-10 px-14 py-12 text-start"
                 >
                   <span className="etlaq-shimmer flex-1 text-[14px] font-medium">
                     {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
@@ -5752,7 +5752,7 @@ Focus on the key sections and content, making it clean and modern.`;
           {/* Follow-up suggestion chips — AI-tailored to the current app, refreshed after each build */}
           {sandboxData && !generationProgress.isGenerating && conversationContext.appliedCode.length > 0 && (
             <div className="px-16 pb-4">
-              <div className="mb-8 flex items-center gap-6 pl-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8b84a3]">
+              <div className="mb-8 flex items-center gap-6 ps-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8b84a3]">
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden className={`text-[#6147D4] ${suggestionsLoading ? 'animate-pulse' : ''}`}>
                   <path d="M10 1.5l1.8 4.9 4.9 1.8-4.9 1.8L10 15l-1.8-4.9L3.3 8.3l4.9-1.8L10 1.5z" />
                 </svg>
@@ -5804,7 +5804,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   {attachments.map((a) => (
                     <div
                       key={a.id}
-                      className="group relative flex items-center gap-8 rounded-10 border border-[#d4cde4] bg-[#faf9fc] py-6 pl-8 pr-24 text-[13px] text-[#2a2635]"
+                      className="group relative flex items-center gap-8 rounded-10 border border-[#d4cde4] bg-[#faf9fc] py-6 ps-8 pe-24 text-[13px] text-[#2a2635]"
                     >
                       {a.kind === 'image' && a.dataUrl ? (
                         <img src={a.dataUrl} alt="" className="h-28 w-28 rounded-6 object-cover" />
@@ -5821,7 +5821,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       )}
                       <button
                         onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
-                        className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
+                        className="absolute end-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
                         aria-label={t("build.removeAttachment")}
                       >
                         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -5876,13 +5876,13 @@ Focus on the key sections and content, making it clean and modern.`;
                     </svg>
                   </button>
                   {attachMenuOpen && (
-                    <div className="absolute bottom-full left-0 z-40 mb-8 w-[220px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                    <div className="absolute bottom-full start-0 z-40 mb-8 w-[220px] overflow-hidden rounded-12 border border-[#d6d0e6] bg-white p-6 animate-in fade-in slide-in-from-bottom-1 duration-150">
                       <button
                         onClick={() => {
                           setAttachMenuOpen(false);
                           attachInputRef.current?.click();
                         }}
-                        className="flex w-full items-center gap-10 rounded-8 px-10 py-8 text-left text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+                        className="flex w-full items-center gap-10 rounded-8 px-10 py-8 text-start text-[14px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
                       >
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" className="text-[#6b6577]">
                           <path d="M13 7l-5 5a2 2 0 002.8 2.8l5.7-5.7a3.5 3.5 0 00-5-5l-6 6a5 5 0 007 7l4.5-4.5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -5896,7 +5896,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 <div className="flex items-center gap-4">
                   {/* Live waveform while dictating */}
                   {micListening && (
-                    <div className="anim-scale-in mr-2 flex items-center gap-8 rounded-full bg-[#f3f0fa] px-10 py-5">
+                    <div className="anim-scale-in me-2 flex items-center gap-8 rounded-full bg-[#f3f0fa] px-10 py-5">
                       <VoiceWaveform level={micLevel} />
                       <span className="text-[11px] font-medium text-[#6147D4]">Listening…</span>
                     </div>

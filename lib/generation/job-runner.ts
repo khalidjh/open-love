@@ -24,6 +24,7 @@ import {
 import { getSession } from '@/lib/sandbox/session-store';
 import { isZitadelConfigured } from '@/lib/auth/zitadel';
 import { detectBuildErrors, type BuildError } from './build-check';
+import { translate, type Lang } from '@/lib/i18n/dictionary';
 import { openJobChannel, publishJobEvent, finishJobChannel } from './job-events';
 
 export interface StartJobOptions {
@@ -40,6 +41,8 @@ export interface StartJobOptions {
   origin: string;
   // The caller's auth cookie — internal calls authenticate as the user.
   cookie: string;
+  // UI language, so status messages shown in chat match the interface.
+  lang?: Lang;
 }
 
 // Hard ceiling on a single build; a hung upstream stream must not leak a
@@ -106,6 +109,8 @@ async function failJob(jobId: string, error: string): Promise<void> {
 }
 
 async function run(jobId: string, opts: StartJobOptions): Promise<void> {
+  // Localize status messages to the UI language.
+  const jt = (key: string) => translate(opts.lang ?? 'en', key);
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(new Error('Build timed out')), JOB_TIMEOUT_MS);
   const heartbeat = setInterval(() => {
@@ -221,23 +226,23 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
 
     if (needsDatabase(generatedCode)) {
       await provision(jobId, internalFetch, 'database',
-        'Setting up storage so your app can save data…',
+        jt('job.storage'),
         `/api/projects/${opts.projectId}/database`);
-      await createDeclaredTables(jobId, internalFetch, opts.projectId, generatedCode);
+      await createDeclaredTables(jobId, internalFetch, opts.projectId, generatedCode, opts.lang ?? 'en');
     }
     if (needsAi(generatedCode)) {
       await provision(jobId, internalFetch, 'ai',
-        'Enabling AI for your app…',
+        jt('job.ai'),
         `/api/projects/${opts.projectId}/ai`);
     }
     if (needsAuth(generatedCode)) {
       await provision(jobId, internalFetch, 'auth',
-        'Setting up private sign-in for your app…',
+        jt('job.auth'),
         `/api/projects/${opts.projectId}/auth`);
     }
     if (needsRoles(generatedCode)) {
       await provision(jobId, internalFetch, 'roles',
-        'Setting up team roles and permissions…',
+        jt('job.roles'),
         `/api/projects/${opts.projectId}/database/roles`);
     }
     if (needsStorage(generatedCode)) {
@@ -245,7 +250,7 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
       // otherwise public.
       const fileAccess = needsRoles(generatedCode) ? 'org' : needsAuth(generatedCode) ? 'private' : 'public';
       await provision(jobId, internalFetch, 'storage',
-        'Setting up file uploads for your app…',
+        jt('job.files'),
         `/api/projects/${opts.projectId}/database/storage?access=${fileAccess}`);
     }
 
@@ -276,7 +281,7 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
           stage: 'job',
           type: 'healing',
           attempt,
-          message: 'Found a code error — fixing it automatically…',
+          message: jt('job.fixing'),
         });
         const heal = await generateCode(buildHealPrompt(errors), true, undefined);
         if (heal.genError || !heal.generatedCode) break;
@@ -317,13 +322,11 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
       // Append this turn's chat so a user who closed the tab still finds the
       // conversation on reload. If the tab stayed open, the client replaces the
       // whole history with its own list right after — same end state.
-      const doneMessage = opts.isEdit
-        ? 'Your changes are live — open the Preview tab to see them.'
-        : 'Your app is ready! Open the Preview tab to try it.';
+      const doneMessage = opts.isEdit ? jt('job.changesLive') : jt('job.appReady');
       await appendMessages(opts.projectId, [
         { role: 'user', content: opts.prompt },
         ...(filesChanged.length > 0 ? [{ role: 'build', content: JSON.stringify(filesChanged) }] : []),
-        { role: 'ai', content: explanation || 'Code generated!' },
+        { role: 'ai', content: explanation || jt('job.codeGenerated') },
         { role: 'system', content: doneMessage },
       ]);
     } catch (persistError) {
@@ -333,7 +336,7 @@ async function run(jobId: string, opts: StartJobOptions): Promise<void> {
       publishJobEvent(jobId, {
         stage: 'job',
         type: 'warning',
-        message: 'Build finished, but saving the project snapshot failed.',
+        message: jt('job.snapshotFailed'),
       });
     }
 
@@ -395,6 +398,7 @@ async function createDeclaredTables(
   internalFetch: (path: string, init?: RequestInit) => Promise<Response>,
   projectId: string,
   generatedCode: string,
+  lang: Lang,
 ): Promise<void> {
   const match = generatedCode.match(/<tables>([\s\S]*?)<\/tables>/i);
   if (!match) return;
@@ -424,7 +428,7 @@ async function createDeclaredTables(
     const data = await res.json().catch(() => null);
     if (!data?.success) {
       console.error('[job-runner] table creation failed:', data?.error);
-      publishJobEvent(jobId, { stage: 'job', type: 'warning', message: 'Some data tables could not be created.' });
+      publishJobEvent(jobId, { stage: 'job', type: 'warning', message: translate(lang, 'job.tablesWarning') });
     } else if (Array.isArray(data.warnings)) {
       for (const w of data.warnings) {
         publishJobEvent(jobId, { stage: 'job', type: 'warning', message: String(w) });
