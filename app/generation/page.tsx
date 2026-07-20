@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { appConfig } from '@/config/app.config';
 import { detectFramework } from '@/lib/templates';
 import HeroInput from '@/components/HeroInput';
@@ -5421,6 +5423,10 @@ Focus on the key sections and content, making it clean and modern.`;
                           <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
                           <div className="mt-2 text-xs opacity-70">Press 'F' or click the Fix button above to resolve</div>
                         </div>
+                      </div>
+                    ) : msg.type === 'ai' ? (
+                      <div dir="auto" className="prose prose-sm max-w-none text-[#2a2635] prose-headings:font-semibold prose-headings:text-[#2a2635] prose-headings:mt-3 prose-headings:mb-1 prose-strong:text-[#2a2635] prose-strong:font-semibold prose-p:my-2 prose-li:my-0.5 prose-ol:my-1 prose-ul:my-1 prose-a:text-[#6147D4]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                       </div>
                     ) : (
                       <span className="whitespace-pre-wrap">{msg.content}</span>

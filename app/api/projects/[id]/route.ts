@@ -4,6 +4,7 @@ import { getProject, getLatestVersion, getMessages, updateProject, deleteProject
 import { runKsaTeardown } from '@/lib/deploy/teardown';
 import { deprovisionProjectSchema } from '@/lib/db/provision-schema';
 import { deprovisionProjectAuth } from '@/lib/auth/provision-auth';
+import { generateTitle } from '@/lib/ai/classify-framework';
 
 // GET /api/projects/:id — load a project with its latest code snapshot + chat
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -41,6 +42,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { orgId } = await requireOrg();
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
+    // A client rename often passes the raw/truncated first prompt as the name;
+    // turn it into a proper short title (generateTitle keeps already-short names).
+    if (typeof body.name === 'string' && body.name.trim()) {
+      body.name = await generateTitle(body.name);
+    }
     const updated = await updateProject(orgId, id, body);
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
