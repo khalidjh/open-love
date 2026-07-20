@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useI18n } from '@/lib/i18n/LanguageProvider';
 
 export interface CodeApplicationState {
   stage: 'analyzing' | 'installing' | 'applying' | 'complete' | null;
@@ -14,6 +17,7 @@ interface CodeApplicationProgressProps {
 }
 
 export default function CodeApplicationProgress({ state }: CodeApplicationProgressProps) {
+  const { t } = useI18n();
   if (!state.stage || state.stage === 'complete') return null;
 
   return (
@@ -50,7 +54,7 @@ export default function CodeApplicationProgress({ state }: CodeApplicationProgre
 
           {/* Simple loading text */}
           <div className="text-[14px] font-medium text-[#2a2635]">
-            Applying to sandbox…
+            {t("gen.applyingToSandbox")}
           </div>
         </div>
       </motion.div>

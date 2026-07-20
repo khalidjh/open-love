@@ -1488,7 +1488,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   break;
                   
                 case 'error':
-                  addChatMessage(`Error: ${data.message || data.error || 'Unknown error'}`, 'system');
+                  addChatMessage(`${t('gen.errorPrefix')}${data.message || data.error || 'Unknown error'}`, 'system');
                   // Reset loading state on error
                   setLoading(false);
                   break;
@@ -2039,7 +2039,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         await handleDone(data);
       } else if (data.type === 'failed') {
         terminal = 'failed';
-        addChatMessage(`Error: ${data.error || 'Build failed'}`, 'system');
+        addChatMessage(`${t('gen.errorPrefix')}${data.error || 'Build failed'}`, 'system');
         setGenerationProgress({
           isGenerating: false,
           status: '',
@@ -3242,9 +3242,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   </div>
                   
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {codeApplicationState.stage === 'analyzing' && 'Analyzing code...'}
-                    {codeApplicationState.stage === 'installing' && 'Installing packages...'}
-                    {codeApplicationState.stage === 'applying' && 'Applying changes...'}
+                    {codeApplicationState.stage === 'analyzing' && t('gen.analyzing')}
+                    {codeApplicationState.stage === 'installing' && t('gen.installingPkgs')}
+                    {codeApplicationState.stage === 'applying' && t('gen.applyingChanges')}
                   </h3>
                   
                   {/* Package list during installation */}
@@ -3273,14 +3273,14 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   {/* Files being generated */}
                   {codeApplicationState.stage === 'applying' && codeApplicationState.filesGenerated && (
                     <div className="text-sm text-gray-600">
-                      Creating {codeApplicationState.filesGenerated.length} files...
+                      {t('gen.creatingFiles', { n: codeApplicationState.filesGenerated.length })}
                     </div>
                   )}
                   
                   <p className="text-sm text-gray-500 mt-2">
-                    {codeApplicationState.stage === 'analyzing' && 'Parsing generated code and detecting dependencies...'}
-                    {codeApplicationState.stage === 'installing' && 'This may take a moment while npm installs the required packages...'}
-                    {codeApplicationState.stage === 'applying' && 'Writing files to your sandbox environment...'}
+                    {codeApplicationState.stage === 'analyzing' && t('gen.parsing')}
+                    {codeApplicationState.stage === 'installing' && t('gen.installingDesc')}
+                    {codeApplicationState.stage === 'applying' && t('gen.writingFiles')}
                   </p>
                 </div>
               </div>
@@ -3290,7 +3290,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
             {generationProgress.isGenerating && generationProgress.isEdit && !codeApplicationState.stage && (
               <div className="absolute top-4 end-4 inline-flex items-center gap-2 px-3 py-1.5 bg-black/80 backdrop-blur-sm rounded-lg">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-white text-xs font-medium">Generating code...</span>
+                <span className="text-white text-xs font-medium">{t('gen.generatingCode')}</span>
               </div>
             )}
             
@@ -3543,8 +3543,8 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       // silent progress card.
       const isEditReq = conversationContext.appliedCode.length > 0;
       const acks = isEditReq
-        ? ['Got it — updating your app now…', 'On it! Applying that change…', 'Sure — making that change now…', 'Great idea — updating it now…']
-        : ['Got it — building that now…', 'On it! Putting it together…', 'Sure — let me build that…'];
+        ? [t('ack.e1'), t('ack.e2'), t('ack.e3'), t('ack.e4')]
+        : [t('ack.b1'), t('ack.b2'), t('ack.b3')];
       addChatMessage(acks[Math.floor(Math.random() * acks.length)], 'ai');
     }
 
