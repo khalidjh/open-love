@@ -128,3 +128,8 @@
     transform: none;
   }
 }
+
+/* Arabic UI typeface — applied whenever the interface is switched to RTL. */
+html[dir="rtl"] body {
+  font-family: var(--font-arabic), "IBM Plex Sans Arabic", var(--font-geist-sans), sans-serif;
+}

@@ -1,12 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import AppToaster from "@/components/ui/AppToaster";
+import { LanguageProvider, LANG_COOKIE } from "@/lib/i18n/LanguageProvider";
+import { dir as dirOf, type Lang } from "@/lib/i18n/dictionary";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
   weight: "100 900",
+});
+
+// Arabic UI typeface, applied when the app is in RTL (see globals.css).
+const plexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-arabic",
+  display: "swap",
 });
 
 const geistMono = localFont({
@@ -101,16 +114,27 @@ export const viewport: Viewport = {
   themeColor: "#fbfafd",
 };
 
-export default function RootLayout({
+// Read the language cookie per request (so RTL/Arabic is correct on first paint).
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Resolve the language server-side from the cookie so <html lang/dir> is correct
+  // on first paint (no flash of the wrong direction).
+  const cookieLang = (await cookies()).get(LANG_COOKIE)?.value;
+  const lang: Lang = cookieLang === "ar" ? "ar" : "en";
+
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
-        {children}
-        <AppToaster />
+    <html lang={lang} dir={dirOf(lang)}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} font-sans`}>
+        <LanguageProvider initialLang={lang}>
+          {children}
+          <LanguageSwitcher className="fixed bottom-16 ltr:left-16 rtl:right-16 z-[60] shadow-sm" />
+          <AppToaster />
+        </LanguageProvider>
       </body>
     </html>
   );
