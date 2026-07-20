@@ -3328,7 +3328,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
       if (sandboxData || loading) {
         return (
           <PreviewSkeleton
-            label={sandboxData ? 'Loading preview…' : 'Setting up your workspace…'}
+            label={sandboxData ? t('gen.loadingPreview') : t('gen.settingWorkspace')}
           />
         );
       }
@@ -5677,7 +5677,7 @@ Focus on the key sections and content, making it clean and modern.`;
             {preparingBuild && !generationProgress.isGenerating && (
               <div className="anim-fade-up flex items-center rounded-14 border border-[#d8d2e6] bg-white px-14 py-12">
                 <span className="etlaq-shimmer text-[14px] font-medium">
-                  Setting up your workspace…
+                  {t('gen.settingWorkspace')}
                 </span>
               </div>
             )}
@@ -5690,7 +5690,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   className="flex w-full items-center gap-10 px-14 py-12 text-start"
                 >
                   <span className="etlaq-shimmer flex-1 text-[14px] font-medium">
-                    {generationProgress.isThinking ? 'Planning your app…' : 'Building your app…'}
+                    {generationProgress.isThinking ? t('gen.planning') : t('gen.building')}
                   </span>
                   {/* File being written right now; when between files (or while
                       applying), hold the last completed one so the slot never
@@ -5849,7 +5849,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 }}
                 rows={1}
                 disabled={generationProgress.isGenerating || preparingBuild}
-                placeholder={generationProgress.isGenerating || preparingBuild ? 'Building your app…' : 'Ask Etlaq…'}
+                placeholder={generationProgress.isGenerating || preparingBuild ? t('gen.building') : t('gen.askEtlaq')}
                 className="max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-8 py-6 text-[15px] leading-relaxed text-[#191622] placeholder:text-[#8b8798] focus:outline-none disabled:cursor-not-allowed"
               />
               <div className="mt-6 flex items-center justify-between">
