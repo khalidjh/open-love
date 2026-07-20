@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useI18n } from '@/lib/i18n/LanguageProvider';
 import { appConfig } from '@/config/app.config';
 import { detectFramework } from '@/lib/templates';
 import HeroInput from '@/components/HeroInput';
@@ -301,6 +302,7 @@ function looksLikeLeakedCode(text: string): boolean {
 }
 
 function AISandboxPage() {
+  const { t } = useI18n();
   const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ text: 'Not connected', active: false });
@@ -2757,7 +2759,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                 <input
                   value={codeSearch}
                   onChange={(e) => setCodeSearch(e.target.value)}
-                  placeholder="Search code"
+                  placeholder={t("gen.searchCode")}
                   className="w-full bg-transparent text-[13px] text-[#d4d4d8] placeholder:text-[#6b6b76] focus:outline-none"
                 />
               </div>
@@ -2871,7 +2873,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                         <button
                           onClick={() => setSelectedFile(null)}
                           className="ml-4 rounded-4 p-2 text-[#8b8b96] transition-colors hover:bg-[#2a2a30] hover:text-white"
-                          title="Close file"
+                          title={t("gen.closeFile")}
                         >
                           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3306,7 +3308,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                 }
               }}
               className="absolute bottom-4 right-4 bg-white/90 hover:bg-white text-gray-700 p-2 rounded-lg transition-all duration-200 hover:scale-105"
-              title="Refresh sandbox"
+              title={t("gen.refreshSandbox")}
             >
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -4860,7 +4862,7 @@ Focus on the key sections and content, making it clean and modern.`;
       <div className={`relative ${mobileView === 'chat' ? 'flex' : 'hidden'} md:hidden shrink-0 items-center justify-between px-16 pb-10 pt-[max(20px,env(safe-area-inset-top))] bg-[#fbfafd]`}>
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
-          aria-label="Menu"
+          aria-label={t("gen.menu")}
           className="flex h-40 w-40 shrink-0 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -5000,7 +5002,7 @@ Focus on the key sections and content, making it clean and modern.`;
           {chatFullscreen && (
             <button
               onClick={() => setChatFullscreen((v) => !v)}
-              title="Exit fullscreen"
+              title={t("gen.exitFullscreen")}
               className="ml-auto flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
             >
               <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -5096,7 +5098,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 <div className="inline-flex items-center gap-2 rounded-10 bg-[#f3f0fa] p-3">
                   <button
                     onClick={() => setPreviewDevice('desktop')}
-                    title="Desktop view"
+                    title={t("gen.desktopView")}
                     className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
                       previewDevice === 'desktop' ? 'text-[#191622]' : 'text-[#6b6577] hover:text-[#191622]'
                     }`}
@@ -5115,7 +5117,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   </button>
                   <button
                     onClick={() => setPreviewDevice('mobile')}
-                    title="Mobile view"
+                    title={t("gen.mobileView")}
                     className={`relative flex h-28 w-30 items-center justify-center rounded-8 transition-colors ${
                       previewDevice === 'mobile' ? 'text-[#191622]' : 'text-[#6b6577] hover:text-[#191622]'
                     }`}
@@ -5140,7 +5142,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     }
                   }}
                   className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
-                  title="Reload preview"
+                  title={t("gen.reloadPreview")}
                 >
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -5151,7 +5153,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
-                  title="Open in new tab"
+                  title={t("gen.openNewTab")}
                 >
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -5166,7 +5168,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 onClick={downloadZip}
                 disabled={!sandboxData}
                 className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] disabled:opacity-30 disabled:hover:bg-transparent"
-                title="Download as ZIP"
+                title={t("gen.downloadZip")}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -5176,7 +5178,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 onClick={deployProject}
                 disabled={!sandboxData || loading}
                 className="flex items-center gap-6 rounded-10 bg-[#6147D4] px-14 py-7 text-[13px] font-semibold text-white transition-colors hover:bg-[#5238c0] disabled:opacity-40"
-                title="Publish your app"
+                title={t("gen.publishApp")}
               >
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -5187,7 +5189,7 @@ Focus on the key sections and content, making it clean and modern.`;
               <button
                 onClick={() => setChatFullscreen((v) => !v)}
                 className="flex h-32 w-32 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
-                title="Fullscreen chat"
+                title={t("gen.fullscreenChat")}
               >
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                   <path d="M4 8V5a1 1 0 011-1h3M16 8V5a1 1 0 00-1-1h-3M4 12v3a1 1 0 001 1h3M16 12v3a1 1 0 01-1 1h-3" strokeWidth="1.6" strokeLinecap="round" />
@@ -5826,7 +5828,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       <button
                         onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
                         className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8b8798] hover:text-[#191622]"
-                        aria-label="Remove attachment"
+                        aria-label={t("build.removeAttachment")}
                       >
                         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                           <path d="M5 5l10 10M15 5L5 15" strokeWidth="1.6" strokeLinecap="round" />
@@ -5872,7 +5874,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   />
                   <button
                     onClick={() => setAttachMenuOpen((v) => !v)}
-                    aria-label="Add attachment"
+                    aria-label={t("build.addAttachment")}
                     className="flex h-32 w-32 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622]"
                   >
                     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -5945,7 +5947,7 @@ Focus on the key sections and content, making it clean and modern.`;
                     preparingBuild ||
                     (!aiChatInput.trim() && attachments.length === 0)
                   }
-                  aria-label="Send"
+                  aria-label={t("gen.send")}
                   className="flex h-36 w-36 items-center justify-center rounded-full bg-[#6147D4] text-white transition-all hover:bg-[#5238c0] hover:scale-105 disabled:cursor-not-allowed disabled:bg-[#cabff1] disabled:hover:scale-100"
                 >
                   {generationProgress.isGenerating || preparingBuild ? (
@@ -6007,7 +6009,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   if (iframeRef.current && sandboxData?.url) iframeRef.current.src = `${sandboxData.url}?t=${Date.now()}`;
                 }}
                 disabled={!sandboxData}
-                aria-label="Reload preview"
+                aria-label={t("gen.reloadPreview")}
                 className="flex h-40 w-40 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] transition-colors hover:bg-[#f3f0fa] disabled:opacity-40"
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -6018,7 +6020,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 href={sandboxData?.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Open in new tab"
+                aria-label={t("gen.openNewTab")}
                 className={`flex h-40 w-40 items-center justify-center rounded-full border border-[#cfc7e2] bg-white shadow-[0_2px_8px_rgba(23,20,31,0.08)] text-[#2a2635] outline-none transition-colors hover:bg-[#f3f0fa] focus:outline-none focus-visible:outline-none ${!sandboxData ? 'pointer-events-none opacity-40' : ''}`}
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -6033,7 +6035,7 @@ Focus on the key sections and content, making it clean and modern.`;
                   deployStatus?.stage === 'publishing' ||
                   (deployStatus?.stage === 'published' && !hasUnpublishedChanges)
                 }
-                aria-label="Publish your app"
+                aria-label={t("gen.publishApp")}
                 className="flex h-40 items-center gap-6 rounded-full bg-[#6147D4] px-16 text-[14px] font-semibold text-white shadow-[0_2px_8px_rgba(97,71,212,0.28)] transition-colors hover:bg-[#5238c0] disabled:opacity-40"
               >
                 {deployStatus?.stage === 'publishing' ? (

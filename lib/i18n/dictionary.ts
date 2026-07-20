@@ -103,6 +103,19 @@ const en: Dict = {
   'gen.building': 'Building your app…',
   'gen.deploy': 'Publish',
   'gen.deploying': 'Publishing…',
+  'gen.searchCode': 'Search code',
+  'gen.closeFile': 'Close file',
+  'gen.refreshSandbox': 'Refresh sandbox',
+  'gen.menu': 'Menu',
+  'gen.exitFullscreen': 'Exit fullscreen',
+  'gen.desktopView': 'Desktop view',
+  'gen.mobileView': 'Mobile view',
+  'gen.reloadPreview': 'Reload preview',
+  'gen.openNewTab': 'Open in new tab',
+  'gen.downloadZip': 'Download as ZIP',
+  'gen.publishApp': 'Publish your app',
+  'gen.fullscreenChat': 'Fullscreen chat',
+  'gen.send': 'Send',
 };
 
 // Arabic. Keys not yet translated fall back to English.
@@ -189,6 +202,19 @@ const ar: Dict = {
   'gen.building': 'جارٍ بناء تطبيقك…',
   'gen.deploy': 'نشر',
   'gen.deploying': 'جارٍ النشر…',
+  'gen.searchCode': 'ابحث في الكود',
+  'gen.closeFile': 'إغلاق الملف',
+  'gen.refreshSandbox': 'تحديث البيئة',
+  'gen.menu': 'القائمة',
+  'gen.exitFullscreen': 'الخروج من ملء الشاشة',
+  'gen.desktopView': 'عرض سطح المكتب',
+  'gen.mobileView': 'عرض الجوال',
+  'gen.reloadPreview': 'إعادة تحميل المعاينة',
+  'gen.openNewTab': 'فتح في تبويب جديد',
+  'gen.downloadZip': 'تنزيل كملف ZIP',
+  'gen.publishApp': 'انشر تطبيقك',
+  'gen.fullscreenChat': 'محادثة بملء الشاشة',
+  'gen.send': 'إرسال',
 };
 
 export const DICT: Record<Lang, Dict> = { en, ar };
