@@ -65,6 +65,27 @@ export async function createOrg(name: string): Promise<{ orgId: string }> {
   return { orgId: body.id };
 }
 
+/** Scope loginnames to the org (userLoginMustBeDomain=true) so the SAME email can
+ *  register in different apps' orgs instead of colliding on a global username.
+ *  Best-effort + idempotent: POST fails if a custom policy already exists, so fall
+ *  back to PUT; either way a failure must not break provisioning. */
+export async function setOrgLoginScoped(orgId: string): Promise<void> {
+  const body = JSON.stringify({
+    userLoginMustBeDomain: true,
+    validateOrgDomains: false,
+    smtpSenderAddressMatchesInstanceDomain: false,
+  });
+  try {
+    await zfetch(`/admin/v1/orgs/${orgId}/policies/domain`, { method: 'POST', body });
+  } catch {
+    try {
+      await zfetch(`/admin/v1/orgs/${orgId}/policies/domain`, { method: 'PUT', body });
+    } catch (e) {
+      console.error('[zitadel] setOrgLoginScoped failed (non-fatal):', e);
+    }
+  }
+}
+
 /** Delete an isolated organization (the project's tenant), which also removes its
  *  projects, OIDC apps and users. `orgId` selects the target org via the
  *  x-zitadel-orgid header (`orgs/me` acts on the org in request context). */

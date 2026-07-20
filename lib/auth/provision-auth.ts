@@ -6,6 +6,7 @@ import {
   createProject,
   createOidcApp,
   deleteOrg,
+  setOrgLoginScoped,
   isZitadelConfigured,
   zitadelIssuer,
 } from './zitadel';
@@ -56,9 +57,11 @@ export async function provisionProjectAuth(projectId: string): Promise<Provision
     );
   }
 
-  // Idempotent: reuse an already-provisioned org/app.
+  // Idempotent: reuse an already-provisioned org/app. Re-assert the org-scoping
+  // policy so apps provisioned before this fix get it on their next build.
   const existing = await getProjectAuth(projectId);
   if (existing?.orgId && existing?.clientId) {
+    await setOrgLoginScoped(existing.orgId);
     return {
       orgId: existing.orgId,
       clientId: existing.clientId,
@@ -68,6 +71,8 @@ export async function provisionProjectAuth(projectId: string): Promise<Provision
 
   const label = `etlaq-${projectId.slice(0, 8)}`;
   const { orgId } = await createOrg(label);
+  // Scope loginnames to this org so the same email can be a user of multiple apps.
+  await setOrgLoginScoped(orgId);
   const { projectId: zProjectId } = await createProject(orgId, 'app');
   const { clientId } = await createOidcApp(orgId, zProjectId, {
     name: 'web',

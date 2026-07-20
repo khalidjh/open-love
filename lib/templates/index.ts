@@ -33,6 +33,7 @@ export interface Template {
     supabaseSchema: string;
     authIssuer: string;
     authClientId: string;
+    authOrgId: string;
     // Server-only AI proxy vars (NO public prefix — must never reach the browser;
     // only read inside a server route). Same names on both frameworks.
     aiProxyUrl: string;
@@ -76,6 +77,7 @@ const VITE: Template = {
     supabaseSchema: 'VITE_SUPABASE_SCHEMA',
     authIssuer: 'VITE_AUTH_ISSUER',
     authClientId: 'VITE_AUTH_CLIENT_ID',
+    authOrgId: 'VITE_AUTH_ORG_ID',
     aiProxyUrl: 'ETLAQ_AI_URL',
     aiProxyKey: 'ETLAQ_AI_KEY',
     transcribeUrl: 'ETLAQ_TRANSCRIBE_URL',
@@ -100,6 +102,7 @@ const NEXTJS: Template = {
     supabaseSchema: 'NEXT_PUBLIC_SUPABASE_SCHEMA',
     authIssuer: 'NEXT_PUBLIC_AUTH_ISSUER',
     authClientId: 'NEXT_PUBLIC_AUTH_CLIENT_ID',
+    authOrgId: 'NEXT_PUBLIC_AUTH_ORG_ID',
     aiProxyUrl: 'ETLAQ_AI_URL',
     aiProxyKey: 'ETLAQ_AI_KEY',
     transcribeUrl: 'ETLAQ_TRANSCRIBE_URL',

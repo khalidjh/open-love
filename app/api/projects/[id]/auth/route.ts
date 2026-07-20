@@ -20,6 +20,10 @@ function etlaqAuthClientSource(env: Template['env']) {
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 
 let _mgr = null;
+// The org this app's users belong to. The Zitadel org scope makes sign-up + login
+// happen INSIDE this org (its own isolated user pool), not the shared default org —
+// so different apps have separate users and the same email can register in each.
+const _orgId = ${env.read(env.authOrgId)};
 const inBrowser = () => typeof window !== 'undefined';
 function mgr() {
   if (!_mgr) {
@@ -29,7 +33,7 @@ function mgr() {
       redirect_uri: window.location.origin + '/auth/callback',
       post_logout_redirect_uri: window.location.origin,
       response_type: 'code',
-      scope: 'openid profile email offline_access',
+      scope: 'openid profile email offline_access' + (_orgId ? ' urn:zitadel:iam:org:id:' + _orgId : ''),
       userStore: new WebStorageStateStore({ store: window.localStorage }),
       automaticSilentRenew: true,
     });

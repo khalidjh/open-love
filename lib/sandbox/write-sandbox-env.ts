@@ -35,6 +35,7 @@ export async function writeSandboxEnv(projectId: string, framework: Framework): 
   const authRec = await getProjectAuth(projectId);
   if (authRec?.issuer) lines.push(`${t.authIssuer}=${authRec.issuer}`);
   if (authRec?.clientId) lines.push(`${t.authClientId}=${authRec.clientId}`);
+  if (authRec?.orgId) lines.push(`${t.authOrgId}=${authRec.orgId}`);
 
   // AI — server-only proxy URL + per-project token (decrypted from storage).
   const aiRec = await getProjectAi(projectId);
