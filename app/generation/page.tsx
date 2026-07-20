@@ -122,6 +122,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 // The Analytics section inside the "More" panel. Shows a publish-first empty state
 // until the project is deployed, then simple visitor counts for the live app.
 function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null; loading: boolean }) {
+  const { t } = useI18n();
   if (loading && !analytics) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -135,7 +136,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
         <svg width="30" height="30" viewBox="0 0 20 20" fill="none" stroke="#b7b2c4" aria-hidden className="mb-14">
           <path d="M3 3v14h14M7 13l3-4 3 3 4-6" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <p className="text-[15px] text-[#6b6577]">To view analytics, you first need to publish your project.</p>
+        <p className="text-[15px] text-[#6b6577]">{t("an.publishFirst")}</p>
       </div>
     );
   }
@@ -144,7 +145,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
   return (
     <div className="p-24">
       <div className="mb-20">
-        <h2 className="text-[18px] font-semibold text-[#191622]">Visitors</h2>
+        <h2 className="text-[18px] font-semibold text-[#191622]">{t("an.visitors")}</h2>
         {url && (
           <a href={url} target="_blank" rel="noreferrer" className="text-[13px] text-[#6147D4] hover:underline">
             {url.replace(/^https?:\/\//, '')}
@@ -153,21 +154,21 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
       </div>
 
       <div className="mb-24 grid grid-cols-2 gap-12">
-        <StatCard label="Total views" value={totals.views} />
-        <StatCard label="Unique visitors" value={totals.visitors} />
+        <StatCard label={t("an.totalViews")} value={totals.views} />
+        <StatCard label={t("an.uniqueVisitors")} value={totals.visitors} />
       </div>
 
       <div className="mb-24 rounded-14 border border-[#d8d2e6] p-16">
-        <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Last 14 days</p>
+        <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">{t("an.last14")}</p>
         {daily.length === 0 ? (
-          <p className="text-[13px] text-[#8b8798]">No visits yet — share your live link to start seeing traffic.</p>
+          <p className="text-[13px] text-[#8b8798]">{t("an.noVisits")}</p>
         ) : (
           <div className="flex h-[120px] items-end gap-4">
             {daily.map((d) => (
               <div
                 key={d.day}
                 className="group flex flex-1 flex-col items-center justify-end"
-                title={`${d.day}: ${d.views} views`}
+                title={`${d.day}: ${d.views} ${t("an.views")}`}
               >
                 <div
                   className="w-full rounded-t-4 bg-[#c9bdf3] transition-colors group-hover:bg-[#6147D4]"
@@ -181,7 +182,7 @@ function AnalyticsPanel({ analytics, loading }: { analytics: AppAnalytics | null
 
       {topPaths.length > 0 && (
         <div className="rounded-14 border border-[#d8d2e6] p-16">
-          <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">Top pages</p>
+          <p className="mb-12 text-[12px] font-semibold uppercase tracking-wide text-[#6b6577]">{t("an.topPages")}</p>
           <div className="flex flex-col gap-8">
             {topPaths.map((p) => (
               <div key={p.path} className="flex items-center justify-between text-[13px]">
@@ -213,11 +214,12 @@ Keep it simple and production-ready. Don't add a backend unless it's strictly re
 // card from the reference design: a single CTA that drops a ready-made Paddle
 // integration prompt into the builder chat so the AI wires payments into the app.
 function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="p-24">
       <div className="mb-20">
-        <h2 className="text-[18px] font-semibold text-[#191622]">Payments</h2>
-        <p className="mt-4 text-[13px] text-[#6b6577]">Let your app accept payments and start earning.</p>
+        <h2 className="text-[18px] font-semibold text-[#191622]">{t("pay.title")}</h2>
+        <p className="mt-4 text-[13px] text-[#6b6577]">{t("pay.subtitle")}</p>
       </div>
 
       <div className="rounded-16 border border-[#d8d2e6] bg-[#faf9fd] p-20">
@@ -228,12 +230,9 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
               <path d="M3 8.5h14" strokeWidth="1.5" />
             </svg>
           </div>
-          <h3 className="text-[16px] font-semibold text-[#191622]">Accept payments</h3>
+          <h3 className="text-[16px] font-semibold text-[#191622]">{t("pay.accept")}</h3>
         </div>
-        <p className="mb-18 text-[14px] leading-relaxed text-[#6b6577]">
-          Add payments to your app and start earning. Etlaq sets up a secure Paddle checkout,
-          handles the payment gateway, and takes care of the billing details for you.
-        </p>
+        <p className="mb-18 text-[14px] leading-relaxed text-[#6b6577]">{t("pay.acceptDesc")}</p>
 
         <div className="mb-18 flex gap-12 rounded-12 border border-[#d8d2e6] bg-white p-14">
           <div className="mt-1 flex h-32 w-32 shrink-0 items-center justify-center rounded-8 bg-[#f0ecfb]">
@@ -243,11 +242,8 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
             </svg>
           </div>
           <div>
-            <p className="text-[14px] font-semibold text-[#191622]">Paddle checkout</p>
-            <p className="mt-2 text-[13px] leading-relaxed text-[#6b6577]">
-              Seamlessly set up and manage payments in your app. We'll add a secure Paddle overlay
-              checkout so your customers can pay without ever leaving your app.
-            </p>
+            <p className="text-[14px] font-semibold text-[#191622]">{t("pay.paddleCheckout")}</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#6b6577]">{t("pay.paddleDesc")}</p>
           </div>
         </div>
 
@@ -255,7 +251,7 @@ function PaymentsPanel({ onAdd }: { onAdd: () => void }) {
           onClick={onAdd}
           className="w-full rounded-10 bg-[#6147D4] px-16 py-12 text-[14px] font-semibold text-white transition-colors hover:bg-[#5238c4]"
         >
-          Add payment integration
+          {t("pay.addIntegration")}
         </button>
       </div>
     </div>
@@ -3371,11 +3367,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   >
                     {opt.icon}
                   </svg>
-                  <span className="flex-1">{opt.label}</span>
+                  <span className="flex-1">{t("more." + opt.id)}</span>
                   {!opt.available && (
-                    <span className="rounded-4 bg-[#eee9f5] px-6 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#6b6577]">
-                      Soon
-                    </span>
+                    <span className="rounded-4 bg-[#eee9f5] px-6 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#6b6577]">{t("more.soon")}</span>
                   )}
                 </button>
               );
@@ -5914,7 +5908,7 @@ Focus on the key sections and content, making it clean and modern.`;
                       disabled={generationProgress.isGenerating || preparingBuild}
                       aria-label={micListening ? 'Stop dictation' : 'Dictate with microphone'}
                       aria-pressed={micListening}
-                      title={micListening ? 'Stop dictation' : 'Dictate'}
+                      title={micListening ? t('build.stopDictation') : t('build.dictate')}
                       className={`relative flex h-36 w-36 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                         micListening
                           ? 'bg-[#6147D4] text-white'
@@ -5993,7 +5987,7 @@ Focus on the key sections and content, making it clean and modern.`;
             <div className="flex items-center gap-8">
               <button
                 onClick={() => setActiveTab((t) => (t === 'preview' ? 'generation' : 'preview'))}
-                aria-label={activeTab === 'preview' ? 'View code' : 'View preview'}
+                aria-label={activeTab === 'preview' ? t('gen.viewCode') : t('gen.viewPreview')}
                 className={`flex h-40 w-40 items-center justify-center rounded-full border shadow-[0_2px_8px_rgba(23,20,31,0.08)] transition-colors ${
                   activeTab === 'generation'
                     ? 'border-[#c3b8ee] bg-[#f0ecfb] text-[#6147D4]'
@@ -6046,8 +6040,8 @@ Focus on the key sections and content, making it clean and modern.`;
                   </svg>
                 )}
                 {deployStatus?.stage === 'published'
-                  ? (hasUnpublishedChanges ? 'Redeploy' : 'Published')
-                  : 'Publish'}
+                  ? (hasUnpublishedChanges ? t('gen.redeploy') : t('gen.published'))
+                  : t('gen.deploy')}
               </button>
             </div>
           </div>
