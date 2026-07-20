@@ -1,12 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
-import { cookies } from "next/headers";
 import "./globals.css";
 import AppToaster from "@/components/ui/AppToaster";
-import { LanguageProvider, LANG_COOKIE } from "@/lib/i18n/LanguageProvider";
-import { dir as dirOf, type Lang } from "@/lib/i18n/dictionary";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+
+// Runs before first paint (no SSR cookie dependency): set <html lang/dir> from the
+// saved language so RTL/Arabic never flashes as LTR. The provider keeps it in sync
+// after hydration.
+const SET_DIR_SCRIPT = `try{var m=document.cookie.match(/etlaq_lang=(ar|en)/);var l=(m&&m[1])||localStorage.getItem('etlaq_lang')||'en';var e=document.documentElement;e.lang=l;e.dir=l==='ar'?'rtl':'ltr';}catch(_){}`;
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -114,23 +117,18 @@ export const viewport: Viewport = {
   themeColor: "#fbfafd",
 };
 
-// Read the language cookie per request (so RTL/Arabic is correct on first paint).
-export const dynamic = "force-dynamic";
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Resolve the language server-side from the cookie so <html lang/dir> is correct
-  // on first paint (no flash of the wrong direction).
-  const cookieLang = (await cookies()).get(LANG_COOKIE)?.value;
-  const lang: Lang = cookieLang === "ar" ? "ar" : "en";
-
   return (
-    <html lang={lang} dir={dirOf(lang)}>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SET_DIR_SCRIPT }} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} font-sans`}>
-        <LanguageProvider initialLang={lang}>
+        <LanguageProvider>
           {children}
           <LanguageSwitcher className="fixed bottom-16 ltr:left-16 rtl:right-16 z-[60] shadow-sm" />
           <AppToaster />
