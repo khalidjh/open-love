@@ -130,7 +130,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} font-sans`}>
         <LanguageProvider>
           {children}
-          <LanguageSwitcher className="fixed bottom-16 ltr:left-16 rtl:right-16 z-[60] shadow-sm" />
+          <LanguageSwitcher className="fixed bottom-16 ltr:right-16 rtl:left-16 z-[60] shadow-sm" />
           <AppToaster />
         </LanguageProvider>
       </body>
