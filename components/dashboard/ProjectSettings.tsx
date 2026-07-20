@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -21,6 +22,7 @@ function typeLabel(p: ProjectInfo): string {
 }
 
 export default function ProjectSettings({ project }: { project: ProjectInfo }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [deployUrl, setDeployUrl] = useState(project.deployUrl);
   const [confirm, setConfirm] = useState<null | "unpublish" | "delete">(null);
@@ -123,7 +125,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
                 <button
                   type="button"
                   onClick={copyUrl}
-                  title="Copy link"
+                  title={t("ps.copyLink")}
                   className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -135,7 +137,7 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
                   href={deployUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Visit site"
+                  title={t("ps.visitSite")}
                   className="grid h-28 w-28 shrink-0 place-items-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#6147D4]"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -156,27 +158,20 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
               </div>
             </div>
           ) : (
-            <p className="mt-12 text-[14px] leading-relaxed text-[#6b6577]">
-              This app isn&rsquo;t online yet. Open the editor and press{" "}
-              <span className="font-medium text-[#191622]">Publish</span> to give it a live link
-              anyone can visit.
-            </p>
+            <p className="mt-12 text-[14px] leading-relaxed text-[#6b6577]">{t("ps.notOnline")}</p>
           )}
         </section>
 
         {/* Danger zone */}
         <section className="mt-24 rounded-16 border border-[#f3d9d4] bg-white p-24">
-          <h2 className="text-[15px] font-semibold text-[#191622]">Delete this project</h2>
-          <p className="mt-6 text-[14px] leading-relaxed text-[#6b6577]">
-            This permanently removes the project, its live site, and its history. This can&rsquo;t be
-            undone.
-          </p>
+          <h2 className="text-[15px] font-semibold text-[#191622]">{t("ps.deleteProject")}</h2>
+          <p className="mt-6 text-[14px] leading-relaxed text-[#6b6577]">{t("ps.deleteWarn")}</p>
           <button
             type="button"
             onClick={() => setConfirm("delete")}
             className="mt-16 rounded-full border border-[#e7bcb4] bg-white px-16 py-8 text-[13px] font-medium text-[#c0392b] transition-colors hover:bg-[#fdf0ee]"
           >
-            Delete project
+            {t("ps.deleteProjectBtn")}
           </button>
         </section>
       </div>
@@ -184,9 +179,9 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
       {/* Confirm dialogs */}
       {confirm === "unpublish" && (
         <ConfirmDialog
-          title="Take this app offline?"
-          body="Your live link will stop working. You can publish it again anytime from the editor."
-          confirmLabel="Take offline"
+          title={t("ps.takeOfflineQ")}
+          body={t("ps.takeOfflineDesc")}
+          confirmLabel={t("ps.takeOffline")}
           busy={busy}
           onCancel={() => setConfirm(null)}
           onConfirm={unpublish}
@@ -194,9 +189,9 @@ export default function ProjectSettings({ project }: { project: ProjectInfo }) {
       )}
       {confirm === "delete" && (
         <ConfirmDialog
-          title={`Delete "${project.name}"?`}
-          body="This permanently deletes the project, takes its live site offline, and removes its history. This can't be undone."
-          confirmLabel="Delete project"
+          title={t("ps.deleteTitle", { name: project.name })}
+          body={t("ps.deleteBody")}
+          confirmLabel={t("ps.deleteProjectBtn")}
           danger
           busy={busy}
           onCancel={() => setConfirm(null)}
@@ -224,6 +219,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-20"
@@ -254,7 +250,7 @@ function ConfirmDialog({
               danger ? "bg-[#c0392b] hover:bg-[#a93226]" : "bg-[#6147D4] hover:bg-[#5238c0]"
             }`}
           >
-            {busy ? "Working…" : confirmLabel}
+            {busy ? t("ps.working") : confirmLabel}
           </button>
         </div>
       </div>

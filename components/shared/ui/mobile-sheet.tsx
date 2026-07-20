@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useAtom } from "jotai";
@@ -45,6 +46,7 @@ function useAutoCloseOnDesktop(isOpen: boolean, onClose: () => void) {
 }
 
 export function MobileSheet({
+
   isOpen,
   onClose,
   title,
@@ -57,6 +59,7 @@ export function MobileSheet({
   contentPadding = true,
   closeOnOverlayClick = true,
 }: MobileSheetProps) {
+  const { t } = useI18n();
   const [, setIsMobileSheetOpen] = useAtom(isMobileSheetOpenAtom);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
@@ -195,7 +198,7 @@ export function MobileSheet({
                         "bg-black-alpha-4 hover:bg-black-alpha-6 active:scale-[0.98]",
                         "text-black-alpha-64 hover:text-accent-black",
                       )}
-                      aria-label="Close"
+                      aria-label={t("common.close")}
                     >
                       <X className="w-16 h-16" />
                     </button>

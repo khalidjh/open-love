@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 export type DeployStage = 'publishing' | 'published' | 'error';
 
@@ -13,11 +14,12 @@ export interface DeployState {
 }
 
 function StatusTag({ stage }: { stage: DeployStage }) {
+  const { t } = useI18n();
   if (stage === 'publishing') {
     return (
       <span className="inline-flex items-center gap-6 rounded-full bg-[#fbf3e3] px-10 py-4 text-[12px] font-semibold text-[#a9730a]">
         <span className="h-8 w-8 animate-spin rounded-full border-[1.5px] border-[#e8c98a] border-t-[#a9730a]" />
-        Publishing
+        {t("deploy.publishing")}
       </span>
     );
   }
@@ -27,7 +29,7 @@ function StatusTag({ stage }: { stage: DeployStage }) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
           <path d="M5 13l4 4L19 7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        Published
+        {t("deploy.published")}
       </span>
     );
   }
@@ -36,12 +38,13 @@ function StatusTag({ stage }: { stage: DeployStage }) {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
         <path d="M6 6l12 12M18 6L6 18" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
-      Failed
+      {t("deploy.failed")}
     </span>
   );
 }
 
 export default function DeployStatus({ state }: { state: DeployState }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const copyUrl = async () => {
@@ -60,7 +63,7 @@ export default function DeployStatus({ state }: { state: DeployState }) {
       <div className="flex items-center gap-8">
         <StatusTag stage={state.stage} />
         {state.stage === 'publishing' && (
-          <span className="text-[13px] text-[#6b6577]">This can take a minute…</span>
+          <span className="text-[13px] text-[#6b6577]">{t("deploy.takeMinute")}</span>
         )}
       </div>
 
@@ -106,8 +109,8 @@ export default function DeployStatus({ state }: { state: DeployState }) {
               href={state.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Open in new tab"
-              title="Open in new tab"
+              aria-label={t("gen.openNewTab")}
+              title={t("gen.openNewTab")}
               className="flex h-28 w-28 shrink-0 items-center justify-center rounded-8 text-[#6b6577] transition-colors hover:bg-[#f0ecfb] hover:text-[#6147D4]"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>

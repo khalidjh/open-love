@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import HeroInputSubmitButton from "@/components/app/(home)/sections/hero-input/Button/Button";
 
 interface SidebarQuickInputProps {
@@ -9,6 +10,7 @@ interface SidebarQuickInputProps {
 }
 
 export default function SidebarQuickInput({ onSubmit, disabled = false }: SidebarQuickInputProps) {
+  const { t } = useI18n();
   const [url, setUrl] = useState<string>("");
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -25,7 +27,7 @@ export default function SidebarQuickInput({ onSubmit, disabled = false }: Sideba
         <div className="p-3 flex items-center gap-3">
           <input
             className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
-            placeholder="Enter a new URL to regenerate..."
+            placeholder={t("sb.urlPlaceholder")}
             type="text"
             value={url}
             disabled={disabled}

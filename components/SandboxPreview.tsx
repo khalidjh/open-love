@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { Loader2, ExternalLink, RefreshCw, Terminal } from 'lucide-react';
 
 interface SandboxPreviewProps {
@@ -8,12 +9,14 @@ interface SandboxPreviewProps {
   sandboxUrl?: string; // Real URL from Vercel Sandbox API
 }
 
-export default function SandboxPreview({ 
+export default function SandboxPreview({
+ 
   type, 
   output,
   isLoading = false,
   sandboxUrl
 }: SandboxPreviewProps) {
+  const { t } = useI18n();
   const [showConsole, setShowConsole] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
@@ -47,21 +50,21 @@ export default function SandboxPreview({
               {previewUrl}
             </code>
           ) : (
-            <span className="text-xs text-gray-500">Waiting for sandbox URL...</span>
+            <span className="text-xs text-gray-500">{t("sp.waiting")}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowConsole(!showConsole)}
             className="p-2 hover:bg-gray-700 rounded transition-colors"
-            title="Toggle console"
+            title={t("sp.toggleConsole")}
           >
             <Terminal className="w-4 h-4" />
           </button>
           <button
             onClick={handleRefresh}
             className="p-2 hover:bg-gray-700 rounded transition-colors"
-            title="Refresh preview"
+            title={t("gen.reloadPreview")}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -71,7 +74,7 @@ export default function SandboxPreview({
               target="_blank"
               rel="noopener noreferrer"
               className="p-2 hover:bg-gray-700 rounded transition-colors"
-              title="Open in new tab"
+              title={t("gen.openNewTab")}
             >
               <ExternalLink className="w-4 h-4" />
             </a>
@@ -112,7 +115,7 @@ export default function SandboxPreview({
       {showConsole && output && (
         <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-400">Console Output</span>
+            <span className="text-sm font-semibold text-gray-400">{t("sp.consoleOutput")}</span>
           </div>
           <div className="font-mono text-xs whitespace-pre-wrap text-gray-300 max-h-48 overflow-y-auto">
             {output}
