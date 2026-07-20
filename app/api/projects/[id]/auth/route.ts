@@ -53,7 +53,11 @@ if (inBrowser()) {
 }
 
 export const etlaqAuth = {
-  signIn: () => (inBrowser() ? mgr().signinRedirect() : Promise.resolve()),
+  // prompt:'login' forces the login screen even when Zitadel still has an active
+  // SSO session — so after signing out (which only clears local tokens) the user
+  // is asked to log in and CAN switch to a different account, instead of being
+  // silently re-authenticated as the same user.
+  signIn: () => (inBrowser() ? mgr().signinRedirect({ prompt: 'login' }) : Promise.resolve()),
   signUp: () => (inBrowser() ? mgr().signinRedirect({ prompt: 'create' }) : Promise.resolve()),
   // Kept for backward compatibility; login is now completed automatically on load.
   handleCallback: () => (inBrowser() ? _ready.then(() => mgr().getUser()) : Promise.resolve(null)),
