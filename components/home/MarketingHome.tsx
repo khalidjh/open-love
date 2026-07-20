@@ -4,11 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import AuthModal from "@/components/auth/AuthModal";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import BuildPrompt from "@/components/home/BuildPrompt";
 
 const PRODUCT_NAME = "Etlaq";
 
 export default function MarketingHome() {
+  const { t } = useI18n();
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -93,7 +95,7 @@ export default function MarketingHome() {
               }}
               className="hidden md:inline-flex rounded-12 border border-[#d0c9e2] px-20 py-10 text-[15px] font-medium text-[#2a2635] transition-all hover:bg-[#f3f0fa] active:scale-[0.98]"
             >
-              Log in
+              {t("auth.logIn")}
             </button>
             <button
               type="button"
@@ -103,13 +105,13 @@ export default function MarketingHome() {
               }}
               className="rounded-12 bg-[#6147D4] px-16 md:px-20 py-9 md:py-10 text-[14px] md:text-[15px] font-semibold text-white transition-all hover:bg-[#5238c0] active:scale-[0.98]"
             >
-              Get started
+              {t("common.getStarted")}
             </button>
             {/* Hamburger — mobile only */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              aria-label="Menu"
+              aria-label={t("home.menu")}
               aria-expanded={mobileMenuOpen}
               className="md:hidden flex h-40 w-40 items-center justify-center rounded-12 border border-[#d0c9e2] text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
             >
@@ -134,9 +136,9 @@ export default function MarketingHome() {
                 setAuthMode("signin");
                 setAuthOpen(true);
               }}
-              className="flex w-full items-center rounded-10 px-12 py-12 text-left text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
+              className="flex w-full items-center rounded-10 px-12 py-12 text-start text-[15px] font-medium text-[#2a2635] transition-colors hover:bg-[#f3f0fa]"
             >
-              Log in
+              {t("auth.logIn")}
             </button>
             <button
               type="button"
@@ -145,9 +147,9 @@ export default function MarketingHome() {
                 setAuthMode("signup");
                 setAuthOpen(true);
               }}
-              className="mt-4 flex w-full items-center rounded-10 px-12 py-12 text-left text-[15px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa]"
+              className="mt-4 flex w-full items-center rounded-10 px-12 py-12 text-start text-[15px] font-semibold text-[#6147D4] transition-colors hover:bg-[#f3f0fa]"
             >
-              Get started
+              {t("common.getStarted")}
             </button>
           </div>
         )}
@@ -158,15 +160,14 @@ export default function MarketingHome() {
         <h1
           className="anim-fade-up font-bold tracking-[-0.025em] text-[#17141f]"
           style={{
-            fontFamily: "var(--font-geist-sans)",
             fontSize: "clamp(2.5rem, 5.2vw, 3.75rem)",
             lineHeight: 1.05,
           }}
         >
-          Build something with {PRODUCT_NAME}
+          {t("home.heroTitle", { name: PRODUCT_NAME })}
         </h1>
         <p className="anim-fade-up anim-delay-2 mt-16 text-[18px] text-[#6b6577]">
-          Create apps and websites by chatting with AI
+          {t("home.heroSubtitle")}
         </p>
 
         <div className="relative z-30 anim-fade-up anim-delay-4 mt-40 w-full max-w-[800px]">

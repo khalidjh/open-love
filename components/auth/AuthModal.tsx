@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import AuthForm from './AuthForm';
 
 interface AuthModalProps {
@@ -10,6 +11,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ open, initialMode = 'signin', onClose }: AuthModalProps) {
+  const { t } = useI18n();
   // Close on Escape and lock body scroll while open.
   useEffect(() => {
     if (!open) return;
@@ -44,7 +46,7 @@ export default function AuthModal({ open, initialMode = 'signin', onClose }: Aut
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="absolute right-16 top-16 flex h-36 w-36 items-center justify-center rounded-full text-[#6b6577] transition-colors hover:bg-[#f3f0fa] hover:text-[#191622] md:right-20 md:top-20 md:h-32 md:w-32"
         >
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>

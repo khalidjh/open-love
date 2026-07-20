@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useI18n } from '@/lib/i18n/LanguageProvider';
 
 const PRODUCT_NAME = 'Etlaq';
 
@@ -15,6 +16,7 @@ interface AuthFormProps {
 
 export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthFormProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const supabase = createClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +38,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
         });
         if (error) throw error;
-        setMessage('Check your email to confirm your account, then sign in.');
+        setMessage(t('auth.checkEmail'));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -45,7 +47,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
         router.refresh();
       }
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      setError(err.message || t('auth.genericError'));
     } finally {
       setLoading(false);
     }
@@ -63,17 +65,17 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           className="h-[40px] w-auto md:h-[32px]"
           priority
         />
-        <p className="mt-24 text-[16px] text-[#6b6577] md:mt-20">Start building.</p>
+        <p className="mt-24 text-[16px] text-[#6b6577] md:mt-20">{t('auth.startBuilding')}</p>
         <h1 className="mt-4 text-[30px] font-semibold tracking-tight text-[#191622] md:text-[24px]">
-          {mode === 'signin' ? 'Log in to your account' : 'Create your account'}
+          {mode === 'signin' ? t('auth.loginTitle') : t('auth.signupTitle')}
         </h1>
       </div>
 
-      <form onSubmit={submit} className="mt-24 space-y-12 text-left">
+      <form onSubmit={submit} className="mt-24 space-y-12 text-start">
         <input
           type="email"
           required
-          placeholder="Email"
+          placeholder={t("auth.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-12 border border-[#d4cde4] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
@@ -82,7 +84,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           type="password"
           required
           minLength={6}
-          placeholder="Password"
+          placeholder={t("auth.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-12 border border-[#d4cde4] bg-white px-16 py-12 text-[15px] text-[#191622] placeholder:text-[#8b8798] transition-colors focus:border-[#6147D4] focus:outline-none focus:ring-2 focus:ring-[#6147D4]/15"
@@ -99,12 +101,12 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           {loading && (
             <span className="h-16 w-16 shrink-0 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
           )}
-          {loading ? 'Please wait…' : mode === 'signin' ? 'Continue' : 'Create account'}
+          {loading ? t('auth.pleaseWait') : mode === 'signin' ? t('auth.continue') : t('auth.createAccount')}
         </button>
       </form>
 
       <p className="mt-20 text-[14px] text-[#6b6577]">
-        {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+        {mode === 'signin' ? t('auth.noAccount') : t('auth.haveAccount')}
         <button
           type="button"
           onClick={() => {
@@ -114,7 +116,7 @@ export default function AuthForm({ initialMode = 'signin', onSuccess }: AuthForm
           }}
           className="font-medium text-[#6147D4] hover:underline"
         >
-          {mode === 'signin' ? 'Sign up' : 'Log in'}
+          {mode === 'signin' ? t('auth.signUp') : t('auth.logIn')}
         </button>
       </p>
     </div>

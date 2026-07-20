@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import AuthForm from '@/components/auth/AuthForm';
+import { useI18n } from '@/lib/i18n/LanguageProvider';
 
 export default function LoginPage() {
+  const { t } = useI18n();
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#faf9fc] text-[#191622]">
       {/* Soft brand-tinted wash, consistent with the home page */}
@@ -20,9 +22,9 @@ export default function LoginPage() {
       {/* Back to home */}
       <Link
         href="/"
-        className="absolute left-24 top-24 z-20 flex items-center gap-6 text-[14px] font-medium text-[#6b6577] transition-colors hover:text-[#191622]"
+        className="absolute top-24 z-20 flex items-center gap-6 text-[14px] font-medium text-[#6b6577] transition-colors hover:text-[#191622] ltr:left-24 rtl:right-24"
       >
-        <span aria-hidden>←</span> Back
+        <span aria-hidden className="rtl:-scale-x-100">←</span> {t('login.back')}
       </Link>
 
       {/* Centered card */}
