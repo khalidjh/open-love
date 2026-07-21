@@ -81,19 +81,69 @@ function parseEsbuildBlocks(stdout: string): BuildError[] {
 const NEXT_SIGNATURES = [
   'Failed to compile',
   'Module not found',
+  'Syntax error', // Next/CSS: "Syntax error: ... The `border-border` class does not exist"
   'SyntaxError',
   'Unexpected token',
   'Unexpected eof',
   'Expression expected',
   "Can't resolve",
+  'does not exist', // unknown @apply Tailwind class in globals.css
+  'ReferenceError',
+  'is not defined',
 ];
 
+// Pull the human-readable error out of a Next dev 500 page — it's embedded in
+// __NEXT_DATA__ as err.message — or, failing that, a window around the first
+// error signature in the HTML.
+function extractNextError(html: string): string {
+  const m = html.match(/"message":"((?:[^"\\]|\\.)*)"/);
+  if (m && NEXT_SIGNATURES.some((s) => m[1].includes(s))) {
+    return m[1]
+      .replace(/\\u001b\[[0-9;]*m/g, '') // strip ANSI colour codes
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+      .trim()
+      .slice(0, 1000);
+  }
+  const idx = html.search(/Failed to compile|Syntax error|Module not found/i);
+  return idx >= 0
+    ? html.slice(idx, idx + 600).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : '';
+}
+
 async function detectNextErrors(provider: SandboxProvider): Promise<BuildError[]> {
-  const res = await provider.runShell(`tail -c 8000 /tmp/next.log 2>/dev/null || true`);
-  const log = res.stdout || '';
-  if (!NEXT_SIGNATURES.some((s) => log.includes(s))) return [];
-  // Return a window around the first error marker as the message for the fixer.
-  const idx = Math.max(0, log.search(/Failed to compile|Module not found|SyntaxError|Error:/i));
-  const message = log.slice(Math.max(0, idx - 200), idx + 1400).trim();
+  // Next compiles a route lazily on first request, so reading the dev log alone
+  // misses errors that only appear once the page is hit. REQUEST the app to force
+  // compilation, then inspect both the response (a dev 500 embeds the error) and
+  // the dev log. Best-effort throughout.
+  let fromBody = '';
+  const url = provider.getSandboxUrl();
+  if (url) {
+    try {
+      const controller = new AbortController();
+      const to = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' }, signal: controller.signal });
+      clearTimeout(to);
+      const html = await res.text();
+      if (res.status >= 500 || NEXT_SIGNATURES.some((s) => html.includes(s))) {
+        fromBody = extractNextError(html);
+      }
+    } catch {
+      /* sandbox unreachable — fall back to the log */
+    }
+  }
+  let fromLog = '';
+  try {
+    const res = await provider.runShell('tail -c 8000 /tmp/next.log 2>/dev/null || true');
+    const log = res.stdout || '';
+    if (NEXT_SIGNATURES.some((s) => log.includes(s))) {
+      const idx = Math.max(0, log.search(/Failed to compile|Syntax error|Module not found|SyntaxError|Error:/i));
+      fromLog = log.slice(Math.max(0, idx - 100), idx + 1400).trim();
+    }
+  } catch {
+    /* runShell unavailable */
+  }
+  const message = fromBody || fromLog;
   return message ? [{ message }] : [];
 }
