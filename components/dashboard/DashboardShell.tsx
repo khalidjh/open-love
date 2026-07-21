@@ -80,8 +80,8 @@ export default function DashboardShell({ email, name, projects }: DashboardShell
 
       {/* Sidebar — off-canvas drawer on mobile, in-flow on desktop */}
       <aside
-        className={`fixed inset-y-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-[#d8d2e6] bg-white transition-transform duration-200 ltr:left-0 ltr:border-r rtl:right-0 rtl:border-l md:sticky md:top-0 md:z-auto md:translate-x-0 md:transition-[width] ${
-          mobileNavOpen ? "max-md:translate-x-0" : "max-md:ltr:-translate-x-full max-md:rtl:translate-x-full"
+        className={`fixed inset-y-0 z-50 flex h-screen w-[264px] shrink-0 flex-col border-[#d8d2e6] bg-white transition-transform duration-200 ltr:left-0 ltr:border-r rtl:right-0 rtl:border-l md:sticky md:top-0 md:z-auto md:!translate-x-0 md:transition-[width] ${
+          mobileNavOpen ? "translate-x-0" : "ltr:-translate-x-full rtl:translate-x-full"
         } ${collapsed ? "md:w-[68px]" : "md:w-[264px]"}`}
       >
         {/* Brand + collapse */}
